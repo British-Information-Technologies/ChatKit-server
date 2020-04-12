@@ -34,6 +34,7 @@ fn handle_connection(mut stream: TcpStream, clients_ref: Arc<Mutex<HashMap<Strin
     println!("Request: {}", incoming_message);
 
     let connection_status  = b"STATUS:online";
+    let request_client = b"CLIENT:request";
     let mut uuid = String::new();
     let mut username = String::new();
 
@@ -55,8 +56,19 @@ fn handle_connection(mut stream: TcpStream, clients_ref: Arc<Mutex<HashMap<Strin
         }
         let mut clients_hashmap = clients_ref.lock().unwrap();
         clients_hashmap.insert(uuid,username);
+    }else if buffer.starts_with(request_client){
+
     }
 
     //stream.write(response.as_bytes()).unwrap();
     //stream.flush().unwrap();
 }
+
+fn handle_client_request(){
+    identify_requested_username();
+    get_requested_username();
+}
+
+fn identify_requested_username(){}
+
+fn get_requested_users(){}
