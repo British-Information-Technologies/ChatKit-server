@@ -34,9 +34,11 @@ fn handle_connection(mut stream: TcpStream, clients_ref: Arc<Mutex<HashMap<Strin
     println!("Request: {}", incoming_message);
 
     let connection_status  = b"STATUS:online";
-    let request_client = b"CLIENT:request";
+    let clients_request = b"CLIENT:request_clients";
+    let ip_request = b"CLIENT:request_ip";
     let mut uuid = String::new();
     let mut username = String::new();
+    let ip = format!("{}", stream.local_addr().unwrap());
 
     if buffer.starts_with(connection_status){
         for data in incoming_message.split_whitespace(){
@@ -56,19 +58,63 @@ fn handle_connection(mut stream: TcpStream, clients_ref: Arc<Mutex<HashMap<Strin
         }
         let mut clients_hashmap = clients_ref.lock().unwrap();
         clients_hashmap.insert(uuid,username);
-    }else if buffer.starts_with(request_client){
-
+    }else if buffer.starts_with(clients_request){
+        handle_clients_request(stream, &incoming_message, clients_ref);
+    }else if buffer.starts_with(ip_request){
+        handle_ip_request(stream, &incoming_message, clients_ref);
     }
 
     //stream.write(response.as_bytes()).unwrap();
     //stream.flush().unwrap();
 }
 
-fn handle_client_request(){
-    identify_requested_username();
-    get_requested_username();
+fn handle_clients_request(stream: TcpStream, incoming_message: &str, clients_ref: Arc<Mutex<HashMap<String,String>>>){
+    let username = identify_requested_username(incoming_message);
+    let clients = get_requested_users(&username, clients_ref);
+    transmit_data(stream, clients);
 }
 
-fn identify_requested_username(){}
+fn identify_requested_username(incoming_message: &str) -> String{
+    let mut username = String::new();
+    for data in incoming_message.split_whitespace(){
+        if data.contains("UNAME"){
+            username = data.to_string();
+            break;
+        }
+    }
+    username
+}
 
-fn get_requested_users(){}
+fn get_requested_users(username: &str, clients_ref: Arc<Mutex<HashMap<String,String>>>) -> HashMap<String,String>{
+    let clients_hashmap = clients_ref.lock().unwrap();
+    let mut new_clients_hashmap = HashMap::new();
+
+    for (k, v) in clients_hashmap.iter(){
+        if v.eq(username){
+            new_clients_hashmap.insert(k.to_string(),v.to_string());
+        }
+    }
+    new_clients_hashmap
+}
+
+fn transmit_data(mut stream: TcpStream, users: HashMap<String,String>){
+    let mut response = String::new();
+    
+    for (uuid, username) in users.iter(){
+        response.push_str(&format!("uuid:{}username:{}\n",uuid,username));
+    }
+
+    stream.write(response.as_bytes()).unwrap();
+    stream.flush().unwrap();
+}
+
+fn handle_ip_request(stream: TcpStream, incoming_message: &str, clients_ref: Arc<Mutex<HashMap<String,String>>>){
+    let client_ip = identify_requested_ip(incoming_message);
+    let client = get_requested_user(&client_ip, clients_ref);
+    transmit_data(stream, client);
+}
+
+fn identify_requested_ip(incoming_message: &str) -> String{
+}
+
+fn get_requested_user(client_ip: &str, clients_ref: Arc<Mutex<HashMap<String,String>>>) -> HashMap<String,String>{}
