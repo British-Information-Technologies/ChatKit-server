@@ -8,27 +8,6 @@ enum Message {
     Terminate,
 }
 
-pub mod protocol_messages {
-    pub const REQUEST: &'static str = "?request:";
-    pub const INFO: &'static str = "?info!";
-
-    // results
-    pub const SUCCESS: &'static str = "!success:";
-    pub const ERROR: &'static str = "!error:";
-
-    // connect commands
-    pub const CONNECT: &'static str = "!connect:";
-    pub const DISCONNECT: &'static str = "!disconnect:";
-
-    // server commands
-    pub const UPDATE_CLIENTS: &'static str = "!clientUpdate:";
-    pub const CLIENT: &'static str = "!client:";
-    pub const TEST: &'static str = "!test:";
-
-    // ptp commands
-    pub const MESSAGE: &'static str = "!message:";
-}
-
 pub struct ThreadPool{
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,
