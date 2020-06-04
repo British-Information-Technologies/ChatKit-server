@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Client{
     pub uuid: String,
     pub username: String,
@@ -13,7 +14,7 @@ impl Client{
         &self.username
     }
 
-    pub fn get_addres(&self) -> &String{
+    pub fn get_address(&self) -> &String{
         &self.address
     }
 }
