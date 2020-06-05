@@ -5,14 +5,10 @@ mod error;
 mod connect;
 mod disconnect;
 mod client_update;
+mod client_info;
 mod client;
 mod test;
 mod message;
-
-//use connect::Connect;
-//use crate::protocols::commands::connect::Connect;
-//use crate::protocols::commands::client_update::ClientUpdate;
-//use crate::protocols::commands::client::ClientQ;
 
 use crate::client_management::client_profile::Client;
 
@@ -30,6 +26,7 @@ pub enum Commands{
     Connect,
     Disconnect,
     ClientUpdate,
+    ClientInfo,
     Client,
     Test,
     Message,
@@ -48,17 +45,24 @@ impl Commands{
             Commands::Error => {
             }
             Commands::Connect => {
+                let message = String::from("!success:");
+                Commands::transmit_data(stream, &message);
+                
                 connect::add_new_client(clients_ref, &data[1], &data[2], address);
             }
             Commands::Disconnect => {
+
             }
             Commands::ClientUpdate => {
-                let address = client_update::get_client_address(clients_ref, &data[1]);
-                Commands::transmit_data(stream, &address);
+            }
+            Commands::ClientInfo => {
+                let message = String::from("!success:");
+                Commands::transmit_data(stream, &message);
+                
+                let requested_address = client_info::get_client_address(clients_ref, &data[1]);
+                Commands::transmit_data(stream, &requested_address);
             }
             Commands::Client => {
-                let address = client::retrieve_requested_clients(clients_ref, &data[1]);
-                Commands::transmit_data(stream, &address);
             }
             Commands::Test => {
             }

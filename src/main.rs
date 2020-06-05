@@ -78,6 +78,7 @@ fn match_command(data: &Vec<String>) -> Commands{
         "!connect:" => Commands::Connect,
         "!disconnect:" => Commands::Disconnect,
         "!clientUpdate:" => Commands::ClientUpdate,
+        "!clientInfo:" => Commands::ClientInfo,
         "!client:" => Commands::Client,
         "!test:" => Commands::Test,
         "!message:" => Commands::Message,
