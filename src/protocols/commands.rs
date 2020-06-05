@@ -46,21 +46,24 @@ impl Commands{
             }
             Commands::Connect => {
                 let message = String::from("!success:");
-                Commands::transmit_data(stream, &message);
+                Commands::transmit_data(&stream, &message);
                 
-                connect::add_new_client(clients_ref, &data[1], &data[2], address);
+                connect::add_client(clients_ref, &data[1], &data[2], address);
             }
             Commands::Disconnect => {
+                let message = String::from("!success:");
+                Commands::transmit_data(&stream, &message);
 
+                disconnect::remove_client(clients_ref, &data[1]);
             }
             Commands::ClientUpdate => {
             }
             Commands::ClientInfo => {
                 let message = String::from("!success:");
-                Commands::transmit_data(stream, &message);
+                Commands::transmit_data(&stream, &message);
                 
                 let requested_address = client_info::get_client_address(clients_ref, &data[1]);
-                Commands::transmit_data(stream, &requested_address);
+                Commands::transmit_data(&stream, &requested_address);
             }
             Commands::Client => {
             }
@@ -74,7 +77,7 @@ impl Commands{
         }
     }
 
-    fn transmit_data(mut stream: TcpStream, data: &str){
+    fn transmit_data(mut stream: &TcpStream, data: &str){
         println!("Transmitting...");
         println!("data: {}",data);
 

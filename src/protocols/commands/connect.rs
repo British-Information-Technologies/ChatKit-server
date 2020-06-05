@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::sync::Arc;
 use std::collections::HashMap;
 
-pub fn add_new_client(clients_ref: &Arc<Mutex<HashMap<String,Client>>>, username: &String, uuid: &String, address: &String){
+pub fn add_client(clients_ref: &Arc<Mutex<HashMap<String,Client>>>, username: &String, uuid: &String, address: &String){
     let client = create_client_profile(username,uuid,address);
     let mut clients_hashmap = clients_ref.lock().unwrap();
     //let cloned_client = client.clone();
