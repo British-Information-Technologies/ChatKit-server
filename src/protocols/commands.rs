@@ -57,6 +57,17 @@ impl Commands{
                 disconnect::remove_client(clients_ref, &data[1]);
             }
             Commands::ClientUpdate => {
+                let message = String::from("!success:");
+                Commands::transmit_data(&stream, &message);
+                
+                let clients_hashmap = clients_ref.lock().unwrap();
+                for (key, value) in clients_hashmap.iter(){
+                    let formatted_data = client_update::format_client_data(&key, &value);
+                    Commands::transmit_data(&stream, &formatted_data);
+                }
+                
+                let final_message = String::from("!finished:");
+                Commands::transmit_data(&stream, &final_message);
             }
             Commands::ClientInfo => {
                 let message = String::from("!success:");

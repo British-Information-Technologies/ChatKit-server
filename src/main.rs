@@ -8,6 +8,7 @@
  * If no success, request ip from server to double check if theyre online, if ip match, assume
  * theyre offline. If no response from server assume some error has occured or sender is offline.
  * Save messages to be sent and check every few mins to see if they are online.
+ *
  */
 
 mod client_management;
@@ -30,9 +31,6 @@ use regex::Regex;
 fn main(){
     let listener = TcpListener::bind("127.0.0.1:6001").unwrap();
     let pool = ThreadPool::new(10);
-    /*
-     * Always dedicate 1/4 size of the connected users for updating clients
-     */
     let connected_clients = Arc::new(Mutex::new(HashMap::new()));
 
     loop{
