@@ -8,6 +8,12 @@ edition = "2018"
 
 [dependencies]
 regex = "1"
+crossbeam = "0.7"
+parking_lot = "0.10"
+crossbeam-channel = "0.4"
+crossbeam-utils = "0.7"
+crossbeam-queue = "0.2"
+dashmap = "3.11.4"
 
 [profile.dev]
 opt-level = 0
