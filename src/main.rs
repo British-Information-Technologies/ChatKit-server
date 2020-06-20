@@ -138,8 +138,6 @@ fn tokenize(incoming_message: &str) -> Vec<String>{
 fn match_command(data: &Vec<String>) -> Commands{
     match data[0].as_str(){
         "?info!" => Commands::Info,
-        "!success:" => Commands::Success,
-        "!error:" => Commands::Error,
         "!connect:" => Commands::Connect,
         "!disconnect:" => Commands::Disconnect,
         "!clientUpdate:" => Commands::ClientUpdate,
