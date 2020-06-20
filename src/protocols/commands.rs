@@ -44,7 +44,12 @@ impl Commands{
     pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &Vec<String>, address: &String, clients_ref: &Arc<Mutex<HashMap<String,Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
         match *self{
             Commands::Info => {
+                let server_details = info::get_server_info();
 
+                let mut message = "!success: ".to_string();
+                message.push_str(&server_details.to_string());
+
+                network::transmit_data(stream, &message);
             },
             Commands::Success => {
             },
