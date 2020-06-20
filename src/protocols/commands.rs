@@ -12,19 +12,16 @@ mod message;
 pub mod network;
 
 use crate::client_management::client_profile::Client;
-use crossbeam_queue::SegQueue;
-
 use std::collections::VecDeque;
 use parking_lot::FairMutex;
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::collections::HashMap;
-use std::io::{self, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::{self, Read};
+use std::net::TcpStream;
 use std::time::Duration;
 
 pub enum Commands{
-    Request,
     Info,
     Success,
     Error,
@@ -32,25 +29,22 @@ pub enum Commands{
     Disconnect,
     ClientUpdate,
     ClientInfo,
-    Client,
-    Test,
-    Message,
     Unknown,
 }
 
 pub enum OutboundCommands{
     Success,
     Error,
-    ClientUpdate,
+    Client,
+    ClientRemove,
     Unknown,
 }
 
 impl Commands{
     pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &Vec<String>, address: &String, clients_ref: &Arc<Mutex<HashMap<String,Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
         match *self{
-            Commands::Request => {
-            },
             Commands::Info => {
+
             },
             Commands::Success => {
             },
@@ -66,17 +60,17 @@ impl Commands{
                 message.push_str(&" ".to_string());
                 message.push_str(&data[1].to_string());
 
-                println!("message: {}", message);
                 message_queue.lock().push_back(message);
+                network::transmit_data(stream, &String::from("!success:"));
             },
             Commands::Disconnect => {
-                let message = String::from("!success:");
-                network::transmit_data(stream, &message);
+                let client_profile = disconnect::remove_client(clients_ref, &data[1]);
 
-                disconnect::remove_client(clients_ref, &data[1]);
-                /*
-                 * repeat what connect does
-                 */
+                let mut message = "!clientRemove: ".to_string();
+                message.push_str(&client_profile.get_uuid().to_string());
+
+                message_queue.lock().push_back(message);
+                network::transmit_data(stream, &String::from("!success:"));
             },
             Commands::ClientUpdate => {
                 stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
@@ -88,7 +82,6 @@ impl Commands{
                     let formatted_data = client_update::format_client_data(&key, &value);
                     network::transmit_data(stream, &formatted_data);
 
-                    failing = true;
                     while failing{
                         let _ = match stream.read(&mut *buffer){
                             Err(e) => {
@@ -131,17 +124,8 @@ impl Commands{
                 }
             },
             Commands::ClientInfo => {
-                let message = String::from("!success:");
-                network::transmit_data(stream, &message);
-                
-                let requested_address = client_info::get_client_address(clients_ref, &data[1]);
-                network::transmit_data(stream, &requested_address);
-            },
-            Commands::Client => {
-            },
-            Commands::Test => {
-            },
-            Commands::Message => {
+                let requested_data = client_info::get_client_data(clients_ref, &data[1]);
+                network::transmit_data(stream, &requested_data);
             },
             Commands::Unknown => {
                 println!("Uknown Command!");
@@ -155,35 +139,11 @@ impl OutboundCommands{
         match *self{
             OutboundCommands::Success => {},
             OutboundCommands::Error => {},
-            OutboundCommands::ClientUpdate => {
+            OutboundCommands::Client => {
                 stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-                
-                let message = String::from("!clientUpdate:");
-                network::transmit_data(stream, &message);
-
-                let mut failing = true;
-                //let mut buffer = [0; 1024];
-                while failing{
-                    let _ = match stream.read(&mut *buffer){
-                        Err(e) => {
-                            match e.kind() {
-                                io::ErrorKind::WouldBlock => {
-                                    println!("Blocking...");
-                                    network::transmit_data(stream, &message);
-                                },
-                                _ => panic!("Fatal Error {}", e),
-                            }
-                        },
-                        Ok(m) => {
-                            println!("{:?}", m);
-                            failing = false;
-                        },
-                    };
-                }
- 
                 network::transmit_data(stream, data);
 
-                failing = true;
+                let mut failing = true;
                 while failing{
                     let _ = match stream.read(&mut *buffer){
                         Err(e) => {
@@ -201,18 +161,19 @@ impl OutboundCommands{
                         },
                     };
                 }
+            },
+            OutboundCommands::ClientRemove => {
+                stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+                network::transmit_data(stream, data);
 
-                let final_message = String::from("!success:");
-                network::transmit_data(stream, &final_message);
-                
-                failing = true;
-                while failing{    
+                let mut failing = true;
+                while failing{
                     let _ = match stream.read(&mut *buffer){
                         Err(e) => {
                             match e.kind() {
                                 io::ErrorKind::WouldBlock => {
                                     println!("Blocking...");
-                                    network::transmit_data(stream, &final_message);
+                                    network::transmit_data(stream, data);
                                 },
                                 _ => panic!("Fatal Error {}", e),
                             }
@@ -223,7 +184,6 @@ impl OutboundCommands{
                         },
                     };
                 }
-
             },
             OutboundCommands::Unknown => {
                 println!("Unknown Command!");
