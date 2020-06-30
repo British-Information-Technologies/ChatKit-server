@@ -9,9 +9,10 @@ mod client_info;
 mod client;
 mod test;
 mod message;
-pub mod network;
 
-use crate::client_management::client_profile::Client;
+use crate::server::client::client_profile::Client;
+use crate::server::utility;
+
 use std::collections::VecDeque;
 use parking_lot::FairMutex;
 use std::sync::Mutex;
@@ -20,6 +21,7 @@ use std::collections::HashMap;
 use std::io::{self, Read};
 use std::net::TcpStream;
 use std::time::Duration;
+use dashmap::DashMap;
 
 pub enum Commands{
     Info,
@@ -47,39 +49,41 @@ enum OutboundReturns{
 }
 
 impl Commands{
-    pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &Vec<String>, address: &String, clients_ref: &Arc<Mutex<HashMap<String,Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
+    pub fn execute(&self, client: &mut Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>, clients_ref: &Arc<Mutex<HashMap<String, Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
+        let stream = client.get_stream();
         match *self{
             Commands::Info => {
                 let server_details = info::get_server_info();
 
                 let out_success = OutboundReturns::Success;
-                out_success.execute(stream, &server_details);
+                out_success.execute(&stream, &server_details);
             },
             Commands::Connect => {
-                connect::add_client(clients_ref, &data[1], &data[2], address);
+                connect::add_client(clients_ref, client);
 
-                let mut message = "!client: ".to_string();
-                message.push_str(&data[2].to_string());
-                message.push_str(&" address:".to_string());
-                message.push_str(&address.to_string());
-                message.push_str(&" ".to_string());
-                message.push_str(&data[1].to_string());
+                let mut message = "!client: username:".to_string();
+                message.push_str(&client.get_username().to_string());
+                message.push_str(&" host:".to_string());
+                message.push_str(&client.get_address().to_string());
+                message.push_str(&" uuid:".to_string());
+                message.push_str(&client.get_uuid().to_string());
 
                 message_queue.lock().push_back(message);
                 
                 let out_success = OutboundReturns::Success;
-                out_success.execute(stream, &String::from(""));
+                out_success.execute(&stream, &String::from(""));
             },
             Commands::Disconnect => {
-                let client_profile = disconnect::remove_client(clients_ref, &data[1]);
+                disconnect::remove_client(clients_ref, client);
 
-                let mut message = "!clientRemove: ".to_string();
-                message.push_str(&client_profile.get_uuid().to_string());
-
+                let mut message = "!clientRemove: uuid:".to_string();
+                message.push_str(&client.get_uuid().to_string());
                 message_queue.lock().push_back(message);
 
                 let out_success = OutboundReturns::Success;
-                out_success.execute(stream, &String::from(""));
+                out_success.execute(&stream, &String::from(""));
+                client.disconnect();
+                println!("disconnected!");
             },
             Commands::ClientUpdate => {
                 let in_success = InboundReturns::Success;
@@ -87,19 +91,19 @@ impl Commands{
                 let clients_hashmap = clients_ref.lock().unwrap();
                 for (key, value) in clients_hashmap.iter(){
                     let formatted_data = client_update::format_client_data(&key, &value);
-                    network::transmit_data(stream, &formatted_data);
+                    utility::transmit_data(&stream, &formatted_data);
 
-                    in_success.execute(stream, buffer, &formatted_data);
+                    in_success.execute(&stream, buffer, &formatted_data);
                 }
 
                 let out_success = OutboundReturns::Success;
-                out_success.execute(stream, &String::from(""));
+                out_success.execute(&stream, &String::from(""));
         
-                in_success.execute(stream, buffer, &String::from("!success:"));
+                in_success.execute(&stream, buffer, &String::from("!success:"));
             },
             Commands::ClientInfo => {
-                let requested_data = client_info::get_client_data(clients_ref, &data[1]);
-                network::transmit_data(stream, &requested_data);
+                let requested_data = client_info::get_client_data(clients_ref, data);
+                utility::transmit_data(&stream, &requested_data);
             },
             Commands::Unknown => {
                 println!("Uknown Command!");
@@ -109,19 +113,34 @@ impl Commands{
 }
 
 impl OutboundCommands{
-    pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &String){
+    pub fn execute(&self, client: &Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>){
+        let stream = client.get_stream();
         match *self{
             OutboundCommands::Client => {
-                network::transmit_data(stream, data);
+                let mut message = String::from("");
+                message.push_str(&data.get("command").unwrap());
+                message.push_str(&" username:");
+                message.push_str(&data.get("username").unwrap());
+                message.push_str(&" host:");
+                message.push_str(&data.get("host").unwrap());
+                message.push_str(&" uuid:");
+                message.push_str(&data.get("uuid").unwrap());
+
+                utility::transmit_data(&stream, &message);
 
                 let in_success = InboundReturns::Success;
-                in_success.execute(stream, buffer, data);
+                in_success.execute(&stream, buffer, &message);
             },
             OutboundCommands::ClientRemove => {
-                network::transmit_data(stream, data);
+                let mut message = String::from("");
+                message.push_str(&data.get("command").unwrap());
+                message.push_str(&" uuid:");
+                message.push_str(&data.get("uuid").unwrap());
+
+                utility::transmit_data(&stream, &message);
 
                 let in_success = InboundReturns::Success;
-                in_success.execute(stream, buffer, data);
+                in_success.execute(&stream, buffer, &message);
             },
             OutboundCommands::Unknown => {
                 println!("Unknown Command!");
@@ -142,7 +161,7 @@ impl InboundReturns{
                             match e.kind() {
                                 io::ErrorKind::WouldBlock => {
                                     println!("Blocking...");
-                                    network::transmit_data(stream, data);
+                                    utility::transmit_data(stream, data);
                                 },
                                 _ => panic!("Fatal Error {}", e),
                             }
@@ -160,7 +179,7 @@ impl InboundReturns{
 }
 
 impl OutboundReturns{
-    pub fn execute(&self, mut stream: &TcpStream, data: &String){
+    pub fn execute(&self, stream: &TcpStream, data: &String){
         match *self{
             OutboundReturns::Success => {
                 let mut message = "!success:".to_string();
@@ -168,7 +187,7 @@ impl OutboundReturns{
                     message.push_str(&" ".to_string());
                     message.push_str(&data.to_string());
                 }
-                network::transmit_data(stream, &message);
+                utility::transmit_data(stream, &message);
             },
             OutboundReturns::Error => {},
         }
