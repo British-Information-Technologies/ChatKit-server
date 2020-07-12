@@ -11,185 +11,111 @@ mod test;
 mod message;
 
 use crate::server::client::client_profile::Client;
-use crate::server::utility;
+use crate::server::server_profile::Server;
 
-use std::collections::VecDeque;
 use parking_lot::FairMutex;
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::collections::HashMap;
-use std::io::{self, Read};
-use std::net::TcpStream;
-use std::time::Duration;
 use dashmap::DashMap;
 
-pub enum Commands{
+#[derive(Clone)]
+pub enum ClientCommands{
     Info,
-    Connect,
+    Connect(HashMap<String, String>),
     Disconnect,
     ClientUpdate,
-    ClientInfo,
+    ClientInfo(HashMap<String, String>),
     Unknown,
 }
 
-pub enum OutboundCommands{
-    Client,
-    ClientRemove,
+#[derive(Clone)]
+pub enum ServerCommands{
+    Client(HashMap<String, String>),
+    ClientRemove(HashMap<String, String>),
     Unknown,
 }
 
-enum InboundReturns{
-    Success,
-    Error,
-}
-
-enum OutboundReturns{
-    Success,
-    Error,
-}
-
-impl Commands{
-    pub fn execute(&self, client: &mut Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>, clients_ref: &Arc<Mutex<HashMap<String, Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
+impl ClientCommands{
+    pub fn execute(&self, client: &mut Client, server: &Server, buffer: &mut [u8; 1024], connected_clients: &Arc<Mutex<HashMap<String, Client>>>){
         let stream = client.get_stream();
-        match *self{
-            Commands::Info => {
-                let server_details = info::get_server_info();
+        match &*self{
+            ClientCommands::Info => {
+                let server_details = server.get_info();
 
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &server_details);
+                client.transmit_success(&server_details);
             },
-            Commands::Connect => {
-                connect::add_client(clients_ref, client);
+            ClientCommands::Connect(data) => {
+                connect::add_client(connected_clients, client);
 
-                let mut message = "!client: username:".to_string();
-                message.push_str(&client.get_username().to_string());
-                message.push_str(&" host:".to_string());
-                message.push_str(&client.get_address().to_string());
-                message.push_str(&" uuid:".to_string());
-                message.push_str(&client.get_uuid().to_string());
-
-                message_queue.lock().push_back(message);
+                let new_client = ServerCommands::Client(data.clone());
+                server.update_all_clients(&new_client);
                 
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
+                client.transmit_success(&String::from(""));
             },
-            Commands::Disconnect => {
-                disconnect::remove_client(clients_ref, client);
+            ClientCommands::Disconnect => {
+                disconnect::remove_client(connected_clients, client);
 
-                let mut message = "!clientRemove: uuid:".to_string();
-                message.push_str(&client.get_uuid().to_string());
-                message_queue.lock().push_back(message);
+                let mut data: HashMap<String, String> = HashMap::new();
+                data.insert("uuid".to_string(), client.get_uuid().to_string());
 
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
+                let old_client = ServerCommands::ClientRemove(data);
+                server.update_all_clients(&old_client);
+
+                client.transmit_success(&String::from(""));
                 client.disconnect();
                 println!("disconnected!");
             },
-            Commands::ClientUpdate => {
-                let in_success = InboundReturns::Success;
-
-                let clients_hashmap = clients_ref.lock().unwrap();
+            ClientCommands::ClientUpdate => {
+                let clients_hashmap = connected_clients.lock().unwrap();
                 for (key, value) in clients_hashmap.iter(){
                     let formatted_data = client_update::format_client_data(&key, &value);
-                    utility::transmit_data(&stream, &formatted_data);
+                    client.transmit_data(&formatted_data);
 
-                    in_success.execute(&stream, buffer, &formatted_data);
+                    client.confirm_success(buffer, &formatted_data);
                 }
-
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
-        
-                in_success.execute(&stream, buffer, &String::from("!success:"));
+                client.transmit_success(&String::from(""));
+                client.confirm_success(buffer, &String::from("!success:"));
             },
-            Commands::ClientInfo => {
-                let requested_data = client_info::get_client_data(clients_ref, data);
-                utility::transmit_data(&stream, &requested_data);
+            ClientCommands::ClientInfo(data) => {
+                let requested_data = client_info::get_client_data(connected_clients, &data);
+                client.transmit_data(&requested_data);
             },
-            Commands::Unknown => {
-                println!("Uknown Command!");
+            ClientCommands::Unknown => {
+                println!("Unknown Command");
             },
         }
     }
 }
 
-impl OutboundCommands{
-    pub fn execute(&self, client: &Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>){
-        let stream = client.get_stream();
-        match *self{
-            OutboundCommands::Client => {
+impl ServerCommands{
+    pub fn execute(&self, client: &mut Client, buffer: &mut [u8; 1024]){
+        match &*self{
+            ServerCommands::Client(data) => {
                 let mut message = String::from("");
-                message.push_str(&data.get("command").unwrap());
-                message.push_str(&" username:");
-                message.push_str(&data.get("username").unwrap());
+                message.push_str(&"!client: name:");
+                message.push_str(&data.get("name").unwrap());
                 message.push_str(&" host:");
                 message.push_str(&data.get("host").unwrap());
                 message.push_str(&" uuid:");
                 message.push_str(&data.get("uuid").unwrap());
 
-                utility::transmit_data(&stream, &message);
+                client.transmit_data(&message);
 
-                let in_success = InboundReturns::Success;
-                in_success.execute(&stream, buffer, &message);
+                client.confirm_success(buffer, &message);
             },
-            OutboundCommands::ClientRemove => {
+            ServerCommands::ClientRemove(data) => {
                 let mut message = String::from("");
-                message.push_str(&data.get("command").unwrap());
-                message.push_str(&" uuid:");
+                message.push_str(&"!client: uuid:");
                 message.push_str(&data.get("uuid").unwrap());
 
-                utility::transmit_data(&stream, &message);
+                client.transmit_data(&message);
 
-                let in_success = InboundReturns::Success;
-                in_success.execute(&stream, buffer, &message);
+                client.confirm_success(buffer, &message);
             },
-            OutboundCommands::Unknown => {
+            ServerCommands::Unknown => {
                 println!("Unknown Command!");
             },
-        }
-    }
-}
-
-impl InboundReturns{
-    pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &String){
-        stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        match *self{
-            InboundReturns::Success => {
-                let mut failing = true;
-                while failing{
-                    let _ = match stream.read(&mut *buffer){
-                        Err(e) => {
-                            match e.kind() {
-                                io::ErrorKind::WouldBlock => {
-                                    println!("Blocking...");
-                                    utility::transmit_data(stream, data);
-                                },
-                                _ => panic!("Fatal Error {}", e),
-                            }
-                        },
-                        Ok(m) => {
-                            println!("{:?}", m);
-                            failing = false;
-                        },
-                    };
-                }
-            },
-            InboundReturns::Error => {},
-        }
-    }
-}
-
-impl OutboundReturns{
-    pub fn execute(&self, stream: &TcpStream, data: &String){
-        match *self{
-            OutboundReturns::Success => {
-                let mut message = "!success:".to_string();
-                if !data.is_empty(){
-                    message.push_str(&" ".to_string());
-                    message.push_str(&data.to_string());
-                }
-                utility::transmit_data(stream, &message);
-            },
-            OutboundReturns::Error => {},
         }
     }
 }
