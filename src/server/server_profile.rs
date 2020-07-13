@@ -1,7 +1,7 @@
 extern crate regex;
 
 use crate::server::client::client_profile::Client;
-use crate::server::commands::{ClientCommands, ServerCommands};
+use crate::server::commands::{ClientCommands, ServerCommands, Commands};
 
 use rust_chat_server::ThreadPool;
 use std::collections::VecDeque;
@@ -14,20 +14,23 @@ use dashmap::DashMap;
 use std::io::prelude::*;
 use regex::Regex;
 
-pub struct Server{
+pub struct Server<'server_lifetime> {
     name: String,
     address: String,
     author: String,
-    connected_clients: Arc<Mutex<HashMap<String,Client>>>,
+    connected_clients: Arc<Mutex<HashMap<String,Client<'server_lifetime>>>>,
+    thread_pool: ThreadPool,
 }
 
+// MARK: - server implemetation
 impl Server{
-    pub fn new(name: &String, address: &String, author: &String, connected_clients: &Arc<Mutex<HashMap<String,Client>>>) -> Server{
+    pub fn new<'server_lifetime>(name: &String, address: &String, author: &String) -> Server<'server_lifetime>{
         Server{
             name: name.to_string(),
             address: address.to_string(),
             author: author.to_string(),
-            connected_clients: Arc::clone(&connected_clients),
+            connected_clients: Arc::new(Mutex::new(HashMap::new())),
+            thread_pool: ThreadPool::new(16)
         }
     }
     
@@ -35,81 +38,71 @@ impl Server{
         &self.address
     }
 
-    pub fn get_info(&self) -> String{
-        let mut server_details = "".to_string();
-        server_details.push_str(&"name:".to_string());
-        server_details.push_str(&self.name);
-        server_details.push_str(&" owner:".to_string());
-        server_details.push_str(&self.author);
-
-        server_details
-    }
-
-    pub fn establish_connection(&self, mut stream: TcpStream) -> Result<Client, bool>{
-        /*let listener = TcpListener::bind(self.address.clone()).unwrap();
-        let pool = ThreadPool::new(10);
-        //let (tx,rx): (Sender<Arc<Barrier>>, Receiver<Arc<Barrier>>) = unbounded();
-        //let (clock_tx, _) = (tx.clone(), rx.clone()); 
-
-        //stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        loop{
-            if let Ok((mut stream, addr)) = listener.accept(){
-                println!("Connected: {}", addr);
-
-                let connected_clients_ref = Arc::clone(&self.connected_clients);
-                let request = String::from("?request:");
-                self.transmit_data(&stream, &request);
-
-                pool.execute(move || {*/
-        let mut client_connection: Result<Client, bool> = Err(true);
+    pub fn start(&self) {
+        let listener = TcpListener::bind(self.get_address()).unwrap();
         let mut buffer = [0; 1024];
 
-        let request = String::from("?request:");
-        self.transmit_data(&stream, &request);
+        //stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+        loop {
+            if let Ok((mut stream, addr)) = listener.accept() {
+                println!("Connected: {}", addr);
 
-        let mut stream = Arc::new(stream);
-        while client_connection.is_err(){
-            Arc::get_mut(&mut stream).unwrap().read(&mut buffer).unwrap();
+                let request = Commands::Request(None);
+                self.transmit_data(&stream, request.to_string().as_str());
 
-            let incoming_message = String::from_utf8_lossy(&buffer[..]);
-            let command = self.tokenize(&incoming_message);
-            client_connection = match command{
-                Ok(cmd) => {
-                    match cmd{
-                        ClientCommands::Connect(data) => {
-                            //connecting = false;
-                            let uuid = data.get("uuid").unwrap();
-                            let username = data.get("name").unwrap();
-                            let address = data.get("host").unwrap();
+                stream.read(&mut buffer).unwrap();
 
-                            let stream = Arc::clone(&stream);
-                            let mut client = Client::new(stream, &uuid, &username, &address);
-                            client.connect(self, &self.connected_clients, &data);
-                            //cmd.execute(&mut client, self, &mut buffer, &self.connected_clients);
-                            Ok(client)
-                            //client.handle_connection(self, &connected_clients_ref);
-                        },
-                        ClientCommands::Info => {
-                            let server_details = self.get_info();
-                            self.transmit_data(&stream, &server_details);
-                            Err(true)
-                        },
-                        _ => {
-                            println!("Invalid command!");
-                            Err(true)
-                        },
-                    }
-                },
-                Err(e) => {
-                    println!("{}", e);
-                    Err(true)
-                },
-            };
-        }
-        client_connection
-                /*});
+                let incoming_message = String::from_utf8_lossy(&buffer[..]);
+                let result = Commands::from_string(incoming_message.as_str());
+                match result{
+                    Ok(command) => {
+                        match command{
+                            Commands::Connect(Some(data)) => {
+                                let uuid = data.get("uuid").unwrap();
+                                let username = data.get("name").unwrap();
+                                let address = data.get("host").unwrap();
+
+                                let stream = Arc::clone(&stream);
+                                let mut client = Client::new(self, stream, &uuid, &username, &address);
+                                
+                                self.thread_pool.execute(move || {
+                                    client.handle_connection();
+                                });
+
+                                let mut clients_hashmap = self.connected_clients.lock().unwrap();
+                                clients_hashmap.insert(uuid, client.clone());
+                            },
+                            Commands::Info(None) => {
+                                let params: HashMap<String, String> = HashMap::new();
+                                params.insert("name", &self.name);
+                                params.insert("owner", &self.owner);
+
+                                let command = Commands::Info(Some(params));
+                                
+                                self.transmit_data(&stream, command.to_string().as_str());
+                            },
+                            _ => {
+                                println!("Invalid command!");
+                                self.transmit_data(&stream, Commands::Error(None).to_string.as_str());
+                            },
+                        }
+                    },
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                        self.transmit_data(&stream, Commands::Error(None).to_string.as_str());
+                    },
+                }
             }
-        }*/
+        }
+    }
+
+    pub fn get_info(&self, tx: Sender<Commands>) {
+        let params: HashMap<String, String> = HashMap::new();
+        params.insert("name", &self.name);
+        params.insert("owner", &self.owner);
+        
+        let command = Commands::Info(Some(params));
+        tx.send(command).unwrap();
     }
 
     pub fn update_all_clients(&self, notification: &ServerCommands){

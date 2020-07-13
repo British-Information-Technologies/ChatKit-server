@@ -1,6 +1,6 @@
 extern crate regex;
 
-use crate::server::commands::{ClientCommands, ServerCommands};
+use crate::server::commands::{ClientCommands, ServerCommands, Commands};
 use crate::server::server_profile::Server;
 
 use std::net::{Shutdown, TcpStream};
@@ -14,19 +14,20 @@ use std::time::Duration;
 use regex::Regex;
 
 #[derive(Clone)]
-pub struct Client{
+pub struct Client<'client_lifetime>{
     connected: bool,
     stream: Arc<TcpStream>,
     uuid: String,
     username: String,
     address: String,
-    tx_channel: Sender<ServerCommands>,
-    rx_channel: Receiver<ServerCommands>,
+    server: &'client_lifetime Server<'client_lifetime>,
+    tx_channel: Sender<Commands>,
+    rx_channel: Receiver<Commands>,
 }
 
-impl Client{
-    pub fn new(stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client{
-        let (tx_channel, rx_channel): (Sender<ServerCommands>, Receiver<ServerCommands>) = unbounded();
+impl <'a>Client{
+    pub fn <'a>new(server: &Server, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client<'a>{
+        let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
 
         Client{
             connected: true,
@@ -39,11 +40,11 @@ impl Client{
         }
     }
 
-    pub fn get_stream(&self) -> &TcpStream{
+    fn get_stream(&self) -> &TcpStream{
         &self.stream
     }
 
-    pub fn get_transmitter(&self) -> &Sender<ServerCommands>{
+    pub fn get_transmitter(&self) -> &Sender<Commands>{
         &self.tx_channel
     }
     
@@ -59,20 +60,27 @@ impl Client{
         &self.address
     }
 
-    pub fn disconnect(&mut self){
-        self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
-        self.connected = false;
-    }
-  
-    pub fn handle_connection(&mut self, server: &Server, clients_ref: &Arc<Mutex<HashMap<String, Client>>>){
-        self.stream.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
+    pub fn handle_connection(&self){
+        self.stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
         let mut buffer = [0; 1024];       
         
         while self.connected {
             match self.rx_channel.try_recv(){
                 /*command is on the channel*/
                 Ok(command) => {
-                    command.execute(self, &mut buffer);
+                    match command{
+                        
+                        Commands::Info(Some(params)) => {
+                            self.get_stream().write_all(command.to_string);
+                        },
+                        Commands::Disconnect(None) => {
+                            
+                        },
+                        Commands::ClientRemove(Some(params)) => {},
+                        Commands::Client(Some(params)) => {},
+                        Commands::Success(data) => {},
+                        _ => {},
+                    }
                 },
                 /*sender disconnected*/
                 Err(TryRecvError::Disconnected) => {},
@@ -116,10 +124,15 @@ impl Client{
         clients_hashmap.insert(uuid, self.clone());
         std::mem::drop(clients_hashmap);
 
-        let new_client = ServerCommands::Client(data.clone());
+        let new_client = Commands::Client(data.clone());
         server.update_all_clients(&new_client);
 
         self.transmit_success(&String::from(""));
+    }
+
+    pub fn disconnect(&mut self){
+        self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
+        self.connected = false;
     }
 
     pub fn transmit_data(&self, data: &str){
@@ -132,17 +145,18 @@ impl Client{
 
     pub fn confirm_success(&self, buffer: &mut [u8; 1024], data: &String){
         let success_regex = Regex::new(r###"!success:"###).unwrap();
-        //let mut failing = true;
-        //while failing{
-        self.get_stream().read(&mut *buffer).unwrap();
-        let incoming_message = String::from_utf8_lossy(&buffer[..]);
-        if success_regex.is_match(&incoming_message){
-            println!("success");
-            //failing = false;
-        }else{
-            self.transmit_error(&String::from(""));
-        }
-        //}
+
+        let _ = match self.get_stream().read(&mut *buffer).unwrap() {
+            Err(error) => self.transmit_error(&String::from("")),
+            Ok(success) => {
+                let incoming_message = String::from_utf8_lossy(&buffer[..]);
+                if success_regex.is_match(&incoming_message){
+                    println!("success");
+                }else{
+                    self.transmit_error(&String::from(""));
+                }
+            },
+        };
     }
 
     pub fn transmit_success(&self, data: &String){
