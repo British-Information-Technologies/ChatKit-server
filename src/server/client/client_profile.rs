@@ -1,10 +1,10 @@
 extern crate regex;
 
-use crate::server::commands::{ClientCommands, ServerCommands, Commands};
 use crate::server::server_profile::Server;
+use crate::server::commands::{Commands};
 
 use std::net::{Shutdown, TcpStream};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use crossbeam_channel::{Receiver, TryRecvError, unbounded, Sender};
 use parking_lot::FairMutex;
 use std::collections::HashMap;
@@ -25,16 +25,17 @@ pub struct Client<'client_lifetime>{
     rx_channel: Receiver<Commands>,
 }
 
-impl <'a>Client{
-    pub fn <'a>new(server: &Server, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client<'a>{
+impl<'a> Client<'a> {
+    pub fn new(server: &'a Server<'a>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client<'a>{
         let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
 
-        Client{
+        Client {
             connected: true,
             stream: stream,
             uuid: uuid.to_string(),
             username: username.to_string(),
             address: address.to_string(),
+            server: server,
             tx_channel: tx_channel,
             rx_channel: rx_channel,
         }
@@ -65,13 +66,17 @@ impl <'a>Client{
         let mut buffer = [0; 1024];       
         
         while self.connected {
-            match self.rx_channel.try_recv(){
+            match self.rx_channel.try_recv() {
                 /*command is on the channel*/
+
+            
+
                 Ok(command) => {
-                    match command{
+                    let a = command.clone();
+                    match command {
                         
                         Commands::Info(Some(params)) => {
-                            self.get_stream().write_all(command.to_string);
+                            self.get_stream().write_all(a.to_string().as_bytes());
                         },
                         Commands::Disconnect(None) => {
                             
@@ -92,22 +97,14 @@ impl <'a>Client{
                 Ok(_) => {
                     self.get_stream().read(&mut buffer).unwrap();
                     
-                    let incoming_message = String::from_utf8_lossy(&buffer[..]);
-                    let command = server.tokenize(&incoming_message);
+                    let incoming_message = String::from(String::from_utf8_lossy(&buffer));
+                    let command = Commands::from(incoming_message.clone());
 
-                    println!("Request: {}", incoming_message);
+                    println!("Request: {}", &incoming_message);
                     
-                    match command{
-                        Ok(cmd) => {
-                            match cmd{
-                                ClientCommands::Connect(_) => println!("Error!"),
-                                _ => {
-                                    println!("command executing...");
-                                    cmd.execute(self, server, &mut buffer, clients_ref);
-                                },
-                            }
-                        },
-                        Err(e) => println!("{}", e),
+                    match command {
+                        Commands::Connect(Some(params)) => todo!(),
+                        _ => todo!(),
                     }
                 },
                 Err(_) => {
@@ -118,6 +115,8 @@ impl <'a>Client{
         println!("---thread exit---");
     }    
 
+    // deprecated
+    /*
     pub fn connect(&self, server: &Server, connected_clients: &Arc<Mutex<HashMap<String, Client>>>, data: &HashMap<String, String>){
         let mut clients_hashmap = connected_clients.lock().unwrap();
         let uuid = self.get_uuid().to_string();
@@ -129,6 +128,7 @@ impl <'a>Client{
 
         self.transmit_success(&String::from(""));
     }
+    */
 
     pub fn disconnect(&mut self){
         self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
@@ -143,10 +143,11 @@ impl <'a>Client{
         self.get_stream().flush().unwrap();
     }
 
+    // deprecated
     pub fn confirm_success(&self, buffer: &mut [u8; 1024], data: &String){
         let success_regex = Regex::new(r###"!success:"###).unwrap();
 
-        let _ = match self.get_stream().read(&mut *buffer).unwrap() {
+        let _ = match self.get_stream().read(&mut *buffer) {
             Err(error) => self.transmit_error(&String::from("")),
             Ok(success) => {
                 let incoming_message = String::from_utf8_lossy(&buffer[..]);

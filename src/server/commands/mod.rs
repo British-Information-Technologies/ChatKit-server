@@ -13,29 +13,20 @@ mod message;
 use crate::server::client::client_profile::Client;
 use crate::server::server_profile::Server;
 
+use std::string::ToString;
+
 use parking_lot::FairMutex;
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::collections::HashMap;
 use dashmap::DashMap;
+use std::borrow::Borrow;
+use regex::Regex;
+use std::ops::Index;
 
-#[derive(Clone)]
-pub enum ClientCommands{
-    Info,
-    Connect(HashMap<String, String>),
-    Disconnect,
-    ClientUpdate,
-    ClientInfo(HashMap<String, String>),
-    Unknown,
-}
 
-#[derive(Clone)]
-pub enum ServerCommands{
-    Client(HashMap<String, String>),
-    ClientRemove(HashMap<String, String>),
-    Unknown,
-}
 
+/*
 impl ClientCommands{
     pub fn execute(&self, client: &mut Client, server: &Server, buffer: &mut [u8; 1024], connected_clients: &Arc<Mutex<HashMap<String, Client>>>){
         let stream = client.get_stream();
@@ -119,9 +110,10 @@ impl ServerCommands{
         }
     }
 }
-
+*/
 
 // MARK: - commands_v2 electric boogaloo 
+#[derive(Clone)]
 pub enum Commands {
     Request(Option<HashMap<String, String>>),
     Info(Option<HashMap<String, String>>),
@@ -138,9 +130,9 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
-impl Commands {
-    pub fn to_String(&self) -> String {
+impl ToString for Commands {
 
+    fn to_string(&self) -> std::string::String {
         let mut out_string = String::new();
 
         let (command, parameters) = match self {
@@ -167,8 +159,10 @@ impl Commands {
 
         out_string
     }
+}
 
-    pub fn from_string(data: &str) -> Result<Commands, &'static str> {
+impl From<&str> for Commands { 
+    fn from(data: &str) -> Self {
         let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
         let mut iter = regex.find_iter(data);
         let command = iter.next().unwrap().as_str();
@@ -187,27 +181,39 @@ impl Commands {
         let params = if map.capacity() > 1 {Some(map)} else { None };
 
         match command {
-            "!info:" => Ok(Commands::Info(params)),
-            "!connect:" => Ok(Commands::Connect(params)),
-            "!clientInfo:" => Ok(Commands::ClientInfo(params)),
-            "!clientUpdate:" => Ok(Commands::ClientUpdate(params)),
-            "!disconnect:" => Ok(Commands::Disconnect(params)),
-            "!error:" => Ok(Commands::Error(params)),
-            _ => { Err("NOT IMPLEMENTED") }
+            "!request:" => Commands::Request(params),
+            "!info:" => Commands::Info(params),
+
+            "!connect:" => Commands::Connect(params),
+            "!disconnect:" => Commands::Disconnect(params),
+
+            "!clientUpdate:" => Commands::ClientUpdate(params),
+            "!clientInfo:" => Commands::ClientInfo(params),
+            "!client:" => Commands::Client(params),
+            "!clientRemove:" => Commands::ClientRemove(params),
+            
+            "!success:" => Commands::Success(params),
+            "!error:" => Commands::Error(params),
+            
+            _ => Commands::Error(params),
         }
+    }
+}
+
+impl From<String> for Commands {
+    fn from(data: String) -> Self {
+        Commands::from(data.as_str())
     }
 }
 
 #[cfg(test)]
 mod test_commands_v2 {
-    use crate::server_v2::commands_v2::Commands;
+    use super::Commands;
     use std::collections::HashMap;
 
     #[test]
     fn test_creation_from_string() {
-        let command_result = Commands::from_string("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
-        assert!(command_result.is_ok(), true);
-        let command = command_result.unwrap_or(Commands::Error(None));
+        let command_result = Commands::from("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
         ()
     }
 
@@ -221,6 +227,6 @@ mod test_commands_v2 {
 
         let command = Commands::Connect(Some(a));
 
-        println!("{:?}", command.to_String())
+        println!("{:?}", command.to_string())
     }
 }
