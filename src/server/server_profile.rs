@@ -6,7 +6,7 @@ use crate::server::commands::{Commands};
 use rust_chat_server::ThreadPool;
 use std::collections::VecDeque;
 use std::net::{TcpStream, TcpListener};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier, Mutex };
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use parking_lot::FairMutex;
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ pub struct Server<'server_lifetime> {
     name: String,
     address: String,
     author: String,
-    connected_clients: Arc<Mutex<HashMap<String,Client<'server_lifetime>>>>,
+    connected_clients: Arc<Mutex<HashMap<String,&'server_lifetime Client<'server_lifetime>>>>,
     thread_pool: ThreadPool,
 }
 
@@ -42,14 +42,13 @@ impl<'server_lifetime> Server<'server_lifetime> {
         let listener = TcpListener::bind(self.get_address()).unwrap();
         let mut buffer = [0; 1024];
 
-        //stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
         loop {
             if let Ok((mut stream, addr)) = listener.accept() {
-                println!("Connected: {}", addr);
+                println!("Server: new connection, {}", addr);
 
                 let request = Commands::Request(None);
                 request.to_string();
-                self.transmit_data(&stream, "");
+                self.transmit_data(&stream, &*request.to_string().as_str());
 
                 stream.read(&mut buffer).unwrap();
 
@@ -63,15 +62,14 @@ impl<'server_lifetime> Server<'server_lifetime> {
 
                         let stream = Arc::new(stream);
                         let mut client = Client::new(self, stream, &uuid, &username, &address);
-                        
-                        /*
+
+                        let mut clients_hashmap = self.connected_clients.lock().unwrap();
+
+                        clients_hashmap.insert(uuid.to_string(), &client);
+
                         self.thread_pool.execute(move || {
                             client.handle_connection();
                         });
-                        */
-
-                        let mut clients_hashmap = self.connected_clients.lock().unwrap();
-                        clients_hashmap.insert(uuid.to_string(), client.clone());
                     },
                     Commands::Info(None) => {
                         let mut params: HashMap<String, String> = HashMap::new();

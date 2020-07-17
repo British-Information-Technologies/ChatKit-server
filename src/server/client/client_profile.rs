@@ -5,15 +5,16 @@ use crate::server::commands::{Commands};
 
 use std::net::{Shutdown, TcpStream};
 use std::sync::Arc;
-use crossbeam_channel::{Receiver, TryRecvError, unbounded, Sender};
 use parking_lot::FairMutex;
 use std::collections::HashMap;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use std::time::Duration;
 use regex::Regex;
+use crossbeam::{channel, Sender, Receiver, TryRecvError};
+use crossbeam_channel::unbounded;
 
-#[derive(Clone)]
+
 pub struct Client<'client_lifetime>{
     connected: bool,
     stream: Arc<TcpStream>,
@@ -31,13 +32,13 @@ impl<'a> Client<'a> {
 
         Client {
             connected: true,
-            stream: stream,
+            stream,
             uuid: uuid.to_string(),
             username: username.to_string(),
             address: address.to_string(),
-            server: server,
-            tx_channel: tx_channel,
-            rx_channel: rx_channel,
+            server,
+            tx_channel,
+            rx_channel,
         }
     }
 
