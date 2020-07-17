@@ -77,12 +77,24 @@ impl<'a> Client<'a> {
                         
                         Commands::Info(Some(params)) => {
                             self.get_stream().write_all(a.to_string().as_bytes());
+                            /* why not do this?
+                             *
+                             * self.transmit_data(a.to_string().as_str());
+                             */
                         },
                         Commands::Disconnect(None) => {
                             
                         },
                         Commands::ClientRemove(Some(params)) => {},
-                        Commands::Client(Some(params)) => {},
+                        Commands::Client(Some(params)) => {
+                            let message:String = format!("!client: name:{name} host:{host} uuid:{uuid}", name=params.get("name").unwrap(), host=params.get("host").unwrap(), uuid=params.get("uuid").unwrap());
+                            self.transmit_data(message.as_str());
+
+                            todo!()
+                            /*
+                             * a success message needs to be read and confirmed
+                             */
+                        },
                         Commands::Success(data) => {},
                         _ => {},
                     }
