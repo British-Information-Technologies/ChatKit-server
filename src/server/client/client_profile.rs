@@ -14,8 +14,8 @@ use regex::Regex;
 use crossbeam::{channel, Sender, Receiver, TryRecvError};
 use crossbeam_channel::unbounded;
 
-
-pub struct Client<'client_lifetime>{
+#[derive(Clone)]
+pub struct Client<'client_lifetime> {
     connected: bool,
     stream: Arc<TcpStream>,
     uuid: String,
@@ -69,8 +69,6 @@ impl<'a> Client<'a> {
         while self.connected {
             match self.rx_channel.try_recv() {
                 /*command is on the channel*/
-
-            
 
                 Ok(command) => {
                     let a = command.clone();
