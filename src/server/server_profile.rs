@@ -70,6 +70,11 @@ impl<'server_lifetime> Server<'server_lifetime> {
                         self.thread_pool.execute(move || {
                             client.handle_connection();
                         });
+
+                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())];
+                        let new_client = Commands::Client(Some(params));
+                        
+                        self.update_all_clients(new_client);
                     },
                     Commands::Info(None) => {
                         let mut params: HashMap<String, String> = HashMap::new();

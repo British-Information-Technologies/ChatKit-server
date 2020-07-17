@@ -75,11 +75,7 @@ impl<'a> Client<'a> {
                     match command {
                         
                         Commands::Info(Some(params)) => {
-                            self.get_stream().write_all(a.to_string().as_bytes());
-                            /* why not do this?
-                             *
-                             * self.transmit_data(a.to_string().as_str());
-                             */
+                            self.transmit_data(a.to_string().as_str());
                         },
                         Commands::Disconnect(None) => {
                             
@@ -87,10 +83,17 @@ impl<'a> Client<'a> {
                         Commands::ClientRemove(Some(params)) => {},
                         Commands::Client(Some(params)) => {
                             self.transmit_data(a.to_string().as_str());
-                            todo!()
-                            /*
-                             * a success message needs to be read and confirmed
-                             */
+
+                            let command = Commands::from(&buffer);
+                            match command{
+                                Commands::Success(None) => {
+                                    println!("sucess confirmed");
+                                },
+                                _ => {
+                                    let error = Commands::Error(None);
+                                    self.transmit_data(error.to_string().as_str());
+                                },
+                            }
                         },
                         Commands::Success(data) => {},
                         _ => {},
