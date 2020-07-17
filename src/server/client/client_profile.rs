@@ -78,12 +78,22 @@ impl<'a> Client<'a> {
                         
                         Commands::Info(Some(params)) => {
                             self.get_stream().write_all(a.to_string().as_bytes());
+                            /* why not do this?
+                             *
+                             * self.transmit_data(a.to_string().as_str());
+                             */
                         },
                         Commands::Disconnect(None) => {
                             
                         },
                         Commands::ClientRemove(Some(params)) => {},
-                        Commands::Client(Some(params)) => {},
+                        Commands::Client(Some(params)) => {
+                            self.transmit_data(a.to_string().as_str());
+                            todo!()
+                            /*
+                             * a success message needs to be read and confirmed
+                             */
+                        },
                         Commands::Success(data) => {},
                         _ => {},
                     }
