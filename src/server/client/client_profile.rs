@@ -87,9 +87,7 @@ impl<'a> Client<'a> {
                         },
                         Commands::ClientRemove(Some(params)) => {},
                         Commands::Client(Some(params)) => {
-                            let message:String = format!("!client: name:{name} host:{host} uuid:{uuid}", name=params.get("name").unwrap(), host=params.get("host").unwrap(), uuid=params.get("uuid").unwrap());
-                            self.transmit_data(message.as_str());
-
+                            self.transmit_data(a.to_string().as_str());
                             todo!()
                             /*
                              * a success message needs to be read and confirmed
