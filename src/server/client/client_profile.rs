@@ -15,19 +15,19 @@ use crossbeam::{channel, Sender, Receiver, TryRecvError};
 use crossbeam_channel::unbounded;
 
 
-pub struct Client<'client_lifetime>{
+pub struct Client<'a> {
     connected: bool,
     stream: Arc<TcpStream>,
     uuid: String,
     username: String,
     address: String,
-    server: &'client_lifetime Server<'client_lifetime>,
+    server: &'a Server,
     tx_channel: Sender<Commands>,
     rx_channel: Receiver<Commands>,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(server: &'a Server<'a>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client<'a>{
+    pub fn new(server: &'a Server, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
         let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
 
         Client {
@@ -69,9 +69,6 @@ impl<'a> Client<'a> {
         while self.connected {
             match self.rx_channel.try_recv() {
                 /*command is on the channel*/
-
-            
-
                 Ok(command) => {
                     let a = command.clone();
                     match command {
@@ -115,7 +112,8 @@ impl<'a> Client<'a> {
                     let command = Commands::from(incoming_message.clone());
 
                     println!("Request: {}", &incoming_message);
-                    
+
+                    /*command behaviour*/
                     match command {
                         Commands::Connect(Some(params)) => todo!(),
                         _ => todo!(),
