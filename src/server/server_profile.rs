@@ -14,17 +14,17 @@ use dashmap::DashMap;
 use std::io::prelude::*;
 use regex::Regex;
 
-pub struct Server<'server_lifetime> {
+pub struct Server {
     name: String,
     address: String,
     author: String,
-    connected_clients: Arc<Mutex<HashMap<String,&'server_lifetime Client<'server_lifetime>>>>,
+    connected_clients: Arc<Mutex<HashMap<String, Sender<Commands>>>>,
     thread_pool: ThreadPool,
 }
 
 // MARK: - server implemetation
-impl<'server_lifetime> Server<'server_lifetime> {
-    pub fn new(name: &String, address: &String, author: &String) -> Server<'server_lifetime> {
+impl Server {
+    pub fn new(name: &String, address: &String, author: &String) -> Server {
         Server{
             name: name.to_string(),
             address: address.to_string(),
@@ -38,7 +38,7 @@ impl<'server_lifetime> Server<'server_lifetime> {
         &self.address
     }
 
-    pub fn start(&'server_lifetime self) {
+    pub fn start(&'static self) {
         let listener = TcpListener::bind(self.get_address()).unwrap();
         let mut buffer = [0; 1024];
 
@@ -65,7 +65,7 @@ impl<'server_lifetime> Server<'server_lifetime> {
 
                         let mut clients_hashmap = self.connected_clients.lock().unwrap();
 
-                        clients_hashmap.insert(uuid.to_string(), &client);
+                        clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
 
                         self.thread_pool.execute(move || {
                             client.handle_connection();
@@ -105,8 +105,7 @@ impl<'server_lifetime> Server<'server_lifetime> {
 
     pub fn update_all_clients(&self, command: Commands){
         let clients = self.connected_clients.lock().unwrap();
-        for client in clients.values(){
-            let tx = client.get_transmitter();
+        for tx in clients.values(){
             tx.send(command.clone()).unwrap();
         }
     }
