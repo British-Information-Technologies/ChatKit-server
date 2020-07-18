@@ -71,7 +71,7 @@ impl<'server_lifetime> Server<'server_lifetime> {
                             client.handle_connection();
                         });
 
-                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())];
+                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                         let new_client = Commands::Client(Some(params));
                         
                         self.update_all_clients(new_client);
