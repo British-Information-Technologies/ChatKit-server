@@ -21,13 +21,13 @@ pub struct Client<'a> {
     uuid: String,
     username: String,
     address: String,
-    server: &'a Server,
+    server: &'a Server<'a>,
     tx_channel: Sender<Commands>,
     rx_channel: Receiver<Commands>,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(server: &'a Server, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
+    pub fn new(server: &'a Server<'static>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
         let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
 
         Client {
@@ -83,7 +83,7 @@ impl<'a> Client<'a> {
                         Commands::Client(Some(params)) => {
                             self.transmit_data(a.to_string().as_str());
 
-                            let command = Commands::from(&buffer);
+                            /*let command = Commands::from(&buffer);
                             match command{
                                 Commands::Success(None) => {
                                     println!("sucess confirmed");
@@ -93,6 +93,7 @@ impl<'a> Client<'a> {
                                     self.transmit_data(error.to_string().as_str());
                                 },
                             }
+                            */
                         },
                         Commands::Success(data) => {},
                         _ => {},
