@@ -14,28 +14,28 @@ use dashmap::DashMap;
 use std::io::prelude::*;
 use regex::Regex;
 
-pub struct Server {
-    name: String,
-    address: String,
-    author: String,
+pub struct Server<'z> {
+    name: &'z str,
+    address: &'z str,
+    author: &'z str,
     connected_clients: Arc<Mutex<HashMap<String, Sender<Commands>>>>,
     thread_pool: ThreadPool,
 }
 
 // MARK: - server implemetation
-impl Server {
-    pub fn new(name: &String, address: &String, author: &String) -> Server {
-        Server{
-            name: name.to_string(),
-            address: address.to_string(),
-            author: author.to_string(),
+impl<'z> Server<'z> {
+    pub fn new(name: &'z str, address: &'z str, author: &'z str) -> Self {
+        Self {
+            name: name,
+            address: address,
+            author: author,
             connected_clients: Arc::new(Mutex::new(HashMap::new())),
-            thread_pool: ThreadPool::new(16)
+            thread_pool: ThreadPool::new(16),
         }
     }
     
-    pub fn get_address(&self) -> &String{
-        &self.address
+    pub fn get_address(&self) -> String{
+        self.address.to_string()
     }
 
     pub fn start(&'static self) {
@@ -78,8 +78,8 @@ impl Server {
                     },
                     Commands::Info(None) => {
                         let mut params: HashMap<String, String> = HashMap::new();
-                        params.insert(String::from("name"), self.name.clone());
-                        params.insert(String::from("owner"), self.author.clone());
+                        params.insert(String::from("name"), self.name.to_string().clone());
+                        params.insert(String::from("owner"), self.author.to_string().clone());
 
                         let command = Commands::Info(Some(params));
                         
@@ -96,8 +96,8 @@ impl Server {
 
     pub fn get_info(&self, tx: Sender<Commands>) {
         let mut params: HashMap<String, String> = HashMap::new();
-        params.insert(String::from("name"), self.name.clone());
-        params.insert(String::from("owner"), self.author.clone());
+        params.insert(String::from("name"), self.name.to_string().clone());
+        params.insert(String::from("owner"), self.author.to_string().clone());
         
         let command = Commands::Info(Some(params));
         tx.send(command).unwrap();
