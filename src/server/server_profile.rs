@@ -32,7 +32,7 @@ impl<'z> Server<'z> {
             thread_pool: ThreadPool::new(16),
         }
     }
-    
+ 
     pub fn get_address(&self) -> String{
         self.address.to_string()
     }
