@@ -1,14 +1,6 @@
 mod server;
 // mod server_v2;
-
-use crate::server::client::client_profile::Client;
 use crate::server::server_profile::Server;
-use std::net::{TcpStream, TcpListener};
-use rust_chat_server::ThreadPool;
-use std::sync::{Arc, Barrier, Mutex};
-use std::collections::HashMap;
-use crate::server::commands::Commands;
-use crossbeam_channel::Sender;
 
 fn main(){
     let server_name: &'static str = "Server-01";

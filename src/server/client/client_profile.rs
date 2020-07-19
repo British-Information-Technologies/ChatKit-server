@@ -6,12 +6,11 @@ use crate::server::commands::{Commands};
 use std::net::{Shutdown, TcpStream};
 use std::sync::Arc;
 use parking_lot::FairMutex;
-use std::collections::HashMap;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use std::time::Duration;
 use regex::Regex;
-use crossbeam::{channel, Sender, Receiver, TryRecvError};
+use crossbeam::{Sender, Receiver, TryRecvError};
 use crossbeam_channel::unbounded;
 
 

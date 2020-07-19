@@ -4,10 +4,9 @@ use crate::server::client::client_profile::Client;
 use crate::server::commands::{Commands};
 
 use rust_chat_server::ThreadPool;
-use std::collections::VecDeque;
 use std::net::{TcpStream, TcpListener};
-use std::sync::{Arc, Barrier, Mutex };
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use std::sync::{Arc, Mutex};
+use crossbeam_channel::Sender;
 use parking_lot::FairMutex;
 use std::collections::HashMap;
 use dashmap::DashMap;
