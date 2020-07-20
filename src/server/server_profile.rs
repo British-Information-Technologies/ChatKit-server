@@ -66,9 +66,9 @@ impl<'z> Server<'z> {
                         clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
                         std::mem::drop(clients_hashmap);
                         
-                        /*self.thread_pool.execute(move || {
+                        self.thread_pool.execute(move || {
                             client.handle_connection();
-                        });*/
+                        });
 
                         let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                         let new_client = Commands::Client(Some(params));
