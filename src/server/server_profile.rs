@@ -49,7 +49,6 @@ impl<'z> Server<'z> {
                 //request.to_string();
                 self.transmit_data(&stream, &request.to_string().as_str());
 
-
                 stream.read(&mut buffer).unwrap();
 
                 let incoming_message = String::from(String::from_utf8_lossy(&buffer));
@@ -64,9 +63,9 @@ impl<'z> Server<'z> {
                         let mut client = Client::new(self, stream, &uuid, &username, &address);
 
                         let mut clients_hashmap = self.connected_clients.lock().unwrap();
-
                         clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
-
+                        std::mem::drop(clients_hashmap);
+                        
                         /*self.thread_pool.execute(move || {
                             client.handle_connection();
                         });*/
@@ -90,7 +89,7 @@ impl<'z> Server<'z> {
                         self.transmit_data(&stream, Commands::Error(None).to_string().as_str());
                     },
                 }
-            }
+            } 
         }
     }
 
