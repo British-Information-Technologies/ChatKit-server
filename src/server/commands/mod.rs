@@ -135,6 +135,7 @@ impl ToString for Commands {
             Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
             Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
+            Commands::Client(arguments) => { ("!client:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
             _ => { ("!error:", &None) }
         };
