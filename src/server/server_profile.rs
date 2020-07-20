@@ -66,9 +66,9 @@ impl<'z> Server<'z> {
 
                         clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
 
-                        self.thread_pool.execute(move || {
+                        /*self.thread_pool.execute(move || {
                             client.handle_connection();
-                        });
+                        });*/
 
                         let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                         let new_client = Commands::Client(Some(params));
@@ -113,6 +113,11 @@ impl<'z> Server<'z> {
         println!("Transmitting...");
         println!("data: {}",data);
 
+        /*
+         * This will throw an error and crash any thread, including the main thread, if
+         * the connection is lost before transmitting. Maybe change to handle any exceptions
+         * that may occur.
+         */
         stream.write(data.to_string().as_bytes()).unwrap();
         stream.flush().unwrap();
     }
