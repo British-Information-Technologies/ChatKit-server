@@ -129,6 +129,7 @@ impl ToString for Commands {
         let mut out_string = String::new();
 
         let (command, parameters) = match self {
+            Commands::Request(arguments) => { ("!request:", arguments) },
             Commands::Info(arguments) => { ("!info:", arguments) },
             Commands::Connect(arguments) => { ("!connect:", arguments) },
             Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
