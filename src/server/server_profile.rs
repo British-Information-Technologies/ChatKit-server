@@ -46,8 +46,9 @@ impl<'z> Server<'z> {
                 println!("Server: new connection, {}", addr);
 
                 let request = Commands::Request(None);
-                request.to_string();
-                self.transmit_data(&stream, &*request.to_string().as_str());
+                //request.to_string();
+                self.transmit_data(&stream, &request.to_string().as_str());
+
 
                 stream.read(&mut buffer).unwrap();
 
