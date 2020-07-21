@@ -1,4 +1,4 @@
-use crate::server::client::client_profile::Client;
+/*use crate::server::client::client_profile::Client;
 
 use std::sync::Mutex;
 use std::sync::Arc;
@@ -26,4 +26,4 @@ pub fn get_client_data(clients_ref: &Arc<Mutex<HashMap<String, Client>>>, data: 
         },
         None => String::from("client not online"),
     }
-}
+}*/

@@ -10,14 +10,7 @@ mod client;
 mod test;
 mod message;
 
-use crate::server::client::client_profile::Client;
-use crate::server::server_profile::Server;
-
 use std::string::ToString;
-
-use parking_lot::FairMutex;
-use std::sync::Mutex;
-use std::sync::Arc;
 use std::collections::HashMap;
 use dashmap::DashMap;
 use std::borrow::Borrow;
@@ -136,11 +129,13 @@ impl ToString for Commands {
         let mut out_string = String::new();
 
         let (command, parameters) = match self {
+            Commands::Request(arguments) => { ("!request:", arguments) },
             Commands::Info(arguments) => { ("!info:", arguments) },
             Commands::Connect(arguments) => { ("!connect:", arguments) },
             Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
             Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
+            Commands::Client(arguments) => { ("!client:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
             _ => { ("!error:", &None) }
         };

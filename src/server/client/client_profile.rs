@@ -6,28 +6,27 @@ use crate::server::commands::{Commands};
 use std::net::{Shutdown, TcpStream};
 use std::sync::Arc;
 use parking_lot::FairMutex;
-use std::collections::HashMap;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use std::time::Duration;
 use regex::Regex;
-use crossbeam::{channel, Sender, Receiver, TryRecvError};
+use crossbeam::{Sender, Receiver, TryRecvError};
 use crossbeam_channel::unbounded;
 
-#[derive(Clone)]
-pub struct Client<'client_lifetime> {
+
+pub struct Client<'a> {
     connected: bool,
     stream: Arc<TcpStream>,
     uuid: String,
     username: String,
     address: String,
-    server: &'client_lifetime Server<'client_lifetime>,
+    server: &'a Server<'a>,
     tx_channel: Sender<Commands>,
     rx_channel: Receiver<Commands>,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(server: &'a Server<'a>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Client<'a>{
+    pub fn new(server: &'a Server<'static>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
         let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
 
         Client {
@@ -84,7 +83,7 @@ impl<'a> Client<'a> {
                         Commands::Client(Some(params)) => {
                             self.transmit_data(a.to_string().as_str());
 
-                            let command = Commands::from(&buffer);
+                            /*let command = Commands::from(&buffer);
                             match command{
                                 Commands::Success(None) => {
                                     println!("sucess confirmed");
@@ -94,6 +93,7 @@ impl<'a> Client<'a> {
                                     self.transmit_data(error.to_string().as_str());
                                 },
                             }
+                            */
                         },
                         Commands::Success(data) => {},
                         _ => {},
@@ -113,7 +113,8 @@ impl<'a> Client<'a> {
                     let command = Commands::from(incoming_message.clone());
 
                     println!("Request: {}", &incoming_message);
-                    
+
+                    /*command behaviour*/
                     match command {
                         Commands::Connect(Some(params)) => todo!(),
                         _ => todo!(),

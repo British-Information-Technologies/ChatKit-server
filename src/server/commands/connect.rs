@@ -1,4 +1,4 @@
-use crate::server::client::client_profile::Client;
+/*use crate::server::client::client_profile::Client;
 
 use std::sync::Mutex;
 use std::sync::Arc;
@@ -10,3 +10,4 @@ pub fn add_client(clients_ref: &Arc<Mutex<HashMap<String, Client>>>, client: &Cl
     let uuid = client.get_uuid().to_string();
     //clients_hashmap.insert(uuid, client.clone());
 }
+*/

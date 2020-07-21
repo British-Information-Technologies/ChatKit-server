@@ -4,41 +4,40 @@ use crate::server::client::client_profile::Client;
 use crate::server::commands::{Commands};
 
 use rust_chat_server::ThreadPool;
-use std::collections::VecDeque;
 use std::net::{TcpStream, TcpListener};
-use std::sync::{Arc, Barrier, Mutex };
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use std::sync::{Arc, Mutex};
+use crossbeam_channel::Sender;
 use parking_lot::FairMutex;
 use std::collections::HashMap;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use regex::Regex;
 
-pub struct Server<'server_lifetime> {
-    name: String,
-    address: String,
-    author: String,
-    connected_clients: Arc<Mutex<HashMap<String,&'server_lifetime Client<'server_lifetime>>>>,
+pub struct Server<'z> {
+    name: &'z str,
+    address: &'z str,
+    author: &'z str,
+    connected_clients: Arc<Mutex<HashMap<String, Sender<Commands>>>>,
     thread_pool: ThreadPool,
 }
 
 // MARK: - server implemetation
-impl<'server_lifetime> Server<'server_lifetime> {
-    pub fn new(name: &String, address: &String, author: &String) -> Server<'server_lifetime> {
-        Server{
-            name: name.to_string(),
-            address: address.to_string(),
-            author: author.to_string(),
+impl<'z> Server<'z> {
+    pub fn new(name: &'z str, address: &'z str, author: &'z str) -> Self {
+        Self {
+            name: name,
+            address: address,
+            author: author,
             connected_clients: Arc::new(Mutex::new(HashMap::new())),
-            thread_pool: ThreadPool::new(16)
+            thread_pool: ThreadPool::new(16),
         }
     }
-    
-    pub fn get_address(&self) -> &String{
-        &self.address
+ 
+    pub fn get_address(&self) -> String{
+        self.address.to_string()
     }
 
-    pub fn start(&'server_lifetime self) {
+    pub fn start(&'static self) {
         let listener = TcpListener::bind(self.get_address()).unwrap();
         let mut buffer = [0; 1024];
 
@@ -47,8 +46,8 @@ impl<'server_lifetime> Server<'server_lifetime> {
                 println!("Server: new connection, {}", addr);
 
                 let request = Commands::Request(None);
-                request.to_string();
-                self.transmit_data(&stream, &*request.to_string().as_str());
+                //request.to_string();
+                self.transmit_data(&stream, &request.to_string().as_str());
 
                 stream.read(&mut buffer).unwrap();
 
@@ -64,22 +63,22 @@ impl<'server_lifetime> Server<'server_lifetime> {
                         let mut client = Client::new(self, stream, &uuid, &username, &address);
 
                         let mut clients_hashmap = self.connected_clients.lock().unwrap();
-
-                        clients_hashmap.insert(uuid.to_string(), &client);
-
+                        clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
+                        std::mem::drop(clients_hashmap);
+                        
                         self.thread_pool.execute(move || {
                             client.handle_connection();
                         });
 
-                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())];
+                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                         let new_client = Commands::Client(Some(params));
                         
                         self.update_all_clients(new_client);
                     },
                     Commands::Info(None) => {
                         let mut params: HashMap<String, String> = HashMap::new();
-                        params.insert(String::from("name"), self.name.clone());
-                        params.insert(String::from("owner"), self.author.clone());
+                        params.insert(String::from("name"), self.name.to_string().clone());
+                        params.insert(String::from("owner"), self.author.to_string().clone());
 
                         let command = Commands::Info(Some(params));
                         
@@ -90,14 +89,14 @@ impl<'server_lifetime> Server<'server_lifetime> {
                         self.transmit_data(&stream, Commands::Error(None).to_string().as_str());
                     },
                 }
-            }
+            } 
         }
     }
 
     pub fn get_info(&self, tx: Sender<Commands>) {
         let mut params: HashMap<String, String> = HashMap::new();
-        params.insert(String::from("name"), self.name.clone());
-        params.insert(String::from("owner"), self.author.clone());
+        params.insert(String::from("name"), self.name.to_string().clone());
+        params.insert(String::from("owner"), self.author.to_string().clone());
         
         let command = Commands::Info(Some(params));
         tx.send(command).unwrap();
@@ -105,8 +104,7 @@ impl<'server_lifetime> Server<'server_lifetime> {
 
     pub fn update_all_clients(&self, command: Commands){
         let clients = self.connected_clients.lock().unwrap();
-        for client in clients.values(){
-            let tx = client.get_transmitter();
+        for tx in clients.values(){
             tx.send(command.clone()).unwrap();
         }
     }
@@ -115,6 +113,11 @@ impl<'server_lifetime> Server<'server_lifetime> {
         println!("Transmitting...");
         println!("data: {}",data);
 
+        /*
+         * This will throw an error and crash any thread, including the main thread, if
+         * the connection is lost before transmitting. Maybe change to handle any exceptions
+         * that may occur.
+         */
         stream.write(data.to_string().as_bytes()).unwrap();
         stream.flush().unwrap();
     }
