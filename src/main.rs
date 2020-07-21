@@ -6,7 +6,7 @@ mod server;
 use crate::server::server_profile::Server;
 
 fn main(){ 
-    lazy_static!{
+    lazy_static! {
         static ref server_name: &'static str = "Server-01";
         static ref server_address: &'static str = "0.0.0.0:6000";
         static ref server_author: &'static str = "noreply@email.com";
