@@ -42,22 +42,27 @@ impl<'a> Client<'a> {
         }
     }
 
+    #[allow(dead_code)]
     fn get_stream(&self) -> &TcpStream{
         &self.stream
     }
 
+    #[allow(dead_code)]
     pub fn get_transmitter(&self) -> &Sender<Commands>{
         &self.tx_channel
     }
     
+    #[allow(dead_code)]
     pub fn get_uuid(&self) -> &String{
         &self.uuid
     }
 
+    #[allow(dead_code)]
     pub fn get_username(&self) -> &String{
         &self.username
     }
 
+    #[allow(dead_code)]
     pub fn get_address(&self) -> &String{
         &self.address
     }
@@ -189,8 +194,8 @@ impl<'a> Client<'a> {
         self.get_stream().flush().unwrap();
     }
 
-
-
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
     pub fn disconnect(&mut self){
         self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
         self.connected = false;
@@ -198,7 +203,8 @@ impl<'a> Client<'a> {
 
 
 
-    // deprecated
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
     pub fn confirm_success(&self, buffer: &mut [u8; 1024]){
         let success_regex = Regex::new(r###"!success:"###).unwrap();
 
@@ -215,6 +221,8 @@ impl<'a> Client<'a> {
         };
     }
 
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
     pub fn transmit_success(&self, data: &String){
         let mut success_message = "!success:".to_string();
         if !data.is_empty(){
@@ -224,6 +232,8 @@ impl<'a> Client<'a> {
         self.transmit_data(&success_message);
     }
     
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
     fn transmit_error(&self, data: &String){
         let mut error_message = "!error:".to_string();
         if !data.is_empty(){

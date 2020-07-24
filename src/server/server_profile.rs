@@ -106,15 +106,6 @@ impl<'z> Server<'z> {
         }
     }
 
-    pub fn get_info(&self, tx: Sender<Commands>) {
-        let mut params: HashMap<String, String> = HashMap::new();
-        params.insert(String::from("name"), self.name.to_string().clone());
-        params.insert(String::from("owner"), self.author.to_string().clone());
-        
-        let command = Commands::Info(Some(params));
-        tx.send(command).unwrap();
-    }
-
     pub fn update_client(&self, uuid: &str, command: &Commands){
         let clients = self.connected_clients.lock().unwrap();
         let tx = clients.get(&uuid.to_string()).unwrap();
@@ -141,46 +132,19 @@ impl<'z> Server<'z> {
         stream.flush().unwrap();
     }
 
-    //deprecated
-    /*
-    pub fn tokenize(&self, incoming_message: &str) -> Result<ClientCommands, &'static str>{
-        let command_regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
+    pub fn get_info(&self, tx: Sender<Commands>) {
+        let mut params: HashMap<String, String> = HashMap::new();
+        params.insert(String::from("name"), self.name.to_string().clone());
+        params.insert(String::from("owner"), self.author.to_string().clone());
         
-        if command_regex.is_match(incoming_message){
-            let command = self.match_command(&incoming_message.to_string());
-            let command = match command{
-                ClientCommands::Connect(mut addons) => {
-                    self.regex_data(&command_regex, &incoming_message.replace("!connect: ", ""), &mut addons);
-                    ClientCommands::Connect(addons)
-                },
-                ClientCommands::ClientInfo(mut addons) => {
-                    self.regex_data(&command_regex, &incoming_message.replace("!clientInfo: ", ""), &mut addons);
-                    ClientCommands::ClientInfo(addons)
-                },
-                _ => {
-                    println!("no addons");
-                    command
-                },
-            };
-            Ok(command)
-        } else {
-            Err("data did not match regex!")
-        }
+        let command = Commands::Info(Some(params));
+        tx.send(command).unwrap();
     }
-    
-    
-    fn match_command(&self, command: &String) -> ClientCommands{
-        match command{
-            _ if command.starts_with("!info:") => ClientCommands::Info,
-            _ if command.starts_with("!connect:") => ClientCommands::Connect(HashMap::new()),
-            _ if command.starts_with("!disconnect:") => ClientCommands::Disconnect,
-            _ if command.starts_with("!clientUpdate:") => ClientCommands::ClientUpdate,
-            _ if command.starts_with("!clientInfo:") => ClientCommands::ClientInfo(HashMap::new()),
-            _ => ClientCommands::Unknown,
-        }
-    }
-    */
 
+    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
+    #[allow(dead_code)]
     fn regex_data(&self, command_regex: &Regex, data: &str, command_addons: &mut HashMap<String, String>){
         for figure in command_regex.find_iter(data){
             let segment = figure.as_str().to_string();
