@@ -7,10 +7,10 @@ use crate::server::server_profile::Server;
 
 fn main(){ 
     lazy_static!{
-        static ref server_name: &'static str = "Server-01";
-        static ref server_address: &'static str = "0.0.0.0:6000";
-        static ref server_author: &'static str = "noreply@email.com";
-        static ref SERVER: Server<'static> = Server::new(&server_name, &server_address, &server_author);
+        static ref SERVER_NAME: &'static str = "Server-01";
+        static ref SERVER_ADDRESS: &'static str = "0.0.0.0:6000";
+        static ref SERVER_AUTHOR: &'static str = "noreply@email.com";
+        static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
     }
     /*
     let server_name = String::from("Server-01");
