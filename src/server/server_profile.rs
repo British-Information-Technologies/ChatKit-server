@@ -54,13 +54,11 @@ impl<'z> Server<'z> {
                 println!("Server: new connection, {}", addr);
 
                 let request = Commands::Request(None);
-                //request.to_string();
                 self.transmit_data(&stream, &request.to_string().as_str());
 
                 stream.read(&mut buffer).unwrap();
-
-                let incoming_message = String::from(String::from_utf8_lossy(&buffer));
-                let command = Commands::from(incoming_message);
+                let command = Commands::from(&buffer);
+                
                 match command {
                     Commands::Connect(Some(data)) => {
                         let uuid = data.get("uuid").unwrap();
