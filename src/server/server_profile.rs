@@ -32,11 +32,19 @@ impl<'z> Server<'z> {
             thread_pool: ThreadPool::new(16),
         }
     }
- 
+
+    pub fn get_name(&self) -> String{
+        self.name.to_string()
+    }
+
     pub fn get_address(&self) -> String{
         self.address.to_string()
     }
 
+    pub fn get_author(&self) -> String{
+        self.author.to_string()
+    }
+ 
     pub fn start(&'static self) {
         let listener = TcpListener::bind(self.get_address()).unwrap();
         let mut buffer = [0; 1024];
@@ -60,12 +68,17 @@ impl<'z> Server<'z> {
                         let address = data.get("host").unwrap();
 
                         let stream = Arc::new(stream);
-                        let mut client = Client::new(self, stream, &uuid, &username, &address);
+                        let client = Client::new(self, stream, &uuid, &username, &address);
+                        
+                        let tx = client.get_transmitter();
 
                         let mut clients_hashmap = self.connected_clients.lock().unwrap();
-                        clients_hashmap.insert(uuid.to_string(), client.get_transmitter().clone());
+                        clients_hashmap.insert(uuid.to_string(), tx.clone());
                         std::mem::drop(clients_hashmap);
                         
+                        let success = Commands::Success(None);
+                        tx.send(success).unwrap();
+
                         self.thread_pool.execute(move || {
                             client.handle_connection();
                         });
@@ -100,6 +113,12 @@ impl<'z> Server<'z> {
         
         let command = Commands::Info(Some(params));
         tx.send(command).unwrap();
+    }
+
+    pub fn update_client(&self, uuid: &str, command: &Commands){
+        let clients = self.connected_clients.lock().unwrap();
+        let tx = clients.get(&uuid.to_string()).unwrap();
+        tx.send(command.clone()).unwrap();
     }
 
     pub fn update_all_clients(&self, command: Commands){
