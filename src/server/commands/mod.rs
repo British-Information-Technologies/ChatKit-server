@@ -168,7 +168,7 @@ impl From<&str> for Commands {
 
         for i in iter {
             let parameter = i.as_str().to_string();
-            let mut parts:Vec<&str> = parameter.split(":").collect();
+            let parts:Vec<&str> = parameter.split(":").collect();
 
             map.insert(parts.index(0).to_string(), parts.index(1).to_string());
         }
@@ -198,6 +198,13 @@ impl From<&str> for Commands {
 impl From<String> for Commands {
     fn from(data: String) -> Self {
         Commands::from(data.as_str())
+    }
+}
+
+impl From<&[u8; 1024]> for Commands {
+    fn from(data: &[u8; 1024]) -> Self {
+        let incoming_message = String::from(String::from_utf8_lossy(data));
+        Commands::from(incoming_message.as_str())
     }
 }
 
