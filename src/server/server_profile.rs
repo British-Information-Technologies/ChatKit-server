@@ -87,11 +87,8 @@ impl<'z> Server<'z> {
                         self.update_all_clients(new_client);
                     },
                     Commands::Info(None) => {
-                        let mut params: HashMap<String, String> = HashMap::new();
-                        params.insert(String::from("name"), self.name.to_string().clone());
-                        params.insert(String::from("owner"), self.author.to_string().clone());
-
-                        let command = Commands::Info(Some(params));
+                        let params: HashMap<String, String> = [(String::from("name"), self.name.to_string().clone()), (String::from("owner"), self.author.to_string().clone())].iter().cloned().collect();
+                        let command = Commands::Success(Some(params));
                         
                         self.transmit_data(&stream, command.to_string().as_str());
                     },
@@ -150,5 +147,70 @@ impl<'z> Server<'z> {
             println!("key: {}, value: {}", contents[0].to_string(), contents[1].to_string());
             command_addons.insert(contents[0].to_string(), contents[1].to_string());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use std::{thread, time};
+
+    fn spawn_server(){
+        thread::spawn(|| {
+            lazy_static!{
+                static ref SERVER_NAME: &'static str = "test";
+                static ref SERVER_ADDRESS: &'static str = "0.0.0.0:6000";
+                static ref SERVER_AUTHOR: &'static str = "test";
+                static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
+            }
+            SERVER.start();
+        });
+    }
+
+    #[test] 
+    fn test_connect_command(){
+        let mut buffer = [0; 1024];
+        
+        spawn_server();
+        
+        let millis = time::Duration::from_millis(2000);
+        thread::sleep(millis);
+
+        let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
+
+        stream.read(&mut buffer).unwrap();
+        let mut command = Commands::from(&buffer);
+
+        let msg = b"!connect: uuid:123456-1234-1234-123456 name:\"alice\" host:\"127.0.0.1\"";
+        stream.write(msg).unwrap();
+
+        stream.read(&mut buffer).unwrap();
+        command = Commands::from(&buffer);
+
+        assert_eq!(command, Commands::Success(None));
+    }
+
+    #[test]
+    fn test_info_command(){
+        let mut buffer = [0; 1024];
+
+        spawn_server();
+        
+        let millis = time::Duration::from_millis(2000);
+        thread::sleep(millis);
+
+        let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
+        
+        stream.read(&mut buffer).unwrap();
+        let mut command = Commands::from(&buffer);
+        
+        let msg = b"!info:";
+        stream.write(msg).unwrap();
+        
+        stream.read(&mut buffer).unwrap();
+        command = Commands::from(&buffer);       
+
+        let params: HashMap<String, String> = [(String::from("name"), String::from("test")), (String::from("owner"), String::from("test"))].iter().cloned().collect();
+        assert_eq!(command, Commands::Success(Some(params)));
     }
 }
