@@ -106,7 +106,7 @@ impl ServerCommands{
 */
 
 // MARK: - commands_v2 electric boogaloo 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Commands {
     Request(Option<HashMap<String, String>>),
     Info(Option<HashMap<String, String>>),
@@ -123,6 +123,48 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
+impl Commands {
+    fn compare_params(&self, params: &Option<HashMap<String, String>>, other_params: &Option<HashMap<String, String>>) -> bool {
+        match (params, other_params) {
+            (None, Some(other_params)) => false,
+            (Some(params), None) => false,
+            (None, None) => true,
+            (Some(params), Some(other_params)) => {
+                let mut result = true;
+
+                for key in params.keys() {
+                    if other_params.get(key) == None {
+                        result = false;
+                        break;
+                    }
+                }
+
+                result
+            },
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq for Commands {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Commands::Request(params), Commands::Request(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Info(params), Commands::Info(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Connect(params), Commands::Connect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Disconnect(params), Commands::Disconnect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientUpdate(params), Commands::ClientUpdate(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientInfo(params), Commands::ClientInfo(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientRemove(params), Commands::ClientRemove(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Client(params), Commands::Client(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Success(params), Commands::Success(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Error(params), Commands::Error(other_params)) => self.compare_params(&params, &other_params),
+            _ => false,
+        }
+    }
+
+}
+
 impl ToString for Commands {
 
     fn to_string(&self) -> std::string::String {
@@ -136,6 +178,7 @@ impl ToString for Commands {
             Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
             Commands::Client(arguments) => { ("!client:", arguments) },
+            Commands::Success(arguments) => { ("!success:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
             _ => { ("!error:", &None) }
         };
@@ -207,6 +250,9 @@ impl From<&[u8; 1024]> for Commands {
         Commands::from(incoming_message.as_str())
     }
 }
+
+
+
 
 #[cfg(test)]
 mod test_commands_v2 {
