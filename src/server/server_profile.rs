@@ -108,8 +108,9 @@ impl<'z> Server<'z> {
 
     pub fn update_all_clients(&self, uuid: &str, command: Commands){
         let clients = self.connected_clients.lock().unwrap();
-        for (client_uuid, tx) in clients.iter(){
-            if uuid != client_uuid.to_string() {
+        
+        if clients.len() > 1 {
+            for tx in clients.values(){
                 tx.send(command.clone()).unwrap();
             }
         }
@@ -302,6 +303,9 @@ mod tests{
 
         let msg = "!disconnect";
         transmit_data(&stream, msg);
+        
+        //let dur = time::Duration::from_millis(1000);
+        //thread::sleep(dur);
     }
 
 
@@ -393,6 +397,9 @@ mod tests{
         transmit_data(&stream_two, msg);
         transmit_data(&stream_three, msg);
         transmit_data(&stream_four, msg);
+
+        //let dur = time::Duration::from_millis(1000);
+        //thread::sleep(dur);
     }
 
     #[test]
@@ -464,5 +471,8 @@ mod tests{
             Err(_) => assert!(true),
         }
         stream_one.set_read_timeout(None).unwrap();
+ 
+        let msg = "!disconnect:";
+        transmit_data(&stream_one, msg);
     }
 }
