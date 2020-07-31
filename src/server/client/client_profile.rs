@@ -68,8 +68,8 @@ impl<'a> Client<'a> {
     }
 
     pub fn handle_connection(&mut self){
-        self.stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        //let mut buffer = [0; 1024];       
+        //self.stream.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
+        self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
         
         while self.connected {
             match self.rx_channel.try_recv() {
@@ -139,7 +139,7 @@ impl<'a> Client<'a> {
 
                             self.server.remove_client(self.uuid.as_str());
 
-                            //self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
+                            self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
 
                             let params: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
                             let command = Commands::ClientRemove(Some(params));
@@ -170,7 +170,7 @@ impl<'a> Client<'a> {
                     }
                 },
                 Err(_) => {
-                    println!("no data read");
+                    //println!("no data read");
                 },
             }
         }
@@ -192,13 +192,12 @@ impl<'a> Client<'a> {
         let command = Commands::from(&buffer);
 
         Ok(command)
-        //match self.get_stream().read(&mut buffer) {
-        //    Ok(_) => Commands::from(&buffer),
-        //    Err(_) => Commands::Error(None),
-        //}
     }
 
     fn confirm_success(&self){
+        self.stream.set_nonblocking(false).expect("set_nonblocking call failed");
+        self.stream.set_read_timeout(Some(Duration::from_millis(3000))).expect("set_read_timeout call failed");
+
         match self.read_data() {
             Ok(command) => {
                 match command {
@@ -211,8 +210,15 @@ impl<'a> Client<'a> {
                     },
                 }
             },
-            Err(_) => println!("no success read"),
+            Err(_) => {
+                println!("no success read");
+                let error = Commands::Error(None);
+                self.transmit_data(error.to_string().as_str());
+            },
         }
+
+        self.stream.set_read_timeout(None).expect("set_read_timeout call failed");
+        self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
     }
 
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use crossbeam_channel::Sender;
 use parking_lot::FairMutex;
 use std::collections::HashMap;
+use std::io::Error;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use regex::Regex;
@@ -47,7 +48,6 @@ impl<'z> Server<'z> {
  
     pub fn start(&'static self) {
         let listener = TcpListener::bind(self.get_address()).unwrap();
-        let mut buffer = [0; 1024];
 
         loop {
             if let Ok((mut stream, addr)) = listener.accept() {
@@ -56,45 +56,48 @@ impl<'z> Server<'z> {
                 let request = Commands::Request(None);
                 self.transmit_data(&stream, &request.to_string().as_str());
 
-                stream.read(&mut buffer).unwrap();
-                let command = Commands::from(&buffer);
-                
-                match command {
-                    Commands::Connect(Some(data)) => {
-                        let uuid = data.get("uuid").unwrap();
-                        let username = data.get("name").unwrap();
-                        let address = data.get("host").unwrap();
 
-                        let stream = Arc::new(stream);
-                        let mut client = Client::new(self, stream, &uuid, &username, &address);
-                        
-                        let tx = client.get_transmitter();
+                match self.read_data(&stream) {
+                    Ok(command) => {
+                        match command {
+                            Commands::Connect(Some(data)) => {
+                                let uuid = data.get("uuid").unwrap();
+                                let username = data.get("name").unwrap();
+                                let address = data.get("host").unwrap();
 
-                        let mut clients_hashmap = self.connected_clients.lock().unwrap();
-                        clients_hashmap.insert(uuid.to_string(), tx.clone());
-                        std::mem::drop(clients_hashmap);
-                        
-                        let success = Commands::Success(None);
-                        tx.send(success).unwrap();
+                                let stream = Arc::new(stream);
+                                let mut client = Client::new(self, stream, &uuid, &username, &address);
+                                
+                                let tx = client.get_transmitter();
 
-                        self.thread_pool.execute(move || {
-                            client.handle_connection();
-                        });
-                        
-                        let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
-                        let new_client = Commands::Client(Some(params));
-                        self.update_all_clients(uuid.as_str(), new_client);
+                                let mut clients_hashmap = self.connected_clients.lock().unwrap();
+                                clients_hashmap.insert(uuid.to_string(), tx.clone());
+                                std::mem::drop(clients_hashmap);
+                                
+                                let success = Commands::Success(None);
+                                tx.send(success).unwrap();
+
+                                self.thread_pool.execute(move || {
+                                    client.handle_connection();
+                                });
+                                
+                                let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
+                                let new_client = Commands::Client(Some(params));
+                                self.update_all_clients(uuid.as_str(), new_client);
+                            },
+                            Commands::Info(None) => {
+                                let params: HashMap<String, String> = [(String::from("name"), self.name.to_string().clone()), (String::from("owner"), self.author.to_string().clone())].iter().cloned().collect();
+                                let command = Commands::Success(Some(params));
+                                
+                                self.transmit_data(&stream, command.to_string().as_str());
+                            },
+                            _ => {
+                                println!("Invalid command!");
+                                self.transmit_data(&stream, Commands::Error(None).to_string().as_str());
+                            },
+                        }
                     },
-                    Commands::Info(None) => {
-                        let params: HashMap<String, String> = [(String::from("name"), self.name.to_string().clone()), (String::from("owner"), self.author.to_string().clone())].iter().cloned().collect();
-                        let command = Commands::Success(Some(params));
-                        
-                        self.transmit_data(&stream, command.to_string().as_str());
-                    },
-                    _ => {
-                        println!("Invalid command!");
-                        self.transmit_data(&stream, Commands::Error(None).to_string().as_str());
-                    },
+                    Err(_) => println!("ERROR: stream closed"),
                 }
             } 
         }
@@ -109,8 +112,8 @@ impl<'z> Server<'z> {
     pub fn update_all_clients(&self, uuid: &str, command: Commands){
         let clients = self.connected_clients.lock().unwrap();
         
-        if clients.len() > 1 {
-            for tx in clients.values(){
+        for (client_uuid, tx) in clients.iter() {
+            if uuid != client_uuid.to_string() {
                 tx.send(command.clone()).unwrap();
             }
         }
@@ -132,6 +135,15 @@ impl<'z> Server<'z> {
          */
         stream.write(data.to_string().as_bytes()).unwrap();
         stream.flush().unwrap();
+    }
+
+    fn read_data(&self, mut stream: &TcpStream) -> Result<Commands, Error> {
+        let mut buffer = [0; 1024];
+        
+        stream.read(&mut buffer)?;
+        let command = Commands::from(&buffer);
+
+        Ok(command)
     }
 
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
@@ -222,6 +234,11 @@ mod tests{
         }
     }
 
+    fn force_disconnect(mut stream: &TcpStream){
+        let msg = "!disconnect:";
+        transmit_data(&stream, msg);
+    }
+
     #[test]
     fn test_server_connect(){
         let mut buffer = [0; 1024];
@@ -245,6 +262,9 @@ mod tests{
 
         let msg = b"!disconnect:";
         stream.write(msg).unwrap();
+
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 
     #[test]
@@ -255,19 +275,17 @@ mod tests{
         
         let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
         
-        stream.read(&mut buffer).unwrap();
-        let mut command = Commands::from(&buffer);
+        let command = read_data(&stream);
         
         assert_eq!(command, Commands::Request(None));
         
-        let msg = b"!info:";
-        stream.write(msg).unwrap();
+        let msg = "!info:";
+        transmit_data(&stream, msg);
         
-        stream.read(&mut buffer).unwrap();
-        command = Commands::from(&buffer);       
+        let command = read_data(&stream);
 
         let params: HashMap<String, String> = [(String::from("name"), String::from("test")), (String::from("owner"), String::from("test"))].iter().cloned().collect();
-        assert_eq!(command, Commands::Success(Some(params)));
+        assert_eq!(command, Commands::Success(Some(params)));    
     }
 
     #[test]
@@ -286,6 +304,9 @@ mod tests{
         
         let msg = "!disconnect:";
         transmit_data(&stream, msg);
+
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 
     #[test]
@@ -301,11 +322,11 @@ mod tests{
 
         assert_eq!(command, Commands::Success(None));
 
-        let msg = "!disconnect";
+        let msg = "!disconnect:";
         transmit_data(&stream, msg);
         
-        //let dur = time::Duration::from_millis(1000);
-        //thread::sleep(dur);
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 
 
@@ -398,8 +419,8 @@ mod tests{
         transmit_data(&stream_three, msg);
         transmit_data(&stream_four, msg);
 
-        //let dur = time::Duration::from_millis(1000);
-        //thread::sleep(dur);
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 
     #[test]
@@ -438,6 +459,9 @@ mod tests{
         let msg = "!disconnect:";
         transmit_data(&stream_one, msg);
         transmit_data(&stream_two, msg);
+
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 
     #[test]
@@ -474,5 +498,8 @@ mod tests{
  
         let msg = "!disconnect:";
         transmit_data(&stream_one, msg);
+
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
     }
 }

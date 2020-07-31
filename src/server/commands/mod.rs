@@ -206,6 +206,7 @@ impl ToString for Commands {
 
 impl From<&str> for Commands { 
     fn from(data: &str) -> Self {
+        println!("HERE!!!  {}", data);
         let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
         let mut iter = regex.find_iter(data);
         let command = iter.next().unwrap().as_str();
