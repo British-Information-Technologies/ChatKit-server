@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use dashmap::DashMap;
 use std::io::prelude::*;
 use std::time::Duration;
-use regex::Regex;
+use std::io::Error;
 use crossbeam::{Sender, Receiver, TryRecvError};
 use crossbeam_channel::unbounded;
 
@@ -67,9 +67,9 @@ impl<'a> Client<'a> {
         &self.address
     }
 
-    pub fn handle_connection(&self){
+    pub fn handle_connection(&mut self){
         self.stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        let mut buffer = [0; 1024];       
+        //let mut buffer = [0; 1024];       
         
         while self.connected {
             match self.rx_channel.try_recv() {
@@ -77,38 +77,39 @@ impl<'a> Client<'a> {
                 Ok(command) => {
                     let a = command.clone();
                     match command {
-                        
+                        /*this might be useless*/
                         Commands::Info(Some(_params)) => {
                             self.transmit_data(a.to_string().as_str());
                         },
                         Commands::Disconnect(None) => {
                             
                         },
+                        Commands::ClientUpdate(Some(params)) => {
+                            let uuid = params.get("uuid").unwrap();
+                            
+                            let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone()), (String::from("name"), self.username.clone()), (String::from("host"), self.address.clone())].iter().cloned().collect();
+                            let command = Commands::Client(Some(data));
+
+                            self.server.update_client(uuid.as_str(), &command);
+                        },
                         Commands::ClientInfo(Some(params)) => {
                             let uuid = params.get("uuid").unwrap();
 
-                            let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone()), (String::from("name"), self.username.clone())].iter().cloned().collect();
+                            let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone()), (String::from("name"), self.username.clone()), (String::from("host"), self.address.clone())].iter().cloned().collect();
                             let command = Commands::Success(Some(data));
 
                             self.server.update_client(uuid.as_str(), &command);
                         },
                         Commands::ClientRemove(Some(params)) => {
-                        
+                            let command = Commands::Client(Some(params));
+                            self.transmit_data(command.to_string().as_str());
+
+                            self.confirm_success();
                         },
                         Commands::Client(Some(_params)) => {
                             self.transmit_data(a.to_string().as_str());
 
-                            self.get_stream().read(&mut buffer).unwrap();
-                            let command = Commands::from(&buffer);
-                            match command{
-                                Commands::Success(_params) => {
-                                    println!("sucess confirmed");
-                                },
-                                _ => {
-                                    let error = Commands::Error(None);
-                                    self.transmit_data(error.to_string().as_str());
-                                },
-                            }
+                            self.confirm_success();
                         },
                         Commands::Success(_params) => {
                             self.transmit_data(a.to_string().as_str());
@@ -123,53 +124,43 @@ impl<'a> Client<'a> {
                 /*no data available yet*/
                 Err(TryRecvError::Empty) => {},
             }
-            
-            match self.stream.peek(&mut buffer){
-                Ok(_) => {
-                    self.get_stream().read(&mut buffer).unwrap();
-                    let command = Commands::from(&buffer);
-                    println!("Request: {}", command.to_string());
 
-                    /*command behaviour*/
-                    /* CAN RECV:
-                     * info
-                     * disconnect
-                     * client update
-                     * client info
-                     * success
-                     * error
-                     *
-                     * CANNOT RECV:
-                     * connect
-                     * request
-                     * client
-                     * error
-                     */
+            match self.read_data() {
+                Ok(command) => {
                     match command {
                         Commands::Info(None) => {
                             let params: HashMap<String, String> = [(String::from("name"), self.server.get_name()), (String::from("owner"), self.server.get_author())].iter().cloned().collect();
-
-                            let command = Commands::Info(Some(params));
+                            let command = Commands::Success(Some(params));
                             
                             self.transmit_data(command.to_string().as_str());
                         },
                         Commands::Disconnect(None) => {
+                            self.connected = false;
+
+                            self.server.remove_client(self.uuid.as_str());
+
+                            self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
+
+                            let params: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
+                            let command = Commands::ClientRemove(Some(params));
+                            self.server.update_all_clients(self.uuid.as_str(), command);
                         },
                         Commands::ClientUpdate(None) => {
-                            let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
-                            let command = Commands::ClientInfo(Some(data));
+                            let mut command = Commands::Success(None);
+                            self.transmit_data(command.to_string().as_str());
 
-                            self.server.update_all_clients(command);
+                            let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
+                            command = Commands::ClientUpdate(Some(data));
+
+                            self.server.update_all_clients(self.uuid.as_str(), command);
                         },
                         Commands::ClientInfo(Some(params)) => {
                             let uuid = params.get("uuid").unwrap();
 
                             let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
                             let command = Commands::ClientInfo(Some(data));
-                            
+
                             self.server.update_client(uuid.as_str(), &command);
-                        },
-                        Commands::Success(_params) => {
                         },
                         Commands::Error(None) => {
                         },
@@ -179,19 +170,49 @@ impl<'a> Client<'a> {
                     }
                 },
                 Err(_) => {
-                    println!("no data peeked");
+                    println!("no data read");
                 },
             }
         }
         println!("---Thread Exit---");
-    }    
+    }
 
     pub fn transmit_data(&self, data: &str){
         println!("Transmitting...");
-        println!("data: {}", data);
+        println!("{} data: {}", self.uuid, data);
 
         self.get_stream().write(data.to_string().as_bytes()).unwrap();
         self.get_stream().flush().unwrap();
+    }
+
+    fn read_data(&self) -> Result<Commands, Error> {
+        let mut buffer = [0; 1024];
+
+        self.get_stream().read(&mut buffer)?;
+        let command = Commands::from(&buffer);
+
+        Ok(command)
+        //match self.get_stream().read(&mut buffer) {
+        //    Ok(_) => Commands::from(&buffer),
+        //    Err(_) => Commands::Error(None),
+        //}
+    }
+
+    fn confirm_success(&self){
+        match self.read_data() {
+            Ok(command) => {
+                match command {
+                    Commands::Success(_params) => {
+                        println!("Success Confirmed");
+                    },
+                    _ => {
+                        let error = Commands::Error(None);
+                        self.transmit_data(error.to_string().as_str());
+                    },
+                }
+            },
+            Err(_) => println!("no success read"),
+        }
     }
 
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
@@ -199,26 +220,6 @@ impl<'a> Client<'a> {
     pub fn disconnect(&mut self){
         self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
         self.connected = false;
-    }
-
-
-
-    #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
-    #[allow(dead_code)]
-    pub fn confirm_success(&self, buffer: &mut [u8; 1024]){
-        let success_regex = Regex::new(r###"!success:"###).unwrap();
-
-        let _ = match self.get_stream().read(&mut *buffer) {
-            Err(_error) => self.transmit_error(&String::from("")),
-            Ok(_success) => {
-                let incoming_message = String::from_utf8_lossy(&buffer[..]);
-                if success_regex.is_match(&incoming_message){
-                    println!("success");
-                }else{
-                    self.transmit_error(&String::from(""));
-                }
-            },
-        };
     }
 
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
