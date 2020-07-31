@@ -66,7 +66,7 @@ impl<'z> Server<'z> {
                         let address = data.get("host").unwrap();
 
                         let stream = Arc::new(stream);
-                        let client = Client::new(self, stream, &uuid, &username, &address);
+                        let mut client = Client::new(self, stream, &uuid, &username, &address);
                         
                         let tx = client.get_transmitter();
 
@@ -80,11 +80,10 @@ impl<'z> Server<'z> {
                         self.thread_pool.execute(move || {
                             client.handle_connection();
                         });
-
+                        
                         let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                         let new_client = Commands::Client(Some(params));
-                        
-                        self.update_all_clients(new_client);
+                        self.update_all_clients(uuid.as_str(), new_client);
                     },
                     Commands::Info(None) => {
                         let params: HashMap<String, String> = [(String::from("name"), self.name.to_string().clone()), (String::from("owner"), self.author.to_string().clone())].iter().cloned().collect();
@@ -107,11 +106,18 @@ impl<'z> Server<'z> {
         tx.send(command.clone()).unwrap();
     }
 
-    pub fn update_all_clients(&self, command: Commands){
+    pub fn update_all_clients(&self, uuid: &str, command: Commands){
         let clients = self.connected_clients.lock().unwrap();
-        for tx in clients.values(){
-            tx.send(command.clone()).unwrap();
+        for (client_uuid, tx) in clients.iter(){
+            if uuid != client_uuid.to_string() {
+                tx.send(command.clone()).unwrap();
+            }
         }
+    }
+
+    pub fn remove_client(&self, uuid: &str){
+        let mut clients = self.connected_clients.lock().unwrap();
+        clients.remove(&uuid.to_string());
     }
 
     fn transmit_data(&self, mut stream: &TcpStream, data: &str){
@@ -154,32 +160,79 @@ impl<'z> Server<'z> {
 mod tests{
     use super::*;
     use std::{thread, time};
+    use std::sync::Once;
+    use std::time::Duration;
+    
+    lazy_static!{
+        static ref SERVER_NAME: &'static str = "test";
+        static ref SERVER_ADDRESS: &'static str = "0.0.0.0:6000";
+        static ref SERVER_AUTHOR: &'static str = "test";
+        static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
+    }
+    
+    static START: Once = Once::new();
 
-    fn spawn_server(){
-        thread::spawn(|| {
-            lazy_static!{
-                static ref SERVER_NAME: &'static str = "test";
-                static ref SERVER_ADDRESS: &'static str = "0.0.0.0:6000";
-                static ref SERVER_AUTHOR: &'static str = "test";
-                static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
-            }
-            SERVER.start();
-        });
+    /*
+     * These tests must be executed individually to ensure that no errors
+     * occur, this is due to the fact that the server is created everytime.
+     * Setup a system for the server to close after every test.
+     */
+    fn setup_server(){
+        unsafe{
+            START.call_once(|| {
+                thread::spawn(|| {
+                    SERVER.start();
+                });
+            });
+            
+            let millis = time::Duration::from_millis(1000);
+            thread::sleep(millis);
+        }
     }
 
-    #[test] 
-    fn test_connect_command(){
+    fn establish_client_connection(uuid: &str) -> TcpStream {
+        let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
+
+        let mut command = read_data(&stream);
+
+        assert_eq!(command, Commands::Request(None));
+        
+        let msg: String = format!("!connect: uuid:{uuid} name:\"{name}\" host:\"{host}\"", uuid=uuid, name="alice", host="127.0.0.1");
+        transmit_data(&stream, msg.as_str());
+
+        command = read_data(&stream);
+        
+        assert_eq!(command, Commands::Success(None));
+
+        stream
+    }
+
+    fn transmit_data(mut stream: &TcpStream, data: &str){
+        stream.write(data.to_string().as_bytes()).unwrap();
+        stream.flush().unwrap();
+    }
+    
+    fn read_data(mut stream: &TcpStream) -> Commands {
         let mut buffer = [0; 1024];
-        
-        spawn_server();
-        
-        let millis = time::Duration::from_millis(2000);
-        thread::sleep(millis);
+
+        match stream.read(&mut buffer) {
+            Ok(_) => Commands::from(&buffer),
+            Err(_) => Commands::Error(None),
+        }
+    }
+
+    #[test]
+    fn test_server_connect(){
+        let mut buffer = [0; 1024];
+
+        setup_server();
 
         let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
 
         stream.read(&mut buffer).unwrap();
         let mut command = Commands::from(&buffer);
+
+        assert_eq!(command, Commands::Request(None));
 
         let msg = b"!connect: uuid:123456-1234-1234-123456 name:\"alice\" host:\"127.0.0.1\"";
         stream.write(msg).unwrap();
@@ -188,21 +241,23 @@ mod tests{
         command = Commands::from(&buffer);
 
         assert_eq!(command, Commands::Success(None));
+
+        let msg = b"!disconnect:";
+        stream.write(msg).unwrap();
     }
 
     #[test]
-    fn test_info_command(){
+    fn test_server_info(){
         let mut buffer = [0; 1024];
 
-        spawn_server();
+        setup_server();
         
-        let millis = time::Duration::from_millis(2000);
-        thread::sleep(millis);
-
         let mut stream = TcpStream::connect("0.0.0.0:6000").unwrap();
         
         stream.read(&mut buffer).unwrap();
         let mut command = Commands::from(&buffer);
+        
+        assert_eq!(command, Commands::Request(None));
         
         let msg = b"!info:";
         stream.write(msg).unwrap();
@@ -212,5 +267,202 @@ mod tests{
 
         let params: HashMap<String, String> = [(String::from("name"), String::from("test")), (String::from("owner"), String::from("test"))].iter().cloned().collect();
         assert_eq!(command, Commands::Success(Some(params)));
+    }
+
+    #[test]
+    fn test_client_info(){
+        setup_server();
+
+        let mut stream = establish_client_connection("1234-5542-2124-155");
+
+        let msg = "!info:";
+        transmit_data(&stream, msg);
+        
+        let command = read_data(&stream);
+
+        let params: HashMap<String, String> = [(String::from("name"), String::from("test")), (String::from("owner"), String::from("test"))].iter().cloned().collect();
+        assert_eq!(command, Commands::Success(Some(params)));
+        
+        let msg = "!disconnect:";
+        transmit_data(&stream, msg);
+    }
+
+    #[test]
+    fn test_clientUpdate_solo(){
+        setup_server();
+
+        let mut stream = establish_client_connection("1222-555-6-7");
+
+        let msg = "!clientUpdate:";
+        transmit_data(&stream, msg);
+
+        let command = read_data(&stream);
+
+        assert_eq!(command, Commands::Success(None));
+
+        let msg = "!disconnect";
+        transmit_data(&stream, msg);
+    }
+
+
+    #[test]
+    fn test_clientUpdate_multi(){
+        setup_server();
+
+        let mut stream_one = establish_client_connection("0001-776-6-5");
+        let mut stream_two = establish_client_connection("0010-776-6-5");
+        let mut stream_three = establish_client_connection("0011-776-6-5");
+        let mut stream_four = establish_client_connection("0100-776-6-5");
+       
+        let client_uuids: [String; 3] = [String::from("0010-776-6-5"), String::from("0011-776-6-5"), String::from("0100-776-6-5")];
+        let mut user_1 = true;
+        let mut user_2 = true;
+        let mut user_3 = true;
+
+        for uuid in client_uuids.iter() {
+            let command = read_data(&stream_one);
+            
+            if *uuid == String::from("0010-776-6-5") && user_1 {
+                let params: HashMap<String, String> = [(String::from("uuid"), String::from("0010-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                assert_eq!(command, Commands::Client(Some(params)));
+                
+                user_1 = false;
+            } else if *uuid == String::from("0011-776-6-5") && user_2 {
+                let params: HashMap<String, String> = [(String::from("uuid"), String::from("0011-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                assert_eq!(command, Commands::Client(Some(params)));
+                
+                user_2 = false;
+            } else if *uuid == String::from("0100-776-6-5") && user_3 {    
+                let params: HashMap<String, String> = [(String::from("uuid"), String::from("0100-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                assert_eq!(command, Commands::Client(Some(params)));
+                
+                user_3 = false;
+            } else {
+                assert!(false);
+            }
+            let msg = "!success:";
+            transmit_data(&stream_one, msg);
+        }
+
+        stream_one.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+        let mut unsuccessful = true;
+        while unsuccessful {
+            let msg = "!clientUpdate:";
+            transmit_data(&stream_one, msg);
+
+            let command = read_data(&stream_one);
+            match command.clone() {
+                Commands::Error(None) => println!("resending..."),
+                _ => {
+                    assert_eq!(command, Commands::Success(None));
+                    unsuccessful = false;
+                },
+            }
+        }
+        stream_one.set_read_timeout(None).unwrap();
+
+        for x in 0..3 {
+            let command = read_data(&stream_one);
+
+            let command_clone = command.clone();
+            match command{
+                Commands::Client(Some(params)) => {
+                    let uuid = params.get("uuid").unwrap();
+
+                    if *uuid == String::from("0010-776-6-5") {
+                        let params: HashMap<String, String> = [(String::from("uuid"), String::from("0010-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                        assert_eq!(command_clone, Commands::Client(Some(params)));
+                    } else if *uuid == String::from("0011-776-6-5") {
+                        let params: HashMap<String, String> = [(String::from("uuid"), String::from("0011-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                        assert_eq!(command_clone, Commands::Client(Some(params)));
+                    } else if *uuid == String::from("0100-776-6-5") {
+                        let params: HashMap<String, String> = [(String::from("uuid"), String::from("0100-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                        assert_eq!(command_clone, Commands::Client(Some(params)));
+                    } else {
+                        assert!(false);
+                    }
+                },
+                _ => assert!(false),
+            }
+
+            let msg = "!success:";
+            transmit_data(&stream_one, msg);
+        }
+        let msg = "!disconnect:";
+        transmit_data(&stream_one, msg);
+        transmit_data(&stream_two, msg);
+        transmit_data(&stream_three, msg);
+        transmit_data(&stream_four, msg);
+    }
+
+    #[test]
+    fn test_clientInfo(){
+        setup_server();
+
+        let mut stream_one = establish_client_connection("0001-776-6-5");
+        let mut stream_two = establish_client_connection("\"0010-776-6-5\"");
+        
+        let command = read_data(&stream_one);
+        let params: HashMap<String, String> = [(String::from("uuid"), String::from("\"0010-776-6-5\"")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+        assert_eq!(command, Commands::Client(Some(params)));
+        
+        let msg = "!success:";
+        transmit_data(&stream_one, msg);
+
+
+        stream_one.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
+        let mut unsuccessful = true;
+        while unsuccessful {
+            let msg = "!clientInfo: uuid:\"0010-776-6-5\"";
+            transmit_data(&stream_one, msg);
+
+            let command = read_data(&stream_one);
+            match command.clone() {
+                Commands::Error(None) => println!("resending..."),
+                _ => {
+                    let params: HashMap<String, String> = [(String::from("uuid"), String::from("\"0010-776-6-5\"")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+                    assert_eq!(command, Commands::Success(Some(params)));
+                    unsuccessful = false;
+                },
+            }
+        }
+        stream_one.set_read_timeout(None).unwrap();
+
+        let msg = "!disconnect:";
+        transmit_data(&stream_one, msg);
+        transmit_data(&stream_two, msg);
+    }
+
+    #[test]
+    fn test_client_disconnect(){
+        let mut tmp_buffer = [0; 1024];
+        setup_server();
+        
+        let mut stream_one = establish_client_connection("0001-776-6-5");
+        let mut stream_two = establish_client_connection("0010-776-6-5");
+
+        let command = read_data(&stream_one);
+        let params: HashMap<String, String> = [(String::from("uuid"), String::from("0010-776-6-5")), (String::from("name"), String::from("\"alice\"")), (String::from("host"), String::from("\"127.0.0.1\""))].iter().cloned().collect();
+        assert_eq!(command, Commands::Client(Some(params)));
+        
+        let msg = "!success:";
+        transmit_data(&stream_one, msg);
+
+        let msg = "!disconnect:";
+        transmit_data(&stream_two, msg);
+
+        let command = read_data(&stream_one);
+        let params: HashMap<String, String> = [(String::from("uuid"), String::from("0010-776-6-5"))].iter().cloned().collect();
+        assert_eq!(command, Commands::Client(Some(params)));
+
+        let msg = "!success:";
+        transmit_data(&stream_one, msg);
+
+        stream_one.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
+        match stream_one.peek(&mut tmp_buffer) {
+            Ok(_) => assert!(false),
+            Err(_) => assert!(true),
+        }
+        stream_one.set_read_timeout(None).unwrap();
     }
 }
