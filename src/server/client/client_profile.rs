@@ -139,7 +139,7 @@ impl<'a> Client<'a> {
 
                             self.server.remove_client(self.uuid.as_str());
 
-                            self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
+                            //self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
 
                             let params: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
                             let command = Commands::ClientRemove(Some(params));
