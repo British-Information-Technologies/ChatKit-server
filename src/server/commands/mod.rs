@@ -126,22 +126,27 @@ pub enum Commands {
 impl Commands {
     fn compare_params(&self, params: &Option<HashMap<String, String>>, other_params: &Option<HashMap<String, String>>) -> bool {
         match (params, other_params) {
-            (None, Some(other_params)) => false,
-            (Some(params), None) => false,
+            (None, Some(_other_params)) => false,
+            (Some(_params), None) => false,
             (None, None) => true,
             (Some(params), Some(other_params)) => {
-                let mut result = true;
-
-                for key in params.keys() {
-                    if other_params.get(key) == None {
-                        result = false;
-                        break;
+                let mut result = false;
+                
+                if params.len() == other_params.len() {
+                    for (key, value) in params.iter() {
+                        if let Some(other_value) = other_params.get(key) {
+                            if value != other_value {
+                                result = false;
+                                break;
+                            } else {
+                                result = true;
+                            }
+                        }
                     }
                 }
 
                 result
             },
-            _ => false,
         }
     }
 }
@@ -216,7 +221,7 @@ impl From<&str> for Commands {
             map.insert(parts.index(0).to_string(), parts.index(1).to_string());
         }
 
-        let params = if map.capacity() > 1 {Some(map)} else { None };
+        let params = if map.capacity() > 0 {Some(map)} else { None };
 
         match command {
             "!request:" => Commands::Request(params),
