@@ -17,95 +17,6 @@ use std::borrow::Borrow;
 use regex::Regex;
 use std::ops::Index;
 
-
-
-/*
-impl ClientCommands{
-    pub fn execute(&self, client: &mut Client, server: &Server, buffer: &mut [u8; 1024], connected_clients: &Arc<Mutex<HashMap<String, Client>>>){
-        let stream = client.get_stream();
-        match &*self{
-            ClientCommands::Info => {
-                let server_details = server.get_info();
-
-                client.transmit_success(&server_details);
-            },
-            ClientCommands::Connect(data) => {
-                connect::add_client(connected_clients, client);
-
-                let new_client = ServerCommands::Client(data.clone());
-                server.update_all_clients(&new_client);
-                
-                client.transmit_success(&String::from(""));
-            },
-            ClientCommands::Disconnect => {
-                disconnect::remove_client(connected_clients, client);
-
-                let mut data: HashMap<String, String> = HashMap::new();
-                data.insert("uuid".to_string(), client.get_uuid().to_string());
-
-                let old_client = ServerCommands::ClientRemove(data);
-                server.update_all_clients(&old_client);
-
-                client.transmit_success(&String::from(""));
-                client.disconnect();
-                println!("disconnected!");
-            },
-            ClientCommands::ClientUpdate => {
-                let clients_hashmap = connected_clients.lock().unwrap();
-                for (key, value) in clients_hashmap.iter(){
-                    let formatted_data = client_update::format_client_data(&key, &value);
-                    client.transmit_data(&formatted_data);
-
-                    client.confirm_success(buffer, &formatted_data);
-                }
-                client.transmit_success(&String::from(""));
-                client.confirm_success(buffer, &String::from("!success:"));
-            },
-            ClientCommands::ClientInfo(data) => {
-                let requested_data = client_info::get_client_data(connected_clients, &data);
-                client.transmit_data(&requested_data);
-            },
-            ClientCommands::Unknown => {
-                println!("Unknown Command");
-            },
-        }
-    }
-}
-
-impl ServerCommands{
-    pub fn execute(&self, client: &mut Client, buffer: &mut [u8; 1024]){
-        match &*self{
-            ServerCommands::Client(data) => {
-                let mut message = String::from("");
-                message.push_str(&"!client: name:");
-                message.push_str(&data.get("name").unwrap());
-                message.push_str(&" host:");
-                message.push_str(&data.get("host").unwrap());
-                message.push_str(&" uuid:");
-                message.push_str(&data.get("uuid").unwrap());
-
-                client.transmit_data(&message);
-
-                client.confirm_success(buffer, &message);
-            },
-            ServerCommands::ClientRemove(data) => {
-                let mut message = String::from("");
-                message.push_str(&"!client: uuid:");
-                message.push_str(&data.get("uuid").unwrap());
-
-                client.transmit_data(&message);
-
-                client.confirm_success(buffer, &message);
-            },
-            ServerCommands::Unknown => {
-                println!("Unknown Command!");
-            },
-        }
-    }
-}
-*/
-
-// MARK: - commands_v2 electric boogaloo 
 #[derive(Clone, Debug)]
 pub enum Commands {
     Request(Option<HashMap<String, String>>),
@@ -206,7 +117,6 @@ impl ToString for Commands {
 
 impl From<&str> for Commands { 
     fn from(data: &str) -> Self {
-        println!("HERE!!!  {}", data);
         let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
         let mut iter = regex.find_iter(data);
         let command = iter.next().unwrap().as_str();
