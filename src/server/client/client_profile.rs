@@ -68,7 +68,7 @@ impl<'a> Client<'a> {
     }
 
     pub fn handle_connection(&mut self){
-        self.stream.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
+        self.stream.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
         //self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
         
         while self.connected {
