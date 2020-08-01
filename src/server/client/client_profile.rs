@@ -68,8 +68,8 @@ impl<'a> Client<'a> {
     }
 
     pub fn handle_connection(&mut self){
-        //self.stream.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
-        self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        self.stream.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
+        //self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
         
         while self.connected {
             match self.rx_channel.try_recv() {
@@ -125,6 +125,12 @@ impl<'a> Client<'a> {
                 Err(TryRecvError::Empty) => {},
             }
 
+            /*
+             * if multiple commands are written to the stream before it reads, all the commands
+             * could be read at once, causing the program to ignore all commands after the firet
+             * one. Ethier make sure commands sent require a response before sending the next one
+             * or make a system to check for these issues.
+             */
             match self.read_data() {
                 Ok(command) => {
                     match command {
@@ -195,8 +201,8 @@ impl<'a> Client<'a> {
     }
 
     fn confirm_success(&self){
-        self.stream.set_nonblocking(false).expect("set_nonblocking call failed");
-        self.stream.set_read_timeout(Some(Duration::from_millis(3000))).expect("set_read_timeout call failed");
+        //self.stream.set_nonblocking(false).expect("set_nonblocking call failed");
+        //self.stream.set_read_timeout(Some(Duration::from_millis(3000))).expect("set_read_timeout call failed");
 
         match self.read_data() {
             Ok(command) => {
@@ -217,8 +223,8 @@ impl<'a> Client<'a> {
             },
         }
 
-        self.stream.set_read_timeout(None).expect("set_read_timeout call failed");
-        self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        //self.stream.set_read_timeout(None).expect("set_read_timeout call failed");
+        //self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
     }
 
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
