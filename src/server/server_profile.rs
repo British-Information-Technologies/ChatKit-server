@@ -413,6 +413,10 @@ mod tests{
             let msg = "!success:";
             transmit_data(&stream_one, msg);
         }
+        
+        let dur = time::Duration::from_millis(500);
+        thread::sleep(dur);
+        
         let msg = "!disconnect:";
         transmit_data(&stream_one, msg);
         transmit_data(&stream_two, msg);
