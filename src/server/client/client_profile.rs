@@ -1,193 +1,128 @@
 extern crate regex;
 
-use crate::server::server_profile::Server;
-use crate::server::commands::{Commands};
+use std::{
+    sync::Arc,
+    net::{Shutdown, TcpStream},
+    io::prelude::*,
+};
+use crossbeam::{Sender, Receiver, TryRecvError, unbounded};
 
-use std::net::{Shutdown, TcpStream};
-use std::sync::Arc;
-use parking_lot::FairMutex;
-use dashmap::DashMap;
-use std::io::prelude::*;
+use crate::{
+    server::{
+        server_profile::ServerMessages,
+        commands::Commands
+    }
+};
+use std::sync::Mutex;
 use std::time::Duration;
-use regex::Regex;
-use crossbeam::{Sender, Receiver, TryRecvError};
-use crossbeam_channel::unbounded;
 
+#[derive(Debug)]
+pub struct Client {
 
-pub struct Client<'a> {
-    connected: bool,
-    stream: Arc<TcpStream>,
-    uuid: String,
-    username: String,
-    address: String,
-    server: &'a Server<'a>,
-    tx_channel: Sender<Commands>,
-    rx_channel: Receiver<Commands>,
+    pub uuid: String,
+    pub username: String,
+    pub address: String,
+
+    stream_arc: Arc<Mutex<TcpStream>>,
+
+    heartbeat_ticker: Arc<Mutex<u8>>,
+
+    pub sender: Sender<Commands>,
+    receiver: Receiver<Commands>,
+
+    server_sender: Sender<ServerMessages>,
 }
 
-impl<'a> Client<'a> {
-    pub fn new(server: &'a Server<'static>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
-        let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
+impl Client {
+    pub fn new(stream: TcpStream, server_sender: Sender<ServerMessages>, uuid: String, username: String, address: String) -> Self {
+        let (sender, receiver): (Sender<Commands>, Receiver<Commands>) = unbounded();
+        stream.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
 
         Client {
-            connected: true,
-            stream,
+            stream_arc: Arc::new(Mutex::new(stream)),
             uuid: uuid.to_string(),
             username: username.to_string(),
             address: address.to_string(),
-            server,
-            tx_channel,
-            rx_channel,
+
+            heartbeat_ticker: Arc::new(Mutex::new(5)),
+
+            sender,
+            receiver,
+
+            server_sender,
+
         }
     }
 
-    fn get_stream(&self) -> &TcpStream{
-        &self.stream
-    }
+    #[allow(unused_variables)]
+    pub fn handle_connection(&self) {
+        println!("buffer");
+        let mut buffer = [0; 1024];
 
-    pub fn get_transmitter(&self) -> &Sender<Commands>{
-        &self.tx_channel
-    }
-    
-    pub fn get_uuid(&self) -> &String{
-        &self.uuid
-    }
+        // test to see if there is anything for the client to receive from its channel
+        println!("{}: channel checks", self.uuid);
+        match self.receiver.try_recv() {
+            /*command is on the channel*/
 
-    pub fn get_username(&self) -> &String{
-        &self.username
-    }
+            Ok(Commands::Info(Some(params))) => {
+                self.transmit_data(Commands::Info(Some(params)).to_string().as_str());
+            },
 
-    pub fn get_address(&self) -> &String{
-        &self.address
-    }
+            Ok(Commands::Disconnect(None)) => {
 
-    pub fn handle_connection(&self){
-        self.stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        let mut buffer = [0; 1024];       
-        
-        while self.connected {
-            match self.rx_channel.try_recv() {
-                /*command is on the channel*/
-
-                Ok(command) => {
-                    let a = command.clone();
-                    match command {
-                        
-                        Commands::Info(Some(params)) => {
-                            self.transmit_data(a.to_string().as_str());
-                        },
-                        Commands::Disconnect(None) => {
-                            
-                        },
-                        Commands::ClientRemove(Some(params)) => {},
-                        Commands::Client(Some(params)) => {
-                            self.transmit_data(a.to_string().as_str());
-
-                            /*let command = Commands::from(&buffer);
-                            match command{
-                                Commands::Success(None) => {
-                                    println!("sucess confirmed");
-                                },
-                                _ => {
-                                    let error = Commands::Error(None);
-                                    self.transmit_data(error.to_string().as_str());
-                                },
-                            }
-                            */
-                        },
-                        Commands::Success(data) => {},
-                        _ => {},
-                    }
-                },
-                /*sender disconnected*/
-                Err(TryRecvError::Disconnected) => {},
-                /*no data available yet*/
-                Err(TryRecvError::Empty) => {},
             }
-            
-            match self.stream.peek(&mut buffer){
-                Ok(_) => {
-                    self.get_stream().read(&mut buffer).unwrap();
-                    
-                    let incoming_message = String::from(String::from_utf8_lossy(&buffer));
-                    let command = Commands::from(incoming_message.clone());
 
-                    println!("Request: {}", &incoming_message);
+            Ok(Commands::ClientRemove(Some(params))) => { },
+            Ok(Commands::Success(params)) => { self.transmit_data(Commands::Success(params).to_string().as_str()); },
+            Ok(Commands::Client(Some(params))) => { self.transmit_data(Commands::Client(Some(params)).to_string().as_str()); },
 
-                    /*command behaviour*/
-                    match command {
-                        Commands::Connect(Some(params)) => todo!(),
-                        _ => todo!(),
-                    }
+            /*sender disconnected*/
+            Err(TryRecvError::Disconnected) => {
+                self.server_sender.send(ServerMessages::RequestDisconnect(self.uuid.clone()));
+            },
+            /*no data available yet*/
+            Err(TryRecvError::Empty) => {},
+            _ => {}
+        }
+
+        println!("socket");
+        let a = self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok();
+        println!("does have content: {}", a);
+        if self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok() {
+            let mut stream = self.stream_arc.lock().unwrap();
+
+            stream.read(&mut buffer).unwrap();
+
+            let command = Commands::from(&buffer);
+
+            // match incomming commands
+            println!("command");
+            match command {
+                Commands::Disconnect(None) => {
+                    self.server_sender.send(ServerMessages::RequestDisconnect(self.uuid.clone())).expect("sending message to server failed");
                 },
-                Err(_) => {
-                    println!("no data peeked");
-                },
+                Commands::HeartBeat(None) => {
+                    self.transmit_data(Commands::HeartBeat(None).to_string().as_str())
+                }
+                _ => {
+
+                    self.transmit_data(Commands::Error(None).to_string().as_str())
+                }
             }
         }
-        println!("---thread exit---");
+        println!("end");
     }    
 
-    // deprecated
-    /*
-    pub fn connect(&self, server: &Server, connected_clients: &Arc<Mutex<HashMap<String, Client>>>, data: &HashMap<String, String>){
-        let mut clients_hashmap = connected_clients.lock().unwrap();
-        let uuid = self.get_uuid().to_string();
-        clients_hashmap.insert(uuid, self.clone());
-        std::mem::drop(clients_hashmap);
-
-        let new_client = Commands::Client(data.clone());
-        server.update_all_clients(&new_client);
-
-        self.transmit_success(&String::from(""));
-    }
-    */
-
+    // move into a drop perhaps
+    #[allow(dead_code)]
     pub fn disconnect(&mut self){
-        self.stream.shutdown(Shutdown::Both).expect("shutdown call failed");
-        self.connected = false;
+        self.stream_arc.lock().unwrap().shutdown(Shutdown::Both).expect("shutdown call failed");
     }
 
     pub fn transmit_data(&self, data: &str){
-        println!("Transmitting...");
-        println!("data: {}", data);
+        println!("Transmitting data: {}", data);
 
-        self.get_stream().write(data.to_string().as_bytes()).unwrap();
-        self.get_stream().flush().unwrap();
-    }
-
-    // deprecated
-    pub fn confirm_success(&self, buffer: &mut [u8; 1024], data: &String){
-        let success_regex = Regex::new(r###"!success:"###).unwrap();
-
-        let _ = match self.get_stream().read(&mut *buffer) {
-            Err(error) => self.transmit_error(&String::from("")),
-            Ok(success) => {
-                let incoming_message = String::from_utf8_lossy(&buffer[..]);
-                if success_regex.is_match(&incoming_message){
-                    println!("success");
-                }else{
-                    self.transmit_error(&String::from(""));
-                }
-            },
-        };
-    }
-
-    pub fn transmit_success(&self, data: &String){
-        let mut success_message = "!success:".to_string();
-        if !data.is_empty(){
-            success_message.push_str(&" ".to_string());
-            success_message.push_str(&data.to_string());
-        }
-        self.transmit_data(&success_message);
-    }
-    
-    fn transmit_error(&self, data: &String){
-        let mut error_message = "!error:".to_string();
-        if !data.is_empty(){
-            error_message.push_str(&" ".to_string());
-            error_message.push_str(&data.to_string());
-        }
-        self.transmit_data(&error_message);
+        self.stream_arc.lock().unwrap().write_all(data.to_string().as_bytes()).unwrap();
+        self.stream_arc.lock().unwrap().flush().unwrap();
     }
 }
