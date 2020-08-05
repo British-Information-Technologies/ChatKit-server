@@ -87,9 +87,9 @@ fn Control_Panel() -> ResizedView<Panel<LinearLayout>> {
 
     left.add_child(TextView::new("Hello world"));
 
-    root.add_child(left);
-    root.add_child(right);
-    ResizedView::new(SizeConstraint::AtLeast(32), SizeConstraint::AtLeast(32), Panel::new(root))
+    root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(left)));
+    root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(right)));
+    ResizedView::new(SizeConstraint::Fixed(64), SizeConstraint::Fixed(20), Panel::new(root))
 }
 
 // MARK: - general testing zone

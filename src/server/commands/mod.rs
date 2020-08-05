@@ -203,8 +203,8 @@ impl From<String> for Commands {
 
 impl From<&[u8]> for Commands {
     fn from(data: &[u8]) -> Self {
-        let incoming_message = String::from(String::from_utf8_lossy(data)).as_str();
-        Commands::from(incoming_message)
+        let incoming_message = String::from(String::from_utf8_lossy(data));
+        Commands::from(incoming_message.as_str())
     }
 }
 

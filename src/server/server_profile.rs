@@ -4,8 +4,9 @@ extern crate rayon;
 use crate::{
     server::{
         client::client_profile::Client,
-        commands::{Commands}
-    }
+
+    },
+    commands::Commands
 };
 use std::{
     sync::{Arc, Mutex},
