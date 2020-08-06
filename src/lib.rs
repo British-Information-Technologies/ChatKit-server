@@ -1,5 +1,5 @@
 use std::thread;
-use std::sync::mpsc;
+use crossbeam::{unbounded , Sender, Receiver};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -10,7 +10,7 @@ enum Message {
 
 pub struct ThreadPool{
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Message>,
+    sender: Sender<Message>,
 }
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
@@ -26,7 +26,7 @@ impl ThreadPool{
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
         
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = unbounded();
 
         let receiver = Arc::new(Mutex::new(receiver));
 
@@ -56,7 +56,7 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+    fn new(id: usize, receiver: Arc<Mutex<Receiver<Message>>>) -> Worker {
         let thread = thread::spawn(move || {
             loop{
                 let message = receiver.lock().unwrap().recv().unwrap();

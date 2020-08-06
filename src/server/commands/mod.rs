@@ -10,186 +10,187 @@ mod client;
 mod test;
 mod message;
 
-use crate::server::client::client_profile::Client;
-use crate::server::utility;
-
-use std::collections::VecDeque;
-use parking_lot::FairMutex;
-use std::sync::Mutex;
-use std::sync::Arc;
+use std::string::ToString;
 use std::collections::HashMap;
-use std::io::{self, Read};
-use std::net::TcpStream;
-use std::time::Duration;
 use dashmap::DashMap;
+use std::borrow::Borrow;
+use regex::Regex;
+use std::ops::Index;
 
-pub enum Commands{
-    Info,
-    Connect,
-    Disconnect,
-    ClientUpdate,
-    ClientInfo,
-    Unknown,
+#[derive(Clone, Debug)]
+pub enum Commands {
+    Request(Option<HashMap<String, String>>),
+    Info(Option<HashMap<String, String>>),
+
+    Connect(Option<HashMap<String, String>>),
+    Disconnect(Option<HashMap<String, String>>),
+
+    ClientUpdate(Option<HashMap<String, String>>),
+    ClientInfo(Option<HashMap<String, String>>),
+    ClientRemove(Option<HashMap<String, String>>),
+    Client(Option<HashMap<String, String>>),
+
+    Success(Option<HashMap<String, String>>),
+    Error(Option<HashMap<String, String>>),
 }
 
-pub enum OutboundCommands{
-    Client,
-    ClientRemove,
-    Unknown,
-}
-
-enum InboundReturns{
-    Success,
-    Error,
-}
-
-enum OutboundReturns{
-    Success,
-    Error,
-}
-
-impl Commands{
-    pub fn execute(&self, client: &mut Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>, clients_ref: &Arc<Mutex<HashMap<String, Client>>>, message_queue: &Arc<FairMutex<VecDeque<String>>>){
-        let stream = client.get_stream();
-        match *self{
-            Commands::Info => {
-                let server_details = info::get_server_info();
-
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &server_details);
-            },
-            Commands::Connect => {
-                connect::add_client(clients_ref, client);
-
-                let mut message = "!client: username:".to_string();
-                message.push_str(&client.get_username().to_string());
-                message.push_str(&" host:".to_string());
-                message.push_str(&client.get_address().to_string());
-                message.push_str(&" uuid:".to_string());
-                message.push_str(&client.get_uuid().to_string());
-
-                message_queue.lock().push_back(message);
+impl Commands {
+    fn compare_params(&self, params: &Option<HashMap<String, String>>, other_params: &Option<HashMap<String, String>>) -> bool {
+        match (params, other_params) {
+            (None, Some(_other_params)) => false,
+            (Some(_params), None) => false,
+            (None, None) => true,
+            (Some(params), Some(other_params)) => {
+                let mut result = false;
                 
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
-            },
-            Commands::Disconnect => {
-                disconnect::remove_client(clients_ref, client);
-
-                let mut message = "!clientRemove: uuid:".to_string();
-                message.push_str(&client.get_uuid().to_string());
-                message_queue.lock().push_back(message);
-
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
-                client.disconnect();
-                println!("disconnected!");
-            },
-            Commands::ClientUpdate => {
-                let in_success = InboundReturns::Success;
-
-                let clients_hashmap = clients_ref.lock().unwrap();
-                for (key, value) in clients_hashmap.iter(){
-                    let formatted_data = client_update::format_client_data(&key, &value);
-                    utility::transmit_data(&stream, &formatted_data);
-
-                    in_success.execute(&stream, buffer, &formatted_data);
-                }
-
-                let out_success = OutboundReturns::Success;
-                out_success.execute(&stream, &String::from(""));
-        
-                in_success.execute(&stream, buffer, &String::from("!success:"));
-            },
-            Commands::ClientInfo => {
-                let requested_data = client_info::get_client_data(clients_ref, data);
-                utility::transmit_data(&stream, &requested_data);
-            },
-            Commands::Unknown => {
-                println!("Uknown Command!");
-            },
-        }
-    }
-}
-
-impl OutboundCommands{
-    pub fn execute(&self, client: &Client, buffer: &mut [u8; 1024], data: &HashMap<String, String>){
-        let stream = client.get_stream();
-        match *self{
-            OutboundCommands::Client => {
-                let mut message = String::from("");
-                message.push_str(&data.get("command").unwrap());
-                message.push_str(&" username:");
-                message.push_str(&data.get("username").unwrap());
-                message.push_str(&" host:");
-                message.push_str(&data.get("host").unwrap());
-                message.push_str(&" uuid:");
-                message.push_str(&data.get("uuid").unwrap());
-
-                utility::transmit_data(&stream, &message);
-
-                let in_success = InboundReturns::Success;
-                in_success.execute(&stream, buffer, &message);
-            },
-            OutboundCommands::ClientRemove => {
-                let mut message = String::from("");
-                message.push_str(&data.get("command").unwrap());
-                message.push_str(&" uuid:");
-                message.push_str(&data.get("uuid").unwrap());
-
-                utility::transmit_data(&stream, &message);
-
-                let in_success = InboundReturns::Success;
-                in_success.execute(&stream, buffer, &message);
-            },
-            OutboundCommands::Unknown => {
-                println!("Unknown Command!");
-            },
-        }
-    }
-}
-
-impl InboundReturns{
-    pub fn execute(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024], data: &String){
-        stream.set_read_timeout(Some(Duration::from_millis(3000))).unwrap();
-        match *self{
-            InboundReturns::Success => {
-                let mut failing = true;
-                while failing{
-                    let _ = match stream.read(&mut *buffer){
-                        Err(e) => {
-                            match e.kind() {
-                                io::ErrorKind::WouldBlock => {
-                                    println!("Blocking...");
-                                    utility::transmit_data(stream, data);
-                                },
-                                _ => panic!("Fatal Error {}", e),
+                if params.len() == other_params.len() {
+                    for (key, value) in params.iter() {
+                        if let Some(other_value) = other_params.get(key) {
+                            if value != other_value {
+                                result = false;
+                                break;
+                            } else {
+                                result = true;
                             }
-                        },
-                        Ok(m) => {
-                            println!("{:?}", m);
-                            failing = false;
-                        },
-                    };
+                        }
+                    }
                 }
+
+                result
             },
-            InboundReturns::Error => {},
         }
     }
 }
 
-impl OutboundReturns{
-    pub fn execute(&self, stream: &TcpStream, data: &String){
-        match *self{
-            OutboundReturns::Success => {
-                let mut message = "!success:".to_string();
-                if !data.is_empty(){
-                    message.push_str(&" ".to_string());
-                    message.push_str(&data.to_string());
-                }
-                utility::transmit_data(stream, &message);
-            },
-            OutboundReturns::Error => {},
+impl PartialEq for Commands {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Commands::Request(params), Commands::Request(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Info(params), Commands::Info(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Connect(params), Commands::Connect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Disconnect(params), Commands::Disconnect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientUpdate(params), Commands::ClientUpdate(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientInfo(params), Commands::ClientInfo(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientRemove(params), Commands::ClientRemove(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Client(params), Commands::Client(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Success(params), Commands::Success(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Error(params), Commands::Error(other_params)) => self.compare_params(&params, &other_params),
+            _ => false,
         }
+    }
+
+}
+
+impl ToString for Commands {
+
+    fn to_string(&self) -> std::string::String {
+        let mut out_string = String::new();
+
+        let (command, parameters) = match self {
+            Commands::Request(arguments) => { ("!request:", arguments) },
+            Commands::Info(arguments) => { ("!info:", arguments) },
+            Commands::Connect(arguments) => { ("!connect:", arguments) },
+            Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
+            Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
+            Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
+            Commands::Client(arguments) => { ("!client:", arguments) },
+            Commands::Success(arguments) => { ("!success:", arguments) },
+            Commands::Error(arguments) => { ("!error:", arguments) },
+            _ => { ("!error:", &None) }
+        };
+
+        out_string.push_str(command);
+
+        if parameters.is_some() {
+            let hash_map = parameters.borrow().as_ref().unwrap();
+            for (k, v) in hash_map.iter() {
+                out_string.push_str(" ");
+                out_string.push_str(k.as_str());
+                out_string.push_str(":");
+                out_string.push_str(v.as_str())
+            }
+        }
+
+        out_string
+    }
+}
+
+impl From<&str> for Commands { 
+    fn from(data: &str) -> Self {
+        let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
+        let mut iter = regex.find_iter(data);
+        let command = iter.next().unwrap().as_str();
+
+        println!("command: {:?}", command);
+
+        let mut map: HashMap<String, String> = HashMap::new();
+
+        for i in iter {
+            let parameter = i.as_str().to_string();
+            let parts:Vec<&str> = parameter.split(":").collect();
+
+            map.insert(parts.index(0).to_string(), parts.index(1).to_string());
+        }
+
+        let params = if map.capacity() > 0 {Some(map)} else { None };
+
+        match command {
+            "!request:" => Commands::Request(params),
+            "!info:" => Commands::Info(params),
+
+            "!connect:" => Commands::Connect(params),
+            "!disconnect:" => Commands::Disconnect(params),
+
+            "!clientUpdate:" => Commands::ClientUpdate(params),
+            "!clientInfo:" => Commands::ClientInfo(params),
+            "!client:" => Commands::Client(params),
+            "!clientRemove:" => Commands::ClientRemove(params),
+            
+            "!success:" => Commands::Success(params),
+            "!error:" => Commands::Error(params),
+            
+            _ => Commands::Error(params),
+        }
+    }
+}
+
+impl From<String> for Commands {
+    fn from(data: String) -> Self {
+        Commands::from(data.as_str())
+    }
+}
+
+impl From<&[u8; 1024]> for Commands {
+    fn from(data: &[u8; 1024]) -> Self {
+        let incoming_message = String::from(String::from_utf8_lossy(data));
+        Commands::from(incoming_message.as_str())
+    }
+}
+
+
+
+
+#[cfg(test)]
+mod test_commands_v2 {
+    use super::Commands;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_creation_from_string() {
+        let command_result = Commands::from("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
+        ()
+    }
+
+    #[test]
+    fn test_to_string() {
+
+        let mut a: HashMap<String, String> = HashMap::new();
+        a.insert("name".to_string(), "michael".to_string());
+        a.insert("host".to_string(), "127.0.0.1".to_string());
+        a.insert("uuid".to_string(), "123456-1234-1234-123456".to_string());
+
+        let command = Commands::Connect(Some(a));
+
+        println!("{:?}", command.to_string())
     }
 }
