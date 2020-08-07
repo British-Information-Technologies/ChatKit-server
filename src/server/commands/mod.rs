@@ -12,7 +12,6 @@ mod message;
 
 use std::string::ToString;
 use std::collections::HashMap;
-use dashmap::DashMap;
 use std::borrow::Borrow;
 use regex::Regex;
 use std::ops::Index;
@@ -168,7 +167,7 @@ impl From<&str> for Commands {
 
         for i in iter {
             let parameter = i.as_str().to_string();
-            let mut parts:Vec<&str> = parameter.split(":").collect();
+            let parts:Vec<&str> = parameter.split(":").collect();
 
             map.insert(parts.index(0).to_string(), parts.index(1).to_string());
         }

@@ -1,21 +1,21 @@
-extern crate regex;
-
 use std::{
-    sync::Arc,
-    net::{Shutdown, TcpStream},
     io::prelude::*,
+    sync::Arc,
+    io,
+    sync::Mutex,
+    time::{Instant, Duration},
+    net::{TcpStream, Shutdown}
 };
-use crossbeam::{Sender, Receiver, TryRecvError, unbounded};
-
-use crate::{
-    server::{
-        server_profile::ServerMessages,
-    },
-    commands::Commands
-
+use crossbeam::{
+    Sender,
+    Receiver,
+    TryRecvError,
+    unbounded
 };
-use std::sync::Mutex;
-use std::time::Duration;
+use log::info;
+
+use crate::server::server_profile::ServerMessages;
+use crate::commands::Commands;
 
 #[derive(Debug)]
 pub struct Client {
@@ -24,9 +24,9 @@ pub struct Client {
     pub username: String,
     pub address: String,
 
-    stream_arc: Arc<Mutex<TcpStream>>,
+    last_heartbeat: Arc<Mutex<Instant>>,
 
-    heartbeat_ticker: Arc<Mutex<u8>>,
+    stream_arc: Arc<Mutex<TcpStream>>,
 
     pub sender: Sender<Commands>,
     receiver: Receiver<Commands>,
@@ -45,41 +45,57 @@ impl Client {
             username: username.to_string(),
             address: address.to_string(),
 
-            heartbeat_ticker: Arc::new(Mutex::new(5)),
-
             sender,
             receiver,
 
             server_sender,
 
+            last_heartbeat: Arc::new(Mutex::new(Instant::now())),
         }
     }
 
-    #[allow(unused_variables)]
+    // TODO: - add heartbeat timer.
     pub fn handle_connection(&self) {
+        info!("{}: handling connection", self.uuid);
+
         println!("buffer");
         let mut buffer = [0; 1024];
 
         // test to see if there is anything for the client to receive from its channel
-        println!("{}: channel checks", self.uuid);
+
         match self.receiver.try_recv() {
             /*command is on the channel*/
 
-            Ok(Commands::Info(Some(params))) => {
-                self.transmit_data(Commands::Info(Some(params)).to_string().as_str());
+            Ok(Commands::ClientRemove(Some(params))) => {
+                let retry: u8 = 3;
+                'retry_loop1: loop {
+                    if retry < 1 {
+                        self.transmit_data(Commands::Error(None).to_string().as_str());
+                        break 'retry_loop1
+                    }
+                    self.transmit_data(Commands::ClientRemove(Some(params.clone())).to_string().as_str());
+                    let _ = self.stream_arc.lock().unwrap().read(&mut buffer);
+                    let command = Commands::from(&buffer);
+                    if command == Commands::Success(None) {
+                        break 'retry_loop1;
+                    }
+                }
             },
+            Ok(Commands::Client(Some(params))) => {
+                let retry: u8 = 3;
+                'retry_loop2: loop {
+                    if retry < 1 {
+                        self.transmit_data(Commands::Error(None).to_string().as_str());
+                        break 'retry_loop2;
+                    }
+                    self.transmit_data(Commands::Client(Some(params.clone())).to_string().as_str());
+                    let _ = self.stream_arc.lock().unwrap().read(&mut buffer);
+                    let command = Commands::from(&buffer);
+                    if command == Commands::Success(None) {
+                        break 'retry_loop2;
+                    }
+                }
 
-            Ok(Commands::Disconnect(None)) => {
-
-            }
-
-            Ok(Commands::ClientRemove(Some(params))) => { },
-            Ok(Commands::Success(params)) => { self.transmit_data(Commands::Success(params).to_string().as_str()); },
-            Ok(Commands::Client(Some(params))) => { self.transmit_data(Commands::Client(Some(params)).to_string().as_str()); },
-
-            /*sender disconnected*/
-            Err(TryRecvError::Disconnected) => {
-                self.server_sender.send(ServerMessages::RequestDisconnect(self.uuid.clone()));
             },
             /*no data available yet*/
             Err(TryRecvError::Empty) => {},
@@ -100,14 +116,18 @@ impl Client {
             println!("command");
             match command {
                 Commands::Disconnect(None) => {
-                    self.server_sender.send(ServerMessages::RequestDisconnect(self.uuid.clone())).expect("sending message to server failed");
+                    self.server_sender.send(ServerMessages::Disconnect(self.uuid.clone())).expect("sending message to server failed");
                 },
                 Commands::HeartBeat(None) => {
-                    self.transmit_data(Commands::HeartBeat(None).to_string().as_str())
+                    *self.last_heartbeat.lock().unwrap() = Instant::now();
+                    let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
+                },
+                Commands::ClientUpdate(None) => {
+                    let _ = self.server_sender.send(ServerMessages::RequestUpdate(self.uuid.clone()));
+                    let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
                 }
                 _ => {
-
-                    self.transmit_data(Commands::Error(None).to_string().as_str())
+                    let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
                 }
             }
         }
@@ -120,10 +140,25 @@ impl Client {
         self.stream_arc.lock().unwrap().shutdown(Shutdown::Both).expect("shutdown call failed");
     }
 
-    pub fn transmit_data(&self, data: &str){
+    pub fn transmit_data(&self, data: &str) {
         println!("Transmitting data: {}", data);
 
-        self.stream_arc.lock().unwrap().write_all(data.to_string().as_bytes()).unwrap();
-        self.stream_arc.lock().unwrap().flush().unwrap();
+        let error_result = self.stream_arc.lock().unwrap().write_all(data.to_string().as_bytes());
+        if let Some(error) = error_result.err(){
+            match error.kind() {
+                // handle disconnections
+                io::ErrorKind::NotConnected => {
+                    let _ = self.server_sender.send(ServerMessages::Disconnect(self.uuid.clone()));
+                },
+                _ => { }
+            }
+        }
+    }
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        let _ = self.stream_arc.lock().unwrap().write_all(Commands::Disconnect(None).to_string().as_bytes());
+        let _ = self.stream_arc.lock().unwrap().shutdown(Shutdown::Both);
     }
 }

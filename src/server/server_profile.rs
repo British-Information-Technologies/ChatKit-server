@@ -1,6 +1,3 @@
-extern crate regex;
-extern crate rayon;
-
 use crate::{
     server::{
         client::client_profile::Client,
@@ -17,6 +14,9 @@ use std::{
     io
 };
 
+use regex::Regex;
+use rayon::prelude::*;
+
 use log::info;
 
 use crossbeam_channel::{Sender, Receiver, unbounded};
@@ -31,7 +31,7 @@ pub enum ServerMessages {
     #[allow(dead_code)]
     RequestInfo(String, String),
     #[allow(dead_code)]
-    RequestDisconnect(String),
+    Disconnect(String),
     #[allow(dead_code)]
     Shutdown,
 }
@@ -85,12 +85,12 @@ impl Server {
 
         // set up listener and buffer
         let listener = TcpListener::bind(self.get_address())?;
-        listener.set_nonblocking(true);
+        listener.set_nonblocking(true)?;
 
         let mut buffer = [0; 1024];
 
         info!("server: spawning threads");
-        thread::Builder::new().name("Server Thread".to_string()).spawn(move || {
+        let _ = thread::Builder::new().name("Server Thread".to_string()).spawn(move || {
             'outer: loop {
                 // get messages from the servers channel.
                 info!("server: getting messages");
@@ -100,6 +100,7 @@ impl Server {
                             // TODO: implement disconnecting all clients and shutting down the server
                             info!("server: shutting down...");
 
+
                             break 'outer;
                         },
                         _ => {}
@@ -107,14 +108,14 @@ impl Server {
                 }
 
                 info!("server: checking for new connections");
-                if let Ok((mut stream, addr)) = listener.accept() {
-                    stream.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+                if let Ok((mut stream, _addr)) = listener.accept() {
+                    stream.set_read_timeout(Some(Duration::from_millis(10000))).unwrap();
 
                     let request = Commands::Request(None);
                     //request.to_string();
-                    stream.write_all(&request.to_string().as_bytes());
-                    stream.flush();
-                    stream.read(&mut buffer).unwrap();
+                    let _ = stream.write_all(&request.to_string().as_bytes());
+                    let _ = stream.flush();
+                    let _ = stream.read(&mut buffer).unwrap();
 
                     let incoming_message = String::from(String::from_utf8_lossy(&buffer));
                     let command = Commands::from(incoming_message);
@@ -127,7 +128,7 @@ impl Server {
                             let username = data.get("name").unwrap();
                             let address = data.get("host").unwrap();
 
-                            info!("{}", format!("Server: new Client connection: addr = {}", address ));
+                            info!("{}", format!("Server: new Client connection: _addr = {}", address ));
 
                             let client = Client::new(stream, sender.clone(), uuid.clone(), username.clone(), address.clone());
 
@@ -136,8 +137,10 @@ impl Server {
                             let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                             let new_client = Commands::Client(Some(params));
 
-                            client_map.lock().unwrap().iter().map(|(k, v)| v.sender.send(new_client.clone()));
+                            let _ = client_map.lock().unwrap().iter().map(|(_k, v)| v.sender.send(new_client.clone()));
                         },
+
+                        // TODO: - correct connection reset error when getting info.
                         Commands::Info(None) => {
                             info!("Server: info requested");
                             let mut params: HashMap<String, String> = HashMap::new();
@@ -146,13 +149,13 @@ impl Server {
 
                             let command = Commands::Info(Some(params));
 
-                            stream.write_all(&command.to_string().as_bytes());
-                            stream.flush();
+                            let _ = stream.write_all(&command.to_string().as_bytes());
+                            let _ = stream.flush();
                         },
                         _ => {
                             info!("Server: Invalid command sent");
-                            stream.write_all(Commands::Error(None).to_string().as_bytes());
-                            stream.flush();
+                            let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
+                            let _ = stream.flush();
                         },
                     }
                 }
@@ -172,7 +175,7 @@ impl Server {
 
     pub fn stop(&self) {
         info!("server: sending stop message");
-        self.sender.send(ServerMessages::Shutdown);
+        let _ = self.sender.send(ServerMessages::Shutdown);
     }
 
     #[allow(dead_code)]
@@ -212,8 +215,4 @@ impl Drop for Server {
         println!("server dropped");
         let _ = self.sender.send(ServerMessages::Shutdown);
     }
-}
-
-struct ServerDelegate {
-
 }
