@@ -14,8 +14,6 @@ use std::{
     io
 };
 
-use regex::Regex;
-use rayon::prelude::*;
 
 use log::info;
 
@@ -27,9 +25,9 @@ use std::time::Duration;
 #[derive(Debug)]
 pub enum ServerMessages {
     #[allow(dead_code)]
-    RequestUpdate(String),
+    RequestUpdate(Arc<Mutex<TcpStream>>),
     #[allow(dead_code)]
-    RequestInfo(String, String),
+    RequestInfo(String, Arc<Mutex<TcpStream>>),
     #[allow(dead_code)]
     Disconnect(String),
     #[allow(dead_code)]
@@ -74,7 +72,7 @@ impl Server {
         self.address.to_string()
     }
 
-    pub fn start(&self) -> Result<(), io::Error>{
+    pub fn start<'a>(&self) -> Result<(), io::Error>{
         info!("server: starting server...");
         // clone elements for thread
         let client_map = self.connected_clients.clone();
@@ -100,9 +98,15 @@ impl Server {
                             // TODO: implement disconnecting all clients and shutting down the server
                             info!("server: shutting down...");
 
-
                             break 'outer;
                         },
+                        ServerMessages::RequestUpdate(stream_arc) => {
+                            let mut stream = stream_arc.lock().unwrap();
+                            for (_k, v) in client_map.lock().unwrap().iter() {
+                                let _ = &stream.write_all(v.to_string().as_bytes());
+                                let _ = &stream.flush();
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -149,8 +153,8 @@ impl Server {
 
                             let command = Commands::Info(Some(params));
 
-                            let _ = stream.write_all(&command.to_string().as_bytes());
-                            let _ = stream.flush();
+                            stream.write_all(command.to_string().as_bytes()).unwrap();
+                            stream.flush().unwrap();
                         },
                         _ => {
                             info!("Server: Invalid command sent");
@@ -167,7 +171,7 @@ impl Server {
                     v.handle_connection();
                 }
             }
-            info!("server: stopped")
+            info!("server: stopped");
         });
         info!("server: started");
         Ok(())
@@ -205,9 +209,13 @@ impl Server {
          * the connection is lost before transmitting. Maybe change to handle any exceptions
          * that may occur.
          */
-        stream.write(data.to_string().as_bytes()).unwrap();
+        let _ = stream.write(data.to_string().as_bytes()).unwrap();
         stream.flush().unwrap();
     }
+}
+
+impl ToString for Server {
+    fn to_string(&self) -> std::string::String { todo!() }
 }
 
 impl Drop for Server {

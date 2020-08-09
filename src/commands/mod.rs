@@ -1,5 +1,6 @@
 use std::string::ToString;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use std::borrow::Borrow;
 use regex::Regex;
@@ -23,6 +24,11 @@ pub enum Commands {
 
     Success(Option<HashMap<String, String>>),
     Error(Option<HashMap<String, String>>),
+}
+
+pub enum CommandParseError {
+    UnknownCommand,
+    NoString,
 }
 
 impl ToString for Commands {
@@ -58,11 +64,17 @@ impl ToString for Commands {
                 } else {
                     out_string.push_str(v.as_str());
                 }
-
-
             }
         }
         out_string
+    }
+}
+
+impl FromStr for Commands {
+    type Err = CommandParseError;
+
+    fn from_str(_: &str) -> std::result::Result<Self, Self::Err> {
+        todo!();
     }
 }
 

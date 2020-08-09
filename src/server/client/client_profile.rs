@@ -108,7 +108,7 @@ impl Client {
         if self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok() {
             let mut stream = self.stream_arc.lock().unwrap();
 
-            stream.read(&mut buffer).unwrap();
+            let _ = stream.read(&mut buffer).unwrap();
 
             let command = Commands::from(&buffer);
 
@@ -123,7 +123,7 @@ impl Client {
                     let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
                 },
                 Commands::ClientUpdate(None) => {
-                    let _ = self.server_sender.send(ServerMessages::RequestUpdate(self.uuid.clone()));
+                    let _ = self.server_sender.send(ServerMessages::RequestUpdate(self.stream_arc.clone()));
                     let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
                 }
                 _ => {
@@ -154,6 +154,10 @@ impl Client {
             }
         }
     }
+}
+
+impl ToString for Client {
+    fn to_string(&self) -> std::string::String { todo!() }
 }
 
 impl Drop for Client {

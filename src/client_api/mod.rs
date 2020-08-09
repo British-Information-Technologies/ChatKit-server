@@ -4,8 +4,6 @@ use crate::{
     commands::Commands,
 };
 use std::time::Duration;
-use std::str::FromStr;
-use std::net::SocketAddr;
 use zeroize::Zeroize;
 
 
@@ -46,7 +44,7 @@ impl ClientApi {
         let addr = host.parse().unwrap();
         let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(10000))?;
 
-        stream.read(&mut buffer)?;
+        let _ = stream.read(&mut buffer)?;
 
         match Commands::from(&buffer) {
             Commands::Request(None) => {
