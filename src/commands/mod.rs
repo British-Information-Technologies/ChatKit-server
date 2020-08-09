@@ -73,19 +73,13 @@ impl ToString for Commands {
 impl FromStr for Commands {
     type Err = CommandParseError;
 
-    fn from_str(_: &str) -> std::result::Result<Self, Self::Err> {
-        todo!();
-    }
-}
-
-impl From<&str> for Commands { 
-    fn from(data: &str) -> Self {
+    fn from_str(data: &str) -> std::result::Result<Self, Self::Err> {
         let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9@\-\+\[\]{}_=/.]+|("(.*?)")+)"###).unwrap();
         let mut iter = regex.find_iter(data);
         let command_opt = iter.next();
 
         if command_opt.is_none() {
-            return Commands::Error(None);
+            return Err(CommandParseError::NoString);
         }
         let command = command_opt.unwrap().as_str();
 
@@ -103,7 +97,7 @@ impl From<&str> for Commands {
 
         let params = if map.capacity() > 1 {Some(map)} else { None };
 
-        match command {
+        Ok(match command {
             "!request:" => Commands::Request(params),
             "!info:" => Commands::Info(params),
 
@@ -121,13 +115,17 @@ impl From<&str> for Commands {
             "!error:" => Commands::Error(params),
             
             _ => Commands::Error(params),
-        }
+        })
     }
 }
 
 impl From<String> for Commands {
     fn from(data: String) -> Self {
-        Commands::from(data.as_str())
+        if let Ok(data) = data.as_str().parse() {
+            data
+        } else {
+            Commands::Error(None)
+        }
     }
 }
 
