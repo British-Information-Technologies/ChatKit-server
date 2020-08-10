@@ -52,7 +52,7 @@ impl ClientApi {
 
         stream.read(&mut buffer).ok()?;
 
-        match Commands::from(&buffer) {
+        match Commands::from(&mut buffer) {
             Commands::Request(None) => {
                 stream.write_all(Commands::Info(None).to_string().as_bytes()).unwrap();
                 stream.read(&mut buffer).ok()?;
