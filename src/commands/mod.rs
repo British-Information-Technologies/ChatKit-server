@@ -1,17 +1,15 @@
 use std::string::ToString;
 use std::collections::HashMap;
-
+use dashmap::DashMap;
 use std::borrow::Borrow;
 use regex::Regex;
-use std::ops::{Index};
+use std::ops::Index;
+use zeroize::Zeroize;
 
-// MARK: - command struct
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Commands {
     Request(Option<HashMap<String, String>>),
     Info(Option<HashMap<String, String>>),
-
-    HeartBeat(Option<HashMap<String, String>>),
 
     Connect(Option<HashMap<String, String>>),
     Disconnect(Option<HashMap<String, String>>),
@@ -25,6 +23,53 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
+impl Commands {
+    fn compare_params(&self, params: &Option<HashMap<String, String>>, other_params: &Option<HashMap<String, String>>) -> bool {
+        match (params, other_params) {
+            (None, Some(_other_params)) => false,
+            (Some(_params), None) => false,
+            (None, None) => true,
+            (Some(params), Some(other_params)) => {
+                let mut result = false;
+                
+                if params.len() == other_params.len() {
+                    for (key, value) in params.iter() {
+                        if let Some(other_value) = other_params.get(key) {
+                            if value != other_value {
+                                result = false;
+                                break;
+                            } else {
+                                result = true;
+                            }
+                        }
+                    }
+                }
+
+                result
+            },
+        }
+    }
+}
+
+impl PartialEq for Commands {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Commands::Request(params), Commands::Request(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Info(params), Commands::Info(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Connect(params), Commands::Connect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Disconnect(params), Commands::Disconnect(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientUpdate(params), Commands::ClientUpdate(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientInfo(params), Commands::ClientInfo(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::ClientRemove(params), Commands::ClientRemove(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Client(params), Commands::Client(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Success(params), Commands::Success(other_params)) => self.compare_params(&params, &other_params),
+            (Commands::Error(params), Commands::Error(other_params)) => self.compare_params(&params, &other_params),
+            _ => false,
+        }
+    }
+
+}
+
 impl ToString for Commands {
 
     fn to_string(&self) -> std::string::String {
@@ -33,13 +78,12 @@ impl ToString for Commands {
         let (command, parameters) = match self {
             Commands::Request(arguments) => { ("!request:", arguments) },
             Commands::Info(arguments) => { ("!info:", arguments) },
-            Commands::HeartBeat(arguments) => {("!heartbeat:", arguments)},
             Commands::Connect(arguments) => { ("!connect:", arguments) },
             Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
             Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
-            Commands::ClientRemove(arguments) => { ("!clientRemove", arguments) }
             Commands::Client(arguments) => { ("!client:", arguments) },
+            Commands::Success(arguments) => { ("!success:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
             _ => { ("!error:", &None) }
         };
@@ -52,31 +96,19 @@ impl ToString for Commands {
                 out_string.push_str(" ");
                 out_string.push_str(k.as_str());
                 out_string.push_str(":");
-
-                if v.contains(":") {
-                    out_string.push_str(format!("\"{}\"",v.as_str()).as_str())
-                } else {
-                    out_string.push_str(v.as_str());
-                }
-
-
+                out_string.push_str(v.as_str())
             }
         }
+
         out_string
     }
 }
 
 impl From<&str> for Commands { 
     fn from(data: &str) -> Self {
-        let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9@\-\+\[\]{}_=/.]+|("(.*?)")+)"###).unwrap();
+        let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
         let mut iter = regex.find_iter(data);
-        let command_opt = iter.next();
-
-        if command_opt.is_none() {
-            return Commands::Error(None);
-        }
-        let command = command_opt.unwrap().as_str();
-
+        let command = iter.next().unwrap().as_str();
 
         println!("command: {:?}", command);
 
@@ -89,13 +121,11 @@ impl From<&str> for Commands {
             map.insert(parts.index(0).to_string(), parts.index(1).to_string());
         }
 
-        let params = if map.capacity() > 1 {Some(map)} else { None };
+        let params = if map.capacity() > 0 {Some(map)} else { None };
 
         match command {
             "!request:" => Commands::Request(params),
             "!info:" => Commands::Info(params),
-
-            "!heartbeat:" => Commands::HeartBeat(params),
 
             "!connect:" => Commands::Connect(params),
             "!disconnect:" => Commands::Disconnect(params),
@@ -119,17 +149,26 @@ impl From<String> for Commands {
     }
 }
 
-impl From<&[u8; 1024]> for Commands {
+/*impl From<&[u8; 1024]> for Commands {
     fn from(data: &[u8; 1024]) -> Self {
         let incoming_message = String::from(String::from_utf8_lossy(data));
-        Commands::from(incoming_message)
+        data.zeroize();
+        Commands::from(incoming_message.as_str())
+    }
+}*/
+
+impl From<&mut [u8; 1024]> for Commands {
+    fn from(data: &mut [u8; 1024]) -> Self {
+        let incoming_message = String::from(String::from_utf8_lossy(data));
+        data.zeroize();
+        Commands::from(incoming_message.as_str())
     }
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod test_commands_v2 {
     #![feature(test)]
-    extern crate test;
+    //extern crate test;
     use super::Commands;
     use std::collections::HashMap;
     use test::Bencher;
@@ -157,4 +196,4 @@ mod test_commands_v2 {
     fn benchmark(b: &mut Bencher) {
         b.iter(|| Commands::from("!connect: host:192.168.0.1 name:\"michael-bailey\" uuid:123456-1234-1234-123456"))
     }
-}
+}*/
