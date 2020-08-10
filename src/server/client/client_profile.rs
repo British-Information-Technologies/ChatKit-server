@@ -1,44 +1,60 @@
 extern crate regex;
 
-use crate::server::server_profile::Server;
-use crate::server::commands::{Commands};
+use std::{
+    sync::Arc,
+    sync::Mutex,
+    net::{Shutdown, TcpStream},
+    io::prelude::*,
+    time::Duration,
+    io::Error,
+    collections::HashMap,
+};
+use crossbeam::{Sender, Receiver, TryRecvError, unbounded};
+use zeroize::Zeroize;
 
-use std::net::{Shutdown, TcpStream};
-use std::sync::Arc;
+use crate::{
+    server::{
+        server_profile::Server,
+        server_profile::ServerMessages,
+    },
+    commands::Commands
+
+};
+
 use parking_lot::FairMutex;
-use std::collections::HashMap;
 use dashmap::DashMap;
-use std::io::prelude::*;
-use std::time::Duration;
-use std::io::Error;
-use crossbeam::{Sender, Receiver, TryRecvError};
-use crossbeam_channel::unbounded;
 
-
+#[derive(Debug)]
 pub struct Client<'a> {
     connected: bool,
-    stream: Arc<TcpStream>,
-    uuid: String,
-    username: String,
-    address: String,
+    stream: TcpStream,
+    
+    pub uuid: String,
+    pub username: String,
+    pub address: String,
+
+    pub sender: Sender<Commands>,
+    receiver: Receiver<Commands>,
+
     server: &'a Server<'a>,
-    tx_channel: Sender<Commands>,
-    rx_channel: Receiver<Commands>,
 }
 
 impl<'a> Client<'a> {
-    pub fn new(server: &'a Server<'static>, stream: Arc<TcpStream>, uuid: &String, username: &String, address: &String) -> Self{
-        let (tx_channel, rx_channel): (Sender<Commands>, Receiver<Commands>) = unbounded();
+    pub fn new(server: &'a Server<'static>, stream: TcpStream, uuid: &str, username: &str, address: &str) -> Self {
+        let (sender, receiver): (Sender<Commands>, Receiver<Commands>) = unbounded();
+        stream.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
 
         Client {
             connected: true,
-            stream,
+            stream: stream,
             uuid: uuid.to_string(),
             username: username.to_string(),
             address: address.to_string(),
+
+            sender,
+            receiver,
+
             server,
-            tx_channel,
-            rx_channel,
         }
     }
 
@@ -49,7 +65,7 @@ impl<'a> Client<'a> {
 
     #[allow(dead_code)]
     pub fn get_transmitter(&self) -> &Sender<Commands>{
-        &self.tx_channel
+        &self.sender
     }
     
     #[allow(dead_code)]
@@ -68,11 +84,13 @@ impl<'a> Client<'a> {
     }
 
     pub fn handle_connection(&mut self){
-        self.stream.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
         //self.stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        let mut buffer = [0; 1024];
         
         while self.connected {
-            match self.rx_channel.try_recv() {
+            
+            println!("{}: channel checks", self.uuid);
+            match self.receiver.try_recv() {
                 /*command is on the channel*/
                 Ok(command) => {
                     let a = command.clone();
@@ -104,12 +122,12 @@ impl<'a> Client<'a> {
                             let command = Commands::Client(Some(params));
                             self.transmit_data(command.to_string().as_str());
 
-                            self.confirm_success();
+                            self.confirm_success(&mut buffer);
                         },
                         Commands::Client(Some(_params)) => {
                             self.transmit_data(a.to_string().as_str());
 
-                            self.confirm_success();
+                            self.confirm_success(&mut buffer);
                         },
                         Commands::Success(_params) => {
                             self.transmit_data(a.to_string().as_str());
@@ -131,7 +149,7 @@ impl<'a> Client<'a> {
              * one. Ethier make sure commands sent require a response before sending the next one
              * or make a system to check for these issues.
              */
-            match self.read_data() {
+            match self.read_data(&mut buffer) {
                 Ok(command) => {
                     match command {
                         Commands::Info(None) => {
@@ -156,7 +174,7 @@ impl<'a> Client<'a> {
                             self.transmit_data(command.to_string().as_str());
 
                             let data: HashMap<String, String> = [(String::from("uuid"), self.uuid.clone())].iter().cloned().collect();
-                            command = Commands::ClientUpdate(Some(data));
+                            let command = Commands::ClientUpdate(Some(data));
 
                             self.server.update_all_clients(self.uuid.as_str(), command);
                         },
@@ -183,28 +201,26 @@ impl<'a> Client<'a> {
         println!("---Thread Exit---");
     }
 
-    pub fn transmit_data(&self, data: &str){
+    pub fn transmit_data(&mut self, data: &str){
         println!("Transmitting...");
         println!("{} data: {}", self.uuid, data);
 
-        self.get_stream().write(data.to_string().as_bytes()).unwrap();
-        self.get_stream().flush().unwrap();
+        self.stream.write(data.to_string().as_bytes()).unwrap();
+        self.stream.flush().unwrap();
     }
 
-    fn read_data(&self) -> Result<Commands, Error> {
-        let mut buffer = [0; 1024];
-
-        self.get_stream().read(&mut buffer)?;
-        let command = Commands::from(&buffer);
+    fn read_data(&mut self, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
+        self.stream.read(buffer)?;
+        let command = Commands::from(buffer);
 
         Ok(command)
     }
 
-    fn confirm_success(&self){
+    fn confirm_success(&mut self, buffer: &mut [u8; 1024]){
         //self.stream.set_nonblocking(false).expect("set_nonblocking call failed");
         //self.stream.set_read_timeout(Some(Duration::from_millis(3000))).expect("set_read_timeout call failed");
 
-        match self.read_data() {
+        match self.read_data(buffer) {
             Ok(command) => {
                 match command {
                     Commands::Success(_params) => {
@@ -242,12 +258,11 @@ impl<'a> Client<'a> {
             success_message.push_str(&" ".to_string());
             success_message.push_str(&data.to_string());
         }
-        self.transmit_data(&success_message);
     }
-    
+
     #[deprecated(since="24.7.20", note="will be removed in future, please do not use!")]
     #[allow(dead_code)]
-    fn transmit_error(&self, data: &String){
+    fn transmit_error(&mut self, data: &String){
         let mut error_message = "!error:".to_string();
         if !data.is_empty(){
             error_message.push_str(&" ".to_string());
