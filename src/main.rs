@@ -4,6 +4,7 @@
 mod client_api;
 mod commands;
 mod server;
+mod lib;
 
 use cursive::{
     Cursive,
@@ -15,6 +16,7 @@ use cursive::{
     view::SizeConstraint,
 };
 use std::sync::Arc;
+use std::time::Duration;
 use crossterm::ErrorKind;
 use log::info;
 use clap::{App, Arg};
@@ -70,7 +72,7 @@ fn main() -> Result<(), ErrorKind> {
     } else {
         let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
         server.start()?;
-        loop {}
+        loop {std::thread::sleep(Duration::from_secs(1));}
     }
 }
 
