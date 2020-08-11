@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::borrow::Borrow;
 use regex::Regex;
 use std::ops::{Index};
+use log::info;
 
 // MARK: - command struct
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,6 +27,7 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
+#[derive(Debug)]
 pub enum CommandParseError {
     UnknownCommand,
     NoString,
@@ -84,7 +86,7 @@ impl FromStr for Commands {
         let command = command_opt.unwrap().as_str();
 
 
-        println!("command: {:?}", command);
+        println!("command parsed to: {:?}", command);
 
         let mut map: HashMap<String, String> = HashMap::new();
 
@@ -114,7 +116,7 @@ impl FromStr for Commands {
             "!success:" => Commands::Success(params),
             "!error:" => Commands::Error(params),
             
-            _ => Commands::Error(params),
+            _ => Commands::Error(None),
         })
     }
 }
@@ -124,6 +126,7 @@ impl From<String> for Commands {
         if let Ok(data) = data.as_str().parse() {
             data
         } else {
+            info!("Command: failed to parse with");
             Commands::Error(None)
         }
     }
@@ -143,10 +146,12 @@ mod test_commands_v2 {
     use super::Commands;
     use std::collections::HashMap;
     use test::Bencher;
+    use std::str::FromStr;
+    use super::CommandParseError;
 
     #[test]
     fn test_creation_from_string() {
-        let command_result = Commands::from("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
+        let command_result = Commands::from_str("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456").expect("parse error");
         ()
     }
 
@@ -165,6 +170,6 @@ mod test_commands_v2 {
 
     #[bench]
     fn benchmark(b: &mut Bencher) {
-        b.iter(|| Commands::from("!connect: host:192.168.0.1 name:\"michael-bailey\" uuid:123456-1234-1234-123456"))
+        b.iter(|| {let a = Commands::from_str("!connect: host:192.168.0.1 name:\"michael-bailey\" uuid:123456-1234-1234-123456").unwrap();})
     }
 }
