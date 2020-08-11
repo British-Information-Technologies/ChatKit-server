@@ -62,37 +62,44 @@ impl Client {
         let mut buffer = [0; 1024];
 
         // test to see if there is anything for the client to receive from its channel
-
+        
         match self.receiver.try_recv() {
             /*command is on the channel*/
-
+            
             Ok(Commands::ClientRemove(Some(params))) => {
-                let retry: u8 = 3;
+                let mut stream = self.stream_arc.lock().unwrap();
+                let mut retry: u8 = 3;
                 'retry_loop1: loop {
                     if retry < 1 {
                         self.transmit_data(Commands::Error(None).to_string().as_str());
                         break 'retry_loop1
                     }
+                    
                     self.transmit_data(Commands::ClientRemove(Some(params.clone())).to_string().as_str());
-                    let _ = self.stream_arc.lock().unwrap().read(&mut buffer);
+                    let _ = stream.read(&mut buffer);
                     let command = Commands::from(&buffer);
                     if command == Commands::Success(None) {
                         break 'retry_loop1;
+                    } else {
+                        retry -= 1;
                     }
                 }
             },
             Ok(Commands::Client(Some(params))) => {
-                let retry: u8 = 3;
+                let mut stream = self.stream_arc.lock().unwrap();
+                let mut retry: u8 = 3;
                 'retry_loop2: loop {
                     if retry < 1 {
-                        self.transmit_data(Commands::Error(None).to_string().as_str());
+                        stream.write_all(Commands::Error(None).to_string().as_bytes());
                         break 'retry_loop2;
                     }
-                    self.transmit_data(Commands::Client(Some(params.clone())).to_string().as_str());
-                    let _ = self.stream_arc.lock().unwrap().read(&mut buffer);
+                    stream.write_all(Commands::Client(Some(params.clone())).to_string().as_bytes());
+                    let _ = stream.read(&mut buffer);
                     let command = Commands::from(&buffer);
                     if command == Commands::Success(None) {
                         break 'retry_loop2;
+                    } else {
+                        retry -= 1;
                     }
                 }
 
@@ -103,8 +110,6 @@ impl Client {
         }
 
         println!("socket");
-        let a = self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok();
-        println!("does have content: {}", a);
         if self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok() {
             let mut stream = self.stream_arc.lock().unwrap();
 
