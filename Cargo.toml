@@ -25,7 +25,6 @@ rust-bert = "0.7.11"
 log = "0.4"
 
 
-
 [profile.dev]
 opt-level = 0
 
