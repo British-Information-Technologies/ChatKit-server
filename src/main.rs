@@ -114,13 +114,10 @@ fn control_panel() -> ResizedView<Panel<LinearLayout>> {
 // MARK: - general testing zone
 #[cfg(test)]
 mod tests {
-    #![feature(test)]
-    use super::Server;
+    use crate::server::server_profile::Server;
     use crate::client_api::ClientApi;
-    use std::thread::spawn;
     use std::collections::HashMap;
     use crate::commands::Commands;
-    use log::info;
 
     #[test]
     fn test_server_info() {
@@ -130,42 +127,36 @@ mod tests {
         let owner = "noreply@email.com";
 
         let server = Server::new(name, address, owner);
-        let _ = server.start().unwrap();
+        let result = server.start();
+        assert_eq!(result.is_ok(), true);
 
         let api = ClientApi::get_info("127.0.0.1:6000");
         assert_eq!(api.is_ok(), true);
-        if api.is_ok() {
-
+        if let Ok(api) = api {
+            println!("received: {:?}", api);
             let mut map = HashMap::new();
             map.insert("name".to_string(), name.to_string());
             map.insert("owner".to_string(), owner.to_string());
 
             let expected = Commands::Info(Some(map));
-
-            let api = api.unwrap();
+            println!("expected: {:?}", expected);
             assert_eq!(api, expected);
-        } else {
-            return
         }
     }
 
     #[test]
     fn test_server_connect() {
         let name = "Server-01";
-        let address = "0.0.0.0:6000";
+        let address = "0.0.0.0:6001";
         let owner = "noreply@email.com";
 
         let server = Server::new(name, address, owner);
         let _ = server.start().unwrap();
 
-        let api = ClientApi::get_info("127.0.0.1:6000");
-        assert_eq!(api.is_ok(), true);
-        if let Commands::Success(Some(params)) = api.unwrap() {
-            let mut api = ClientApi::new(address);
-
-            api.on_client_add_handle = |s| info!("new clinet: {:?}", s);
-            api.on_client_remove_handle = |s| info!("removed clinet: {:?}", s);
-
+        let api_result = ClientApi::new(address);
+        assert_eq!(api_result.is_ok(), true);
+        if let Ok(api) = api_result {
+            std::thread::sleep(std::time::Duration::from_secs(2));
         }
     }
 }

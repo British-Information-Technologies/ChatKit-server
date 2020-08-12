@@ -56,60 +56,14 @@ impl Client {
 
     // TODO: - add heartbeat timer.
     pub fn handle_connection(&self) {
-        info!("{}: handling connection", self.uuid);
-
-        println!("buffer");
         let mut buffer = [0; 1024];
 
-        // test to see if there is anything for the client to receive from its channel
-        
-        match self.receiver.try_recv() {
-            /*command is on the channel*/
-            
-            Ok(Commands::ClientRemove(Some(params))) => {
-                let mut stream = self.stream_arc.lock().unwrap();
-                let mut retry: u8 = 3;
-                'retry_loop1: loop {
-                    if retry < 1 {
-                        self.transmit_data(Commands::Error(None).to_string().as_str());
-                        break 'retry_loop1
-                    }
-                    
-                    self.transmit_data(Commands::ClientRemove(Some(params.clone())).to_string().as_str());
-                    let _ = stream.read(&mut buffer);
-                    let command = Commands::from(&buffer);
-                    if command == Commands::Success(None) {
-                        break 'retry_loop1;
-                    } else {
-                        retry -= 1;
-                    }
-                }
-            },
-            Ok(Commands::Client(Some(params))) => {
-                let mut stream = self.stream_arc.lock().unwrap();
-                let mut retry: u8 = 3;
-                'retry_loop2: loop {
-                    if retry < 1 {
-                        stream.write_all(Commands::Error(None).to_string().as_bytes());
-                        break 'retry_loop2;
-                    }
-                    stream.write_all(Commands::Client(Some(params.clone())).to_string().as_bytes());
-                    let _ = stream.read(&mut buffer);
-                    let command = Commands::from(&buffer);
-                    if command == Commands::Success(None) {
-                        break 'retry_loop2;
-                    } else {
-                        retry -= 1;
-                    }
-                }
-
-            },
-            /*no data available yet*/
-            Err(TryRecvError::Empty) => {},
-            _ => {}
+        // TODO: - Check heartbeat
+        {
+            info!("heartbeat")
         }
-
-        println!("socket");
+        
+        info!("{}: handling connection", self.uuid);
         if self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok() {
             let mut stream = self.stream_arc.lock().unwrap();
 
@@ -135,6 +89,55 @@ impl Client {
                     let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
                 }
             }
+        }
+
+        println!("buffer");
+        // test to see if there is anything for the client to receive from its channel
+        match self.receiver.try_recv() {
+            /*command is on the channel*/
+            
+            Ok(Commands::ClientRemove(Some(params))) => {
+                let mut stream = self.stream_arc.lock().unwrap();
+                let mut retry: u8 = 3;
+                'retry_loop1: loop {
+                    if retry < 1 {
+                        self.transmit_data(Commands::Error(None).to_string().as_str());
+                        break 'retry_loop1
+                    } else {                    
+                        self.transmit_data(Commands::ClientRemove(Some(params.clone())).to_string().as_str());
+                        let _ = stream.read(&mut buffer);
+                        let command = Commands::from(&buffer);
+                        if command == Commands::Success(None) {
+                            break 'retry_loop1;
+                        } else {
+                            retry -= 1;
+                        }
+                    }
+                }
+            },
+            Ok(Commands::Client(Some(params))) => {
+                let mut stream = self.stream_arc.lock().unwrap();
+                let mut retry: u8 = 3;
+                'retry_loop2: loop {
+                    if retry < 1 {
+                        let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
+                        break 'retry_loop2;
+                    } else {
+                        let _ = stream.write_all(Commands::Client(Some(params.clone())).to_string().as_bytes());
+                        let _ = stream.read(&mut buffer);
+                        let command = Commands::from(&buffer);
+                        if command == Commands::Success(None) {
+                            break 'retry_loop2;
+                        } else {
+                            retry -= 1;
+                        }
+                    }
+                }
+
+            },
+            /*no data available yet*/
+            Err(TryRecvError::Empty) => {},
+            _ => {}
         }
         println!("end");
     }    

@@ -60,8 +60,7 @@ impl Server {
             address: address.to_string(),
             author: author.to_string(),
             connected_clients: Arc::new(Mutex::new(HashMap::new())),
-            thread_pool: ThreadPool::new(16),
-
+            thread_pool: ThreadPool::new(16), 
 
             sender,
             receiver,
@@ -70,6 +69,10 @@ impl Server {
  
     pub fn get_address(&self) -> String{
         self.address.to_string()
+    }
+
+    pub fn set_port(&mut self) {
+
     }
 
     pub fn start<'a>(&self) -> Result<(), io::Error>{
@@ -118,7 +121,7 @@ impl Server {
 
                 info!("server: checking for new connections");
                 if let Ok((mut stream, _addr)) = listener.accept() {
-                    stream.set_read_timeout(Some(Duration::from_millis(10000))).unwrap();
+                    stream.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
                     let _ = stream.set_nonblocking(false);
 
                     let request = Commands::Request(None);
@@ -129,7 +132,7 @@ impl Server {
                     if let Ok(size) = stream.read(&mut buffer) {
                         let incoming_message = String::from(String::from_utf8_lossy(&buffer));
                         let command = Commands::from(incoming_message);
-                        info!("Server: new connection sent - {:?}", command);
+                        println!("Server: new connection sent - {:?}", command);
                         // clears the buffer.
                         buffer.zeroize();
     
@@ -153,18 +156,21 @@ impl Server {
     
                             // TODO: - correct connection reset error when getting info.
                             Commands::Info(None) => {
-                                info!("Server: info requested");
+                                println!("Server: info requested");
                                 let mut params: HashMap<String, String> = HashMap::new();
                                 params.insert(String::from("name"), server_details.0.clone());
                                 params.insert(String::from("owner"), server_details.1.clone());
     
                                 let command = Commands::Info(Some(params));
     
-                                stream.write_all(command.to_string().as_bytes()).expect("Server -Info: writing failed");
-                                stream.flush().expect("Server -Info: flushing errored");
+                                let result = stream.write_all(command.to_string().as_bytes());
+                                if let Err(error) = result {
+                                    println!("Server: error {:?}", error);
+                                }
+                                let _ = stream.flush();
                             },
                             _ => {
-                                info!("Server: Invalid command sent");
+                                println!("Server: Invalid command sent");
                                 let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
                                 let _ = stream.flush();
                             },
