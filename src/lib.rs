@@ -8,6 +8,7 @@ enum Message {
     Terminate,
 }
 
+#[derive(Debug)]
 pub struct ThreadPool{
     workers: Vec<Worker>,
     sender: Sender<Message>,
@@ -50,6 +51,7 @@ impl ThreadPool{
     }
 }
 
+#[derive(Debug)]
 struct Worker {
     id: usize,
     thread: Option<thread::JoinHandle<()>>,

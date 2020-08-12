@@ -21,7 +21,22 @@ use crossterm::ErrorKind;
 use log::info;
 use clap::{App, Arg};
 
+
 use crate::server::server_profile::Server;
+use client_api::ClientApi;
+use crossterm::ErrorKind;
+use cursive::{
+    Cursive,
+    menu::*,
+    event::Key,
+    views::{ Dialog, TextView, LinearLayout, ListView, ResizedView, Panel },
+    Rect,
+    CursiveExt,
+    align::{Align, HAlign},
+    view::SizeConstraint,
+};
+use std::sync::Arc;
+use log::info;
 
 fn main() -> Result<(), ErrorKind> {
 

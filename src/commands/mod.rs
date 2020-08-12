@@ -32,6 +32,7 @@ pub enum CommandParseError {
     UnknownCommand,
     NoString,
 }
+}
 
 impl ToString for Commands {
 
@@ -48,6 +49,7 @@ impl ToString for Commands {
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
             Commands::ClientRemove(arguments) => { ("!clientRemove", arguments) }
             Commands::Client(arguments) => { ("!client:", arguments) },
+            Commands::Success(arguments) => { ("!success:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
             _ => { ("!error:", &None) }
         };
@@ -151,8 +153,7 @@ mod test_commands_v2 {
 
     #[test]
     fn test_creation_from_string() {
-        let command_result = Commands::from_str("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456").expect("parse error");
-        ()
+        let command_result = Commands::from("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
     }
 
     #[test]
