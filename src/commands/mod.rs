@@ -32,7 +32,6 @@ pub enum CommandParseError {
     UnknownCommand,
     NoString,
 }
-}
 
 impl ToString for Commands {
 
