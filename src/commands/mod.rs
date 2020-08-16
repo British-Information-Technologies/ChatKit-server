@@ -33,7 +33,6 @@ pub enum CommandParseError {
     NoString,
 }
 
-
 impl ToString for Commands {
 
     fn to_string(&self) -> std::string::String {
