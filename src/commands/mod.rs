@@ -7,8 +7,27 @@ use std::ops::Index;
 use zeroize::Zeroize;
 
 #[derive(Clone, Debug)]
-pub enum Commands {
-    Request(Option<HashMap<String, String>>),
+pub enum Commands<T> {
+    // Common fields:
+    executable: T,
+    params: Option<HashMap<String, String>>,
+    
+    // Variants:
+    Request {},
+    Info {},
+
+    Connect {},
+    Disconnect {},
+
+    ClientUpdate {},
+    ClientInfo {},
+    ClientRemove {},
+    Client {},
+
+    Success {},
+    Error {},
+
+    /*Request(Option<HashMap<String, String>>),
     Info(Option<HashMap<String, String>>),
 
     Connect(Option<HashMap<String, String>>),
@@ -20,7 +39,11 @@ pub enum Commands {
     Client(Option<HashMap<String, String>>),
 
     Success(Option<HashMap<String, String>>),
-    Error(Option<HashMap<String, String>>),
+    Error(Option<HashMap<String, String>>),*/
+}
+
+trait Operations {
+    fn execute(&self);
 }
 
 impl Commands {
@@ -48,6 +71,12 @@ impl Commands {
                 result
             },
         }
+    }
+}
+
+impl<T> Operations for Commands<T> {
+    fn execute(&self) {
+        self.executable.run();
     }
 }
 
