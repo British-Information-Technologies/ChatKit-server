@@ -76,7 +76,7 @@ impl Server {
     }
 
     pub fn start<'a>(&self) -> Result<(), io::Error>{
-        info!("server: starting server...");
+        println!("server: starting server...");
         // clone elements for thread
         let client_map = self.connected_clients.clone();
         let sender = self.sender.clone();
@@ -90,18 +90,18 @@ impl Server {
 
         let mut buffer = [0; 1024];
 
-        info!("server: spawning threads");
+        println!("server: spawning threads");
         let _ = thread::Builder::new().name("Server Thread".to_string()).spawn(move || {
             'outer: loop {
                 std::thread::sleep(Duration::from_millis(100));
 
                 // get messages from the servers channel.
-                info!("server: getting messages");
+                println!("server: getting messages");
                 for i in receiver.try_iter() {
                     match i {
                         ServerMessages::Shutdown => {
                             // TODO: implement disconnecting all clients and shutting down the server
-                            info!("server: shutting down...");
+                            println!("server: shutting down...");
 
                             break 'outer;
                         },
@@ -119,7 +119,7 @@ impl Server {
                     }
                 }
 
-                info!("server: checking for new connections");
+                println!("server: checking for new connections");
                 if let Ok((mut stream, _addr)) = listener.accept() {
                     stream.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
                     let _ = stream.set_nonblocking(false);
@@ -128,7 +128,6 @@ impl Server {
                     //request.to_string();
                     let _ = stream.write_all(&request.to_string().as_bytes());
                     let _ = stream.flush();
-                    let _ = stream.read(&mut buffer);
                     if let Ok(size) = stream.read(&mut buffer) {
                         let incoming_message = String::from(String::from_utf8_lossy(&buffer));
                         let command = Commands::from(incoming_message);
@@ -142,7 +141,7 @@ impl Server {
                                 let username = data.get("name").unwrap();
                                 let address = data.get("host").unwrap();
     
-                                info!("{}", format!("Server: new Client connection: _addr = {}", address ));
+                                println!("{}", format!("Server: new Client connection: _addr = {}", address ));
     
                                 let client = Client::new(stream, sender.clone(), uuid.clone(), username.clone(), address.clone());
     
@@ -180,14 +179,14 @@ impl Server {
                 // TODO: end -
 
                 // handle each client for messages
-                info!("server: handing control to clients");
+                println!("server: handing control to clients");
                 for (_k, v) in client_map.lock().unwrap().iter() {
                     v.handle_connection();
                 }
             }
-            info!("server: stopped");
+            println!("server: stopped");
         });
-        info!("server: started");
+        println!("server: started");
         Ok(())
     }
 
