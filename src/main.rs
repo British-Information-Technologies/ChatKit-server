@@ -1,4 +1,4 @@
-#![feature(test)]
+//#![feature(test)]
 #![allow(dead_code)]
 
 mod client_api;
@@ -118,6 +118,8 @@ mod tests {
     use crate::client_api::ClientApi;
     use std::collections::HashMap;
     use crate::commands::Commands;
+    use std::{thread, time};
+    use std::time::Duration;
 
     #[test]
     fn test_server_info() {
@@ -128,8 +130,12 @@ mod tests {
 
         let server = Server::new(name, address, owner);
         let result = server.start();
+
         assert_eq!(result.is_ok(), true);
 
+        let dur = time::Duration::from_millis(1000);
+        thread::sleep(dur);
+        
         let api = ClientApi::get_info("127.0.0.1:6000");
         assert_eq!(api.is_ok(), true);
         if let Ok(api) = api {

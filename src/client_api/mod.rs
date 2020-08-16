@@ -42,8 +42,8 @@ impl ClientApi {
         let mut buffer: [u8; 1024] = [0; 1024];
         let addr = host.parse().unwrap();
         let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(1000))?;
-
-        let _ = stream.read(&mut buffer)?;
+        
+        let _ = stream.read(&mut buffer)?; 
         println!("data recieved: {:?}", &buffer[0..20]);
         match Commands::from(&buffer) {
             Commands::Request(None) => {

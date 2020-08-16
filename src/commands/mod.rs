@@ -143,10 +143,8 @@ impl From<&[u8; 1024]> for Commands {
 #[cfg(test)]
 mod test_commands_v2 {
     #![feature(test)]
-    extern crate test;
     use super::Commands;
     use std::collections::HashMap;
-    use test::Bencher;
     use std::str::FromStr;
     use super::CommandParseError;
 
@@ -166,10 +164,5 @@ mod test_commands_v2 {
         let command = Commands::Connect(Some(a));
 
         println!("{:?}", command.to_string())
-    }
-
-    #[bench]
-    fn benchmark(b: &mut Bencher) {
-        b.iter(|| {let a = Commands::from_str("!connect: host:192.168.0.1 name:\"michael-bailey\" uuid:123456-1234-1234-123456").unwrap();})
     }
 }
