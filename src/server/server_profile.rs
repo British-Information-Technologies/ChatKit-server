@@ -32,11 +32,8 @@ use regex::Regex;
 #[derive(Debug)]
 pub enum ServerMessages {
     RequestUpdate(String),
-    #[allow(dead_code)]
     RequestInfo(String, String),
-    #[allow(dead_code)]
     RequestDisconnect(String),
-    #[allow(dead_code)]
     Shutdown,
 }
 
