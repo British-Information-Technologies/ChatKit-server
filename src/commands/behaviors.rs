@@ -18,8 +18,8 @@ struct Success {}
 
 struct Error {}
 
-trait Runnables {
-    fn run(&self);
+trait ClientRunnables {
+    fn client_execution(client: &Client);
 }
 
 impl Runnables for Request {
@@ -27,47 +27,59 @@ impl Runnables for Request {
     }
 }
 
-impl Runnables for Request {
+impl ClientRunnables for Info {
+    fn client_execution(client: &Client) {
+        let params = client.get_server_info();
+        let command = Commands::Success(Some(params));
+
+        client.transmit_data(command.to_string().as_str());
+    }
+}
+
+impl Runnables for Connect {
     fn run() {
     }
 }
 
-impl Runnables for Request {
+impl Runnables for Disconnect {
     fn run() {
     }
 }
 
-impl Runnables for Request {
+impl ClientRunnables for ClientUpdate {
+    fn client_execution(client: &Client) {
+        let mut command = Commands::Success(None);
+        client.transmit_data(command.to_string().as_str());
+
+        let data: HashMap<String, String> = [(String::from("uuid"), client.get_uuid())].iter().cloned().collect();
+        let command = Commands::ClientUpdate(Some(data));
+
+        self.server.update_all_clients(self.uuid.as_str(), command);
+
+    }
+}
+
+impl Runnables for ClientInfo {
     fn run() {
     }
 }
 
-impl Runnables for Request {
+impl Runnables for ClientRemove {
     fn run() {
     }
 }
 
-impl Runnables for Request {
+impl Runnables for Client {
     fn run() {
     }
 }
 
-impl Runnables for Request {
+impl Runnables for Success {
     fn run() {
     }
 }
 
-impl Runnables for Request {
-    fn run() {
-    }
-}
-
-impl Runnables for Request {
-    fn run() {
-    }
-}
-
-impl Runnables for Request {
+impl Runnables for Error {
     fn run() {
     }
 }
