@@ -1,28 +1,43 @@
+extern crate regex;
+
 use std::{
-    io::prelude::*,
     sync::Arc,
-    io,
     sync::Mutex,
+    net::{Shutdown, TcpStream},
+    io::prelude::*,
+    io::Error,
+    //collections::HashMap,
     time::{Instant, Duration},
-    net::{TcpStream, Shutdown}
+    io,
 };
+
 use crossbeam::{
     Sender,
     Receiver,
     TryRecvError,
     unbounded
 };
+
+//use zeroize::Zeroize;
 use log::info;
 
-use crate::server::server_profile::ServerMessages;
-use crate::commands::Commands;
+use crate::{
+    server::{
+        //server_profile::Server,
+        server_profile::ServerMessages,
+    },
+    commands::Commands
+
+};
+
+//use parking_lot::FairMutex;
+//use dashmap::DashMap;
 
 #[derive(Debug)]
 pub struct Client {
-
-    pub uuid: String,
-    pub username: String,
-    pub address: String,
+    uuid: String,
+    username: String,
+    address: String,
 
     last_heartbeat: Arc<Mutex<Instant>>,
 
@@ -35,7 +50,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(stream: TcpStream, server_sender: Sender<ServerMessages>, uuid: String, username: String, address: String) -> Self {
+    pub fn new(stream: TcpStream, server_sender: Sender<ServerMessages>, uuid: &str, username: &str, address: &str) -> Self {
         let (sender, receiver): (Sender<Commands>, Receiver<Commands>) = unbounded();
         stream.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
 
@@ -54,8 +69,28 @@ impl Client {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn get_sender(&self) -> &Sender<Commands> {
+        &self.sender
+    }
+    
+    #[allow(dead_code)]
+    pub fn get_uuid(&self) -> String {
+        self.uuid.clone()
+    }
+
+    #[allow(dead_code)]
+    pub fn get_username(&self) -> String {
+        self.username.clone()
+    }
+
+    #[allow(dead_code)]
+    pub fn get_address(&self) -> String {
+        self.address.clone()
+    }
+
     // TODO: - add heartbeat timer.
-    pub fn handle_connection(&self) {
+    pub fn handle_connection(&mut self) {
         let mut buffer = [0; 1024];
 
         // TODO: - Check heartbeat
@@ -64,40 +99,45 @@ impl Client {
         }
         
         info!("{}: handling connection", self.uuid);
-        if self.stream_arc.lock().unwrap().peek(&mut buffer).is_ok() {
-            let mut stream = self.stream_arc.lock().unwrap();
-
-            let _ = stream.read(&mut buffer).unwrap();
-
-            let command = Commands::from(&buffer);
-
-            // match incomming commands
-            println!("command");
-            match command {
-                Commands::Disconnect(None) => {
-                    self.server_sender.send(ServerMessages::Disconnect(self.uuid.clone())).expect("sending message to server failed");
-                },
-                Commands::HeartBeat(None) => {
-                    *self.last_heartbeat.lock().unwrap() = Instant::now();
-                    let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
-                },
-                Commands::ClientUpdate(None) => {
-                    let _ = self.server_sender.send(ServerMessages::RequestUpdate(self.stream_arc.clone()));
-                    let _ = stream.write_all(Commands::Success(None).to_string().as_bytes());
+        match self.read_data(&mut buffer) {
+            Ok(command) => {
+                // match incomming commands
+                println!("command");
+                match command {
+                    Commands::Disconnect(None) => {
+                        self.server_sender.send(ServerMessages::Disconnect(self.uuid.clone())).expect("sending message to server failed");
+                        self.stream_arc.lock().unwrap().shutdown(Shutdown::Both).expect("shutdown call failed");
+                    },
+                    Commands::HeartBeat(None) => {
+                        *self.last_heartbeat.lock().unwrap() = Instant::now();
+                        self.transmit_data(Commands::Success(None).to_string().as_str());
+                    },
+                    Commands::ClientUpdate(None) => {
+                        self.transmit_data(Commands::Success(None).to_string().as_str());
+                        let _ = self.server_sender.send(ServerMessages::RequestUpdate(self.stream_arc.clone()));
+                    },
+                    Commands::ClientInfo(Some(params)) => {
+                        let uuid = params.get("uuid").unwrap();
+                        let _ = self.server_sender.send(ServerMessages::RequestInfo(uuid.clone(), self.stream_arc.clone()));
+                    },
+                    // TODO: may or may not be needed?
+                    Commands::Error(None) => {
+                    },
+                    _ => {
+                        self.transmit_data(Commands::Error(None).to_string().as_str());
+                    },
                 }
-                _ => {
-                    let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
-                }
-            }
+            },
+            Err(_) => {
+                // no data was read
+            },
         }
 
         println!("buffer");
         // test to see if there is anything for the client to receive from its channel
         match self.receiver.try_recv() {
-            /*command is on the channel*/
-            
+            /*command is on the channel*/ 
             Ok(Commands::ClientRemove(Some(params))) => {
-                let mut stream = self.stream_arc.lock().unwrap();
                 let mut retry: u8 = 3;
                 'retry_loop1: loop {
                     if retry < 1 {
@@ -105,9 +145,8 @@ impl Client {
                         break 'retry_loop1
                     } else {                    
                         self.transmit_data(Commands::ClientRemove(Some(params.clone())).to_string().as_str());
-                        let _ = stream.read(&mut buffer);
-                        let command = Commands::from(&buffer);
-                        if command == Commands::Success(None) {
+                        
+                        if self.read_data(&mut buffer).unwrap_or(Commands::Error(None)) == Commands::Success(None) {
                             break 'retry_loop1;
                         } else {
                             retry -= 1;
@@ -116,17 +155,15 @@ impl Client {
                 }
             },
             Ok(Commands::Client(Some(params))) => {
-                let mut stream = self.stream_arc.lock().unwrap();
                 let mut retry: u8 = 3;
                 'retry_loop2: loop {
                     if retry < 1 {
-                        let _ = stream.write_all(Commands::Error(None).to_string().as_bytes());
+                        self.transmit_data(Commands::Error(None).to_string().as_str());
                         break 'retry_loop2;
                     } else {
-                        let _ = stream.write_all(Commands::Client(Some(params.clone())).to_string().as_bytes());
-                        let _ = stream.read(&mut buffer);
-                        let command = Commands::from(&buffer);
-                        if command == Commands::Success(None) {
+                        self.transmit_data(Commands::Client(Some(params.clone())).to_string().as_str());
+                        
+                        if self.read_data(&mut buffer).unwrap_or(Commands::Error(None)) == Commands::Success(None) {
                             break 'retry_loop2;
                         } else {
                             retry -= 1;
@@ -137,9 +174,9 @@ impl Client {
             },
             /*no data available yet*/
             Err(TryRecvError::Empty) => {},
-            _ => {}
+            _ => {},
         }
-        println!("end");
+        println!("---Client Thread Exit---");
     }    
 
     // move into a drop perhaps
@@ -158,10 +195,18 @@ impl Client {
                 io::ErrorKind::NotConnected => {
                     let _ = self.server_sender.send(ServerMessages::Disconnect(self.uuid.clone()));
                 },
-                _ => { }
+                _ => { },
             }
         }
     }
+
+    fn read_data(&mut self, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
+        self.stream_arc.lock().unwrap().read(buffer)?;
+        let command = Commands::from(buffer);
+
+        Ok(command)
+    }
+
 }
 
 impl ToString for Client {
