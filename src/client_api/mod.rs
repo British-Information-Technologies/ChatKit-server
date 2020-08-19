@@ -6,7 +6,6 @@ use crate::{
 use std::time::Duration;
 use zeroize::Zeroize;
 
-
 pub struct ClientApi {
     socket: TcpStream,
     addr: String,
@@ -45,7 +44,7 @@ impl ClientApi {
         
         let _ = stream.read(&mut buffer)?; 
         println!("data recieved: {:?}", &buffer[0..20]);
-        match Commands::from(&buffer) {
+        match Commands::from(&mut buffer) {
             Commands::Request(None) => {
                 println!("zeroing");
                 buffer.zeroize();
