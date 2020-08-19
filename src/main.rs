@@ -4,23 +4,24 @@ extern crate lazy_static;
 mod client_api;
 mod commands;
 mod server;
+mod lib;
 
-
-use crate::server::server_profile::Server;
-use client_api::ClientApi;
-use crossterm::ErrorKind;
 use cursive::{
     Cursive,
     menu::*,
     event::Key,
     views::{ Dialog, TextView, LinearLayout, ListView, ResizedView, Panel },
-    Rect,
     CursiveExt,
-    align::{Align, HAlign},
+    align::Align,
     view::SizeConstraint,
 };
-use std::sync::Arc;
+//use std::sync::Arc;
+use std::time::Duration;
+use crossterm::ErrorKind;
 use log::info;
+use clap::{App, Arg};
+
+use crate::server::server_profile::Server;
 
 fn main() -> Result<(), ErrorKind> {
     lazy_static!{
@@ -29,52 +30,65 @@ fn main() -> Result<(), ErrorKind> {
         static ref SERVER_AUTHOR: &'static str = "noreply@email.com";
         static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
     }
-    //let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-    /*server_name: &'static str = "Server-01";
-    server_address: &'static str = "0.0.0.0:6000";
-    server_author: &'static str = "noreply@email.com";
-    let server = Server::new(&server_name, &server_address, &server_author);*/
-    /*let server_arc = Arc::new(SERVER);
-    let s1 = server_arc.clone();
-    let s2 = s1.clone();*/
 
-    cursive::logger::init();
+    let args = App::new("--rust chat server--")
+        .version("0.1.5")
+        .author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
+        .about("this is a chat server developed in rust, depending on the version one of two implementations will be used")
+        .arg(Arg::with_name("graphical")
+            .short('g')
+            .takes_value(false)
+            .about("Enables graphical mode"))
+        .get_matches();
 
-    info!("Main: init Display");
-    let mut Display = Cursive::default();
+    if args.is_present("graphical") {
+        //let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+        //let server_arc = Arc::new(server);
+        //let s1 = server_arc.clone();
+        //let s2 = s1.clone();
 
-    info!("Main: setting up callbacks");
-    Display.add_global_callback(Key::Backspace, |s| s.quit());
-    Display.add_global_callback(Key::Tab, |s| s.toggle_debug_console());
-    Display.add_global_callback(Key::Esc, |s| s.select_menubar());
+        cursive::logger::init();
 
-    info!("Main: setting up menu bar");
-    let _ = Display.menubar()
-        .add_subtree("Server",
-                     MenuTree::new()
-                         .leaf("About",
-                               |s| s.add_layer(About()))
-                         .delimiter()
-                         .leaf("quit", |s| s.quit()))
-        .add_subtree("File",
-                     MenuTree::new()
-                         .leaf("Start", move |s| {SERVER.start();})
-                         .leaf("Stop", move |s| {SERVER.stop();})
-                         .delimiter()
-                         .leaf("Debug", |s| {s.toggle_debug_console();}));
-    info!("Main: entering loop");
-    Display.add_layer(Control_Panel());
-    Display.run();
-    Ok(())
+        info!("Main: init display");
+        let mut display = Cursive::default();
+
+        info!("Main: setting up callbacks");
+        display.add_global_callback(Key::Backspace, |s| s.quit());
+        display.add_global_callback(Key::Tab, |s| s.toggle_debug_console());
+        display.add_global_callback(Key::Esc, |s| s.select_menubar());
+
+        info!("Main: setting up menu bar");
+        let _ = display.menubar()
+            .add_subtree("Server",
+                         MenuTree::new()
+                             .leaf("about",
+                                   |s| s.add_layer(about()))
+                             .delimiter()
+                             .leaf("quit", |s| s.quit()))
+            .add_subtree("File",
+                         MenuTree::new()
+                             .leaf("Start", move |_s| {let _ = SERVER.start();})
+                             .leaf("Stop", move |_s| {let _ = SERVER.stop();})
+                             .delimiter()
+                             .leaf("Debug", |s| {s.toggle_debug_console();}));
+        info!("Main: entering loop");
+        display.add_layer(control_panel());
+        display.run();
+        Ok(())
+    } else {
+        //let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+        SERVER.start()?;
+        loop {std::thread::sleep(Duration::from_secs(1));}
+    }
 }
 
-fn About() -> Dialog {
+fn about() -> Dialog {
     Dialog::new()
         .content(TextView::new("Rust-Chat-Server\nmade by\n Mitchell Hardie\nMichael Bailey\nMit Licence")
-        ).button("Close", |s| {let _ = s.pop_layer(); s.add_layer(Control_Panel())} )
+        ).button("Close", |s| {let _ = s.pop_layer(); s.add_layer(control_panel())} )
 }
 
-fn Launch_screen() -> Dialog {
+fn launch_screen() -> Dialog {
     Dialog::new()
         .content(TextView::new("\
         Server.
@@ -85,7 +99,7 @@ fn Launch_screen() -> Dialog {
         .button("ok", |s| {s.pop_layer();})
 }
 
-fn Control_Panel() -> ResizedView<Panel<LinearLayout>> {
+fn control_panel() -> ResizedView<Panel<LinearLayout>> {
 
     let mut root = LinearLayout::horizontal();
     let mut left = LinearLayout::vertical();
@@ -104,14 +118,14 @@ fn Control_Panel() -> ResizedView<Panel<LinearLayout>> {
 }
 
 // MARK: - general testing zone
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
-    #![feature(test)]
-    use super::Server;
+    use crate::server::server_profile::Server;
     use crate::client_api::ClientApi;
-    use std::thread::spawn;
     use std::collections::HashMap;
     use crate::commands::Commands;
+    use std::{thread, time};
+    use std::time::Duration;
 
     #[test]
     fn test_server_info() {
@@ -121,22 +135,40 @@ mod tests {
         let owner = "noreply@email.com";
 
         let server = Server::new(name, address, owner);
-        let _ = server.start().unwrap();
+        let result = server.start();
 
+        assert_eq!(result.is_ok(), true);
+
+        let dur = time::Duration::from_millis(1000);
+        thread::sleep(dur);
+        
         let api = ClientApi::get_info("127.0.0.1:6000");
-        if api.is_some() {
-
+        assert_eq!(api.is_ok(), true);
+        if let Ok(api) = api {
+            println!("received: {:?}", api);
             let mut map = HashMap::new();
             map.insert("name".to_string(), name.to_string());
             map.insert("owner".to_string(), owner.to_string());
 
             let expected = Commands::Info(Some(map));
-
-
-            let api = api.unwrap();
+            println!("expected: {:?}", expected);
             assert_eq!(api, expected);
-        } else {
-            return
         }
     }
-}*/
+
+    #[test]
+    fn test_server_connect() {
+        let name = "Server-01";
+        let address = "0.0.0.0:6001";
+        let owner = "noreply@email.com";
+
+        let server = Server::new(name, address, owner);
+        let _ = server.start().unwrap();
+
+        let api_result = ClientApi::new(address);
+        assert_eq!(api_result.is_ok(), true);
+        if let Ok(api) = api_result {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    }
+}

@@ -1,15 +1,44 @@
 use std::string::ToString;
 use std::collections::HashMap;
-use dashmap::DashMap;
+use std::str::FromStr;
+
 use std::borrow::Borrow;
 use regex::Regex;
 use std::ops::Index;
+use log::info;
 use zeroize::Zeroize;
+//use dashmap::DashMap;
 
 #[derive(Clone, Debug)]
 pub enum Commands {
+    /* TODO: this is the new commands system but still needs work.
+     * Will be fixed soon, but continue with old version at the
+     * moment.
+     *
+    // Common fields:
+    executable: T,
+    params: Option<HashMap<String, String>>,
+    
+    // Variants:
+    Request {},
+    Info {},
+
+    Connect {},
+    Disconnect {},
+
+    ClientUpdate {},
+    ClientInfo {},
+    ClientRemove {},
+    Client {},
+
+    Success {},
+    Error {},
+    */
+
     Request(Option<HashMap<String, String>>),
     Info(Option<HashMap<String, String>>),
+
+    HeartBeat(Option<HashMap<String, String>>),
 
     Connect(Option<HashMap<String, String>>),
     Disconnect(Option<HashMap<String, String>>),
@@ -23,7 +52,25 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
+#[derive(Debug)]
+pub enum CommandParseError {
+    UnknownCommand,
+    NoString,
+}
+
+/*trait Operations {
+    fn execute(&self);
+}*/
+
 impl Commands {
+    /*fn get_executable(&self) -> &T {
+        self.executable
+    }
+
+    fn get_params(&self) -> &Option<HashMap<String,String>> {
+        self.params
+    }*/
+
     fn compare_params(&self, params: &Option<HashMap<String, String>>, other_params: &Option<HashMap<String, String>>) -> bool {
         match (params, other_params) {
             (None, Some(_other_params)) => false,
@@ -51,6 +98,12 @@ impl Commands {
     }
 }
 
+/*impl<T> Operations for Commands<T> {
+    fn execute(&self) {
+        self.executable.run();
+    }
+}*/
+
 impl PartialEq for Commands {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -67,8 +120,8 @@ impl PartialEq for Commands {
             _ => false,
         }
     }
-
 }
+
 
 impl ToString for Commands {
 
@@ -78,14 +131,15 @@ impl ToString for Commands {
         let (command, parameters) = match self {
             Commands::Request(arguments) => { ("!request:", arguments) },
             Commands::Info(arguments) => { ("!info:", arguments) },
+            Commands::HeartBeat(arguments) => {("!heartbeat:", arguments)},
             Commands::Connect(arguments) => { ("!connect:", arguments) },
             Commands::Disconnect(arguments) => { ("!disconnect:", arguments) },
             Commands::ClientUpdate(arguments) => { ("!clientUpdate:", arguments) },
             Commands::ClientInfo(arguments) => { ("!clientInfo:", arguments) },
+            Commands::ClientRemove(arguments) => { ("!clientRemove", arguments) }
             Commands::Client(arguments) => { ("!client:", arguments) },
             Commands::Success(arguments) => { ("!success:", arguments) },
             Commands::Error(arguments) => { ("!error:", arguments) },
-            _ => { ("!error:", &None) }
         };
 
         out_string.push_str(command);
@@ -96,21 +150,33 @@ impl ToString for Commands {
                 out_string.push_str(" ");
                 out_string.push_str(k.as_str());
                 out_string.push_str(":");
-                out_string.push_str(v.as_str())
+
+                if v.contains(":") {
+                    out_string.push_str(format!("\"{}\"",v.as_str()).as_str())
+                } else {
+                    out_string.push_str(v.as_str());
+                }
             }
         }
-
         out_string
     }
 }
 
-impl From<&str> for Commands { 
-    fn from(data: &str) -> Self {
-        let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9\-\+\[\]{}_=/]+|("(.*?)")+)"###).unwrap();
-        let mut iter = regex.find_iter(data);
-        let command = iter.next().unwrap().as_str();
+impl FromStr for Commands {
+    type Err = CommandParseError;
 
-        println!("command: {:?}", command);
+    fn from_str(data: &str) -> std::result::Result<Self, Self::Err> {
+        let regex = Regex::new(r###"(\?|!)([a-zA-z0-9]*):|([a-zA-z]*):([a-zA-Z0-9@\-\+\[\]{}_=/.]+|("(.*?)")+)"###).unwrap();
+        let mut iter = regex.find_iter(data);
+        let command_opt = iter.next();
+
+        if command_opt.is_none() {
+            return Err(CommandParseError::NoString);
+        }
+        let command = command_opt.unwrap().as_str();
+
+
+        println!("command parsed to: {:?}", command);
 
         let mut map: HashMap<String, String> = HashMap::new();
 
@@ -123,9 +189,11 @@ impl From<&str> for Commands {
 
         let params = if map.capacity() > 0 {Some(map)} else { None };
 
-        match command {
+        Ok(match command {
             "!request:" => Commands::Request(params),
             "!info:" => Commands::Info(params),
+
+            "!heartbeat:" => Commands::HeartBeat(params),
 
             "!connect:" => Commands::Connect(params),
             "!disconnect:" => Commands::Disconnect(params),
@@ -138,45 +206,42 @@ impl From<&str> for Commands {
             "!success:" => Commands::Success(params),
             "!error:" => Commands::Error(params),
             
-            _ => Commands::Error(params),
-        }
+            _ => Commands::Error(None),
+        })
     }
 }
 
 impl From<String> for Commands {
     fn from(data: String) -> Self {
-        Commands::from(data.as_str())
+        if let Ok(data) = data.as_str().parse() {
+            data
+        } else {
+            info!("Command: failed to parse with");
+            Commands::Error(None)
+        }
     }
 }
-
-/*impl From<&[u8; 1024]> for Commands {
-    fn from(data: &[u8; 1024]) -> Self {
-        let incoming_message = String::from(String::from_utf8_lossy(data));
-        data.zeroize();
-        Commands::from(incoming_message.as_str())
-    }
-}*/
 
 impl From<&mut [u8; 1024]> for Commands {
     fn from(data: &mut [u8; 1024]) -> Self {
         let incoming_message = String::from(String::from_utf8_lossy(data));
         data.zeroize();
-        Commands::from(incoming_message.as_str())
+        Commands::from(incoming_message)
     }
 }
 
+// TODO: check if unit tests still work
 /*#[cfg(test)]
 mod test_commands_v2 {
     #![feature(test)]
-    //extern crate test;
     use super::Commands;
     use std::collections::HashMap;
-    use test::Bencher;
+    use std::str::FromStr;
+    use super::CommandParseError;
 
     #[test]
     fn test_creation_from_string() {
-        let command_result = Commands::from("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
-        ()
+        let command_result = Commands::from_str("!connect: name:bop host:127.0.0.1 uuid:123456-1234-1234-123456");
     }
 
     #[test]
@@ -190,10 +255,5 @@ mod test_commands_v2 {
         let command = Commands::Connect(Some(a));
 
         println!("{:?}", command.to_string())
-    }
-
-    #[bench]
-    fn benchmark(b: &mut Bencher) {
-        b.iter(|| Commands::from("!connect: host:192.168.0.1 name:\"michael-bailey\" uuid:123456-1234-1234-123456"))
     }
 }*/
