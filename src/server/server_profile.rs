@@ -39,10 +39,10 @@ pub enum ServerMessages {
 
 // MARK: - server struct
 #[derive(Debug)]
-pub struct Server<'z> {
-    name: &'z str,
-    address: &'z str,
-    author: &'z str,
+pub struct Server {
+    name: Arc<String>,
+    address: Arc<String>,
+    author: Arc<String>,
 
     connected_clients: Arc<Mutex<HashMap<String, Client>>>,
 
@@ -53,14 +53,14 @@ pub struct Server<'z> {
 }
 
 // MARK: - server implemetation
-impl<'z> Server<'z> {
-    pub fn new(name: &'z str, address: &'z str, author: &'z str) -> Self {
+impl Server {
+    pub fn new(name: &str, address: &str, author: &str) -> Self {
         let (sender, receiver) = unbounded();
 
         Self {
-            name: name,
-            address: address,
-            author: author,
+            name: Arc::new(name.to_string()),
+            address: Arc::new(address.to_string()),
+            author: Arc::new(author.to_string()),
             connected_clients: Arc::new(Mutex::new(HashMap::new())),
             thread_pool: ThreadPool::new(16), 
 
@@ -69,33 +69,40 @@ impl<'z> Server<'z> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_name(&self) -> String {
         self.name.to_string()
     }
 
+    #[allow(dead_code)]
     pub fn get_address(&self) -> String {
         self.address.to_string()
     }
 
+    #[allow(dead_code)]
     pub fn get_author(&self) -> String {
         self.author.to_string()
     }
 
-    pub fn set_port(&mut self) {
-    }
-
-    pub fn start(&'static self) -> Result<(), io::Error>{
+    pub fn start(&self) -> Result<(), io::Error>{
         println!("server: starting server...");
-        // clone elements for thread
+
+        // MARK: - creating clones of the server property references
+        let name = self.name.clone();
+        #[allow(dead_code)]
+        let address = self.address.clone();
+        let author = self.author.clone(); 
+        let connected_clients = self.connected_clients.clone();
+        let sender = self.sender.clone();
         let receiver = self.receiver.clone();
 
         // set up listener and buffer
+        let mut buffer = [0; 1024];
         let listener = TcpListener::bind(self.get_address())?;
         listener.set_nonblocking(true)?;
 
         println!("server: spawning threads");
         let _ = thread::Builder::new().name("Server Thread".to_string()).spawn(move || {
-            let mut buffer = [0; 1024];
             
             'outer: loop {
                 std::thread::sleep(Duration::from_millis(100));
@@ -105,54 +112,55 @@ impl<'z> Server<'z> {
                 for i in receiver.try_iter() {
                     match i {
                         ServerMessages::Shutdown => {
-                            // TODO: implement disconnecting all clients and shutting down the server
+                            // TODO: implement disconnecting all clients and shutting down the server.
                             println!("server: shutting down...");
-
                             break 'outer;
                         },
                         ServerMessages::RequestUpdate(stream_arc) => {
-                            for (_k, v) in self.connected_clients.lock().unwrap().iter() {
-                                let stream = stream_arc.lock().unwrap();
-                                self.transmit_data(&stream, v.to_string().as_str());
+                            for (_k, v) in connected_clients.lock().unwrap().iter() {
+                                let mut stream = stream_arc.lock().unwrap();
+                                let _ = Server::transmit_data(&mut stream, v.to_string().as_str());
 
-                                if self.read_data(&stream, &mut buffer).unwrap_or(Commands::Error(None)) == Commands::Success(None) {
+                                if Server::read_data(&mut stream, &mut buffer).unwrap_or(Commands::Error(None)) == Commands::Success(None) {
                                     println!("Success Confirmed");
                                 } else {
                                     println!("no success read");
                                     let error = Commands::Error(None);
-                                    self.transmit_data(&stream, error.to_string().as_str());
+                                    let _ = Server::transmit_data(&mut stream, error.to_string().as_str());
                                 }
                             }
                         },
                         ServerMessages::RequestInfo(uuid, stream_arc) => {
-                            let stream = stream_arc.lock().unwrap();
+                            let mut stream = stream_arc.lock().unwrap();
                             
-                            if let Some(client) = self.connected_clients.lock().unwrap().get(&uuid) {
+                            if let Some(client) = connected_clients.lock().unwrap().get(&uuid) {
                                 let params: HashMap<String, String> = [(String::from("uuid"), client.get_uuid()), (String::from("name"), client.get_username()), (String::from("host"), client.get_address())].iter().cloned().collect();
                                 let command = Commands::Success(Some(params));
-                                self.transmit_data(&stream, command.to_string().as_str());
+                                let _ = Server::transmit_data(&mut stream, command.to_string().as_str());
                             } else {
                                 let command = Commands::Success(None);
-                                self.transmit_data(&stream, command.to_string().as_str());
+                                let _ = Server::transmit_data(&mut stream, command.to_string().as_str());
                             }
                         },
                         ServerMessages::Disconnect(uuid) => {
-                            self.remove_client(uuid.as_str());
+                            let mut clients = connected_clients.lock().unwrap();
+                            clients.remove(&uuid.to_string());
                             let params: HashMap<String, String> = [(String::from("uuid"), uuid)].iter().cloned().collect();
-                            self.update_all_clients(Commands::ClientRemove(Some(params)));
+                            let command = Commands::ClientRemove(Some(params));
+                            let _ = connected_clients.lock().unwrap().iter().map(move |(_k, v)| {v.get_sender().send(command.clone())});
                         },
                     }
                 }
 
                 println!("server: checking for new connections");
-                if let Ok((stream, _addr)) = listener.accept() {
+                if let Ok((mut stream, _addr)) = listener.accept() {
                     stream.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
                     let _ = stream.set_nonblocking(false);
 
                     let request = Commands::Request(None);
-                    self.transmit_data(&stream, &request.to_string().as_str());
+                    let _ = Server::transmit_data(&mut stream, &request.to_string().as_str());
 
-                    match self.read_data(&stream, &mut buffer) {
+                    match Server::read_data(&mut stream, &mut buffer) {
                         Ok(command) => {
                             println!("Server: new connection sent - {:?}", command);
                             match command {
@@ -163,26 +171,26 @@ impl<'z> Server<'z> {
         
                                     println!("{}", format!("Server: new Client connection: _addr = {}", address ));
         
-                                    let client = Client::new(stream, self.sender.clone(), &uuid, &username, &address);
+                                    let client = Client::new(stream, sender.clone(), &uuid, &username, &address);
 
-                                    self.connected_clients.lock().unwrap().insert(uuid.to_string(), client);
+                                    connected_clients.lock().unwrap().insert(uuid.to_string(), client);
         
                                     let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                                     let new_client = Commands::Client(Some(params));
         
-                                    let _ = self.connected_clients.lock().unwrap().iter().map(|(_k, v)| v.sender.send(new_client.clone()));
+                                    let _ = connected_clients.lock().unwrap().iter().map(|(_k, v)| v.sender.send(new_client.clone()));
                                 },    
                                 // TODO: - correct connection reset error when getting info.
                                 Commands::Info(None) => {
                                     println!("Server: info requested");
-                                    let params: HashMap<String, String> = [(String::from("name"), self.name.to_string().clone()), (String::from("owner"), self.author.to_string().clone())].iter().cloned().collect();
+                                    let params: HashMap<String, String> = [(String::from("name"), name.to_string().clone()), (String::from("owner"), author.to_string().clone())].iter().cloned().collect();
                                     let command = Commands::Info(Some(params));
         
-                                    self.transmit_data(&stream, command.to_string().as_str());
+                                    let _ = Server::transmit_data(&mut stream, command.to_string().as_str());
                                 },
                                 _ => {
                                     println!("Server: Invalid command sent");
-                                    self.transmit_data(&stream, Commands::Error(None).to_string().as_str());
+                                    let _ = Server::transmit_data(&mut stream, Commands::Error(None).to_string().as_str());
                                 },
                             }
                         },
@@ -193,7 +201,7 @@ impl<'z> Server<'z> {
 
                 // handle each client for messages
                 println!("server: handing control to clients");
-                for (_k, client) in self.connected_clients.lock().unwrap().iter_mut() {
+                for (_k, client) in connected_clients.lock().unwrap().iter_mut() {
                     client.handle_connection();
                 }
             }
@@ -208,7 +216,7 @@ impl<'z> Server<'z> {
         let _ = self.sender.send(ServerMessages::Shutdown);
     }
 
-    fn transmit_data(&self, mut stream: &TcpStream, data: &str){
+    fn transmit_data(stream: &mut TcpStream, data: &str) -> Result<(), Error>{
         println!("Transmitting...");
         println!("data: {}", data);
 
@@ -217,36 +225,24 @@ impl<'z> Server<'z> {
          * the connection is lost before transmitting. Maybe change to handle any exceptions
          * that may occur.
          */
-        let _ = stream.write(data.to_string().as_bytes()).unwrap();
-        stream.flush().unwrap();
+        let _ = stream.write(data.to_string().as_bytes())?;
+        stream.flush()?;
+        Ok(())
     }
 
-    fn read_data(&self, mut stream: &TcpStream, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
-        stream.read(buffer)?;
+    fn read_data(stream: &mut TcpStream, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
+        let _ = stream.read(buffer)?;
         let command = Commands::from(buffer);
 
         Ok(command)
     }
-
-    fn update_all_clients(&self, command: Commands){
-        let client_map = self.connected_clients.lock().unwrap();
-        
-        for client in client_map.values() {
-            client.get_sender().send(command.clone()).unwrap();
-        }
-    }
-
-    pub fn remove_client(&self, uuid: &str){
-        let mut clients = self.connected_clients.lock().unwrap();
-        clients.remove(&uuid.to_string());
-    }
 }
 
-impl<'z> ToString for Server<'z> {
+impl ToString for Server {
     fn to_string(&self) -> std::string::String { todo!() }
 }
 
-impl<'z> Drop for Server<'z> {
+impl Drop for Server {
     fn drop(&mut self) {
         println!("server dropped");
         let _ = self.sender.send(ServerMessages::Shutdown);

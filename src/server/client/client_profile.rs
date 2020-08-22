@@ -201,7 +201,7 @@ impl Client {
     }
 
     fn read_data(&mut self, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
-        self.stream_arc.lock().unwrap().read(buffer)?;
+        let _ = self.stream_arc.lock().unwrap().read(buffer)?;
         let command = Commands::from(buffer);
 
         Ok(command)

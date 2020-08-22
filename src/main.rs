@@ -17,6 +17,7 @@ use cursive::{
 };
 //use std::sync::Arc;
 use std::time::Duration;
+use std::sync::Arc;
 use crossterm::ErrorKind;
 use log::info;
 use clap::{App, Arg};
@@ -24,13 +25,6 @@ use clap::{App, Arg};
 use crate::server::server_profile::Server;
 
 fn main() -> Result<(), ErrorKind> {
-    lazy_static!{
-        static ref SERVER_NAME: &'static str = "Server-01";
-        static ref SERVER_ADDRESS: &'static str = "0.0.0.0:6000";
-        static ref SERVER_AUTHOR: &'static str = "noreply@email.com";
-        static ref SERVER: Server<'static> = Server::new(&SERVER_NAME, &SERVER_ADDRESS, &SERVER_AUTHOR);
-    }
-
     let args = App::new("--rust chat server--")
         .version("0.1.5")
         .author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
@@ -42,10 +36,10 @@ fn main() -> Result<(), ErrorKind> {
         .get_matches();
 
     if args.is_present("graphical") {
-        //let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-        //let server_arc = Arc::new(server);
-        //let s1 = server_arc.clone();
-        //let s2 = s1.clone();
+        let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+        let server_arc = Arc::new(server);
+        let s1 = server_arc.clone();
+        let s2 = s1.clone();
 
         cursive::logger::init();
 
@@ -67,8 +61,8 @@ fn main() -> Result<(), ErrorKind> {
                              .leaf("quit", |s| s.quit()))
             .add_subtree("File",
                          MenuTree::new()
-                             .leaf("Start", move |_s| {let _ = SERVER.start();})
-                             .leaf("Stop", move |_s| {let _ = SERVER.stop();})
+                             .leaf("Start", move |_s| {let _ = s1.start();})
+                             .leaf("Stop", move |_s| {let _ = s2.stop();})
                              .delimiter()
                              .leaf("Debug", |s| {s.toggle_debug_console();}));
         info!("Main: entering loop");
@@ -76,8 +70,9 @@ fn main() -> Result<(), ErrorKind> {
         display.run();
         Ok(())
     } else {
-        //let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-        SERVER.start()?;
+        let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+
+        server.start()?;
         loop {std::thread::sleep(Duration::from_secs(1));}
     }
 }
@@ -88,6 +83,7 @@ fn about() -> Dialog {
         ).button("Close", |s| {let _ = s.pop_layer(); s.add_layer(control_panel())} )
 }
 
+#[allow(dead_code)]
 fn launch_screen() -> Dialog {
     Dialog::new()
         .content(TextView::new("\
