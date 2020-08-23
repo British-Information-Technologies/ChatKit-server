@@ -165,3 +165,40 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod crypto_tests {
+    extern crate openssl;
+
+    use openssl::rsa::{Rsa, Padding};
+    use std::str;
+
+    #[test]
+    // MARK: - working encryption example for rsa
+    fn gen_rsa() {
+        let rsa = Rsa::generate(2048).unwrap();
+
+        let ref1 = rsa.public_key_to_pem().unwrap();
+        let ref2 = rsa.private_key_to_pem().unwrap();
+
+        let public = str::from_utf8(&ref1).unwrap().to_string();
+        let private = str::from_utf8(&ref2).unwrap().to_string();
+
+        println!("public key size: {}", public.len());
+        println!("{}", public);
+
+        println!("private key size: {}", private.len());
+        println!("{}", private);
+
+        let data = b"this is a sentence";
+        println!("before: {:?}", data);
+
+        let mut buf = vec![0; rsa.size() as usize];
+        let encrypted_len = rsa.public_encrypt(data, &mut buf, Padding::PKCS1).unwrap();
+        println!("during: {:?}", &buf);
+
+        let mut buf2 = vec![0; rsa.size() as usize];
+        let _ = rsa.private_decrypt(&mut buf, &mut buf2, Padding::PKCS1).unwrap();
+        println!("ater: {:?}", &buf2);
+    }
+}
