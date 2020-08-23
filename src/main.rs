@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 mod client_api;
 mod commands;
 mod server;
