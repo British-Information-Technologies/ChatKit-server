@@ -13,3 +13,4 @@ Cargo.lock
 
 *.properties
 .vscode/launch.json
+*.cer
