@@ -107,7 +107,7 @@ fn control_panel() -> ResizedView<Panel<LinearLayout>> {
 
     root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(left)));
     root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(right)));
-    ResizedView::new(SizeConstraint::Fixed(64), SizeConstraint::Fixed(20), Panel::new(root))
+    ResizedView::new(SizeConstraint::Fixed(60), SizeConstraint::Fixed(18), Panel::new(root))
 }
 
 // MARK: - general testing zone
@@ -168,15 +168,17 @@ mod tests {
 
 #[cfg(test)]
 mod crypto_tests {
-    extern crate openssl;
-
     use openssl::rsa::{Rsa, Padding};
+    use openssl::ssl::{SslMethod, SslAcceptor, SslStream, SslFiletype, SslConnector, SslVerifyMode};
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::Arc;
+    use std::thread;
     use std::str;
 
     #[test]
     // MARK: - working encryption example for rsa
     fn gen_rsa() {
-        let rsa = Rsa::generate(2048).unwrap();
+        let rsa = Rsa::generate(1024).unwrap();
 
         let ref1 = rsa.public_key_to_pem().unwrap();
         let ref2 = rsa.private_key_to_pem().unwrap();
@@ -194,11 +196,57 @@ mod crypto_tests {
         println!("before: {:?}", data);
 
         let mut buf = vec![0; rsa.size() as usize];
-        let encrypted_len = rsa.public_encrypt(data, &mut buf, Padding::PKCS1).unwrap();
+        let encrypted_len = rsa.private_encrypt(data, &mut buf, Padding::PKCS1).unwrap();
         println!("during: {:?}", &buf);
 
         let mut buf2 = vec![0; rsa.size() as usize];
-        let _ = rsa.private_decrypt(&mut buf, &mut buf2, Padding::PKCS1).unwrap();
-        println!("ater: {:?}", &buf2);
+        let _ = rsa.public_decrypt(&mut buf, &mut buf2, Padding::PKCS1).unwrap();
+        println!("after: {:?}", &buf2);
+    }
+
+    #[test]
+    fn tls_handshake() {
+        // spawn the server
+        thread::spawn(|| {
+            println!("creating acceptor");
+            let mut acceptor = SslAcceptor::mozilla_modern(SslMethod::tls()).unwrap();
+            acceptor.set_private_key_file("cert.pem", SslFiletype::PEM).unwrap();
+            acceptor.set_certificate_chain_file("root.pem").unwrap();
+            acceptor.check_private_key().unwrap();
+            let acceptor = Arc::new(acceptor.build());
+
+            let listener = TcpListener::bind("0.0.0.0:6000").unwrap();
+
+            println!("entering loop");
+            loop {
+                for stream in listener.incoming() {
+                    println!("client accepted");
+                    match stream {
+                        Ok(stream) => {
+                            let acceptor = acceptor.clone();
+                            thread::spawn(move || {
+                                let mut stream = acceptor.accept(stream).unwrap();
+                                
+                                let mut buffer: [u8; 1024] = [0; 1024];
+
+                                stream.ssl_read(&mut buffer).unwrap();
+                                let result = str::from_utf8(&buffer).unwrap();
+                                if buffer == "echo".as_bytes() {
+                                    let _ = stream.ssl_write("echo".as_bytes()).unwrap();
+                                }
+                            });
+                        }
+                        Err(e) => { /* connection failed */ }
+                    }
+                }
+            }
+        });
+
+        let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
+
+        let stream = TcpStream::connect("localhost:6000").unwrap();
+        let mut stream = connector.connect("127.0.0.1", stream).unwrap();
+
+        let _ = stream.ssl_write("echo".as_bytes()).unwrap();
     }
 }
