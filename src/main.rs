@@ -7,7 +7,7 @@ use cursive::{
     Cursive,
     menu::*,
     event::Key,
-    views::{ Dialog, TextView, LinearLayout, ListView, ResizedView, Panel },
+    views::{ Dialog, TextView, LinearLayout, ListView, ResizedView, Panel, Menubar },
     CursiveExt,
     align::Align,
     view::SizeConstraint,
@@ -15,6 +15,8 @@ use cursive::{
 //use std::sync::Arc;
 use std::time::Duration;
 use std::sync::Arc;
+use std::sync::Weak;
+use std::sync::Mutex;
 use crossterm::ErrorKind;
 use log::info;
 use clap::{App, Arg};
@@ -33,8 +35,8 @@ fn main() -> Result<(), ErrorKind> {
         .get_matches();
 
     if args.is_present("graphical") {
-        let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-        let server_arc = Arc::new(server);
+        let mut server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+        let server_arc = Arc::new(Mutex::new(server));
         let s1 = server_arc.clone();
         let s2 = s1.clone();
 
@@ -49,8 +51,50 @@ fn main() -> Result<(), ErrorKind> {
         display.add_global_callback(Key::Esc, |s| s.select_menubar());
 
         info!("Main: setting up menu bar");
-        let _ = display.menubar()
-            .add_subtree("Server",
+        // setup menu bar
+        menu_bar(display.menubar(), &server_arc);
+
+        println!("Main: entering loop");
+        display.add_layer(control_panel(server_arc));
+        display.add_layer(launch_screen());
+        display.set_autohide_menu(false);
+        display.run();
+        Ok(())
+    } else {
+        let mut server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+
+        server.start()?;
+        loop { std::thread::sleep(Duration::from_secs(1)); }
+    }
+}
+
+fn about() -> Dialog {
+    Dialog::new()
+        .content(TextView::new("Rust-Chat-Server\nmade by\n Mitchell Hardie\nMichael Bailey\nMit Licence")
+                .align(Align::center()))
+        .button("Close", |s| {let _ = s.pop_layer();} )
+}
+
+#[allow(dead_code)]
+fn launch_screen() -> Dialog {
+    Dialog::new()
+        .content(TextView::new("\
+        Welcome.
+
+        --- Controls ---
+        * press <ESC> for menu bar
+        * press <TAB> for debug (FIXME)
+        * press <DEL> to exit.
+        ").align(Align::top_left()))
+        .button("ok", |s| {s.pop_layer();})
+}
+
+fn menu_bar(bar: &mut Menubar, server_arc: &Arc<Mutex<Server>>) {
+
+    let s1 = Arc::downgrade(server_arc);
+    let s2 = Arc::downgrade(server_arc);
+
+    bar.add_subtree("Server",
                          MenuTree::new()
                              .leaf("about",
                                    |s| s.add_layer(about()))
@@ -58,52 +102,35 @@ fn main() -> Result<(), ErrorKind> {
                              .leaf("quit", |s| s.quit()))
             .add_subtree("File",
                          MenuTree::new()
-                             .leaf("Start", move |_s| {let _ = s1.start();})
-                             .leaf("Stop", move |_s| {let _ = s2.stop();})
+                             .leaf("Start", move |s| {
+                                    let arc = s2.upgrade().unwrap();
+                                    let _ = arc.lock().unwrap().start();
+                                    let _ = s.pop_layer();
+                                    s.add_layer(control_panel(arc));
+                                })
+                             .leaf("Stop", move |s| {
+                                    let arc = s1.upgrade().unwrap();
+                                    let _ = arc.lock().unwrap().stop();
+                                    let _ = s.pop_layer();
+                                    s.add_layer(control_panel(arc));
+                                })
                              .delimiter()
+                             // TODO: - create custom debug console
                              .leaf("Debug", |s| {s.toggle_debug_console();}));
-        info!("Main: entering loop");
-        display.add_layer(control_panel());
-        display.run();
-        Ok(())
-    } else {
-        let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-
-        server.start()?;
-        loop {std::thread::sleep(Duration::from_secs(1));}
-    }
 }
 
-fn about() -> Dialog {
-    Dialog::new()
-        .content(TextView::new("Rust-Chat-Server\nmade by\n Mitchell Hardie\nMichael Bailey\nMit Licence")
-        ).button("Close", |s| {let _ = s.pop_layer(); s.add_layer(control_panel())} )
-}
-
-#[allow(dead_code)]
-fn launch_screen() -> Dialog {
-    Dialog::new()
-        .content(TextView::new("\
-        Server.
-        * press <ESC> for menu bar
-        * press <TAB> for debug (FIXME)
-        * press <DEL> to exit.
-        ").align(Align::center()))
-        .button("ok", |s| {s.pop_layer();})
-}
-
-fn control_panel() -> ResizedView<Panel<LinearLayout>> {
-
+fn control_panel(server_arc: Arc<Mutex<Server>>) -> ResizedView<Panel<LinearLayout>> {
     let mut root = LinearLayout::horizontal();
     let mut left = LinearLayout::vertical();
     let mut right = ListView::new();
-    right.add_child("test", TextView::new(""));
+    
     right.add_child("test", TextView::new(""));
     right.add_delimiter();
     right.add_child("test", TextView::new(""));
     right.add_child("test", TextView::new(""));
 
     left.add_child(TextView::new("Hello world"));
+    left.add_child(TextView::new(format!("running: {}", server_arc.lock().unwrap().running)));
 
     root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(left)));
     root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(right)));
@@ -127,7 +154,7 @@ mod tests {
         let address = "0.0.0.0:6000";
         let owner = "noreply@email.com";
 
-        let server = Server::new(name, address, owner);
+        let mut server = Server::new(name, address, owner);
         let result = server.start();
 
         assert_eq!(result.is_ok(), true);
@@ -155,7 +182,7 @@ mod tests {
         let address = "0.0.0.0:6001";
         let owner = "noreply@email.com";
 
-        let server = Server::new(name, address, owner);
+        let mut server = Server::new(name, address, owner);
         let _ = server.start().unwrap();
 
         let api_result = ClientApi::new(address);
@@ -174,6 +201,10 @@ mod crypto_tests {
     use std::sync::Arc;
     use std::thread;
     use std::str;
+
+    use rustls;
+    use webpki;
+    use webpki_roots;
 
     #[test]
     // MARK: - working encryption example for rsa
@@ -206,47 +237,6 @@ mod crypto_tests {
 
     #[test]
     fn tls_handshake() {
-        // spawn the server
-        thread::spawn(|| {
-            println!("creating acceptor");
-            let mut acceptor = SslAcceptor::mozilla_modern(SslMethod::tls()).unwrap();
-            acceptor.set_private_key_file("cert.pem", SslFiletype::PEM).unwrap();
-            acceptor.set_certificate_chain_file("root.pem").unwrap();
-            acceptor.check_private_key().unwrap();
-            let acceptor = Arc::new(acceptor.build());
 
-            let listener = TcpListener::bind("0.0.0.0:6000").unwrap();
-
-            println!("entering loop");
-            loop {
-                for stream in listener.incoming() {
-                    println!("client accepted");
-                    match stream {
-                        Ok(stream) => {
-                            let acceptor = acceptor.clone();
-                            thread::spawn(move || {
-                                let mut stream = acceptor.accept(stream).unwrap();
-                                
-                                let mut buffer: [u8; 1024] = [0; 1024];
-
-                                stream.ssl_read(&mut buffer).unwrap();
-                                let result = str::from_utf8(&buffer).unwrap();
-                                if buffer == "echo".as_bytes() {
-                                    let _ = stream.ssl_write("echo".as_bytes()).unwrap();
-                                }
-                            });
-                        }
-                        Err(e) => { /* connection failed */ }
-                    }
-                }
-            }
-        });
-
-        let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
-
-        let stream = TcpStream::connect("localhost:6000").unwrap();
-        let mut stream = connector.connect("127.0.0.1", stream).unwrap();
-
-        let _ = stream.ssl_write("echo".as_bytes()).unwrap();
     }
 }

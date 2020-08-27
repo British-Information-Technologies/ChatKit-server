@@ -38,7 +38,6 @@ pub enum ServerMessages {
 }
 
 // MARK: - server struct
-#[derive(Debug)]
 pub struct Server {
     name: Arc<String>,
     address: Arc<String>,
@@ -50,6 +49,10 @@ pub struct Server {
 
     sender: Sender<ServerMessages>,
     receiver: Receiver<ServerMessages>,
+
+    pub running: bool,
+
+    client_list_changed_handle: Box<dyn Fn(&Server)>,
 }
 
 // MARK: - server implemetation
@@ -66,6 +69,10 @@ impl Server {
 
             sender,
             receiver,
+
+            running: false,
+
+            client_list_changed_handle: Box::new(|s| println!("client list: {:#?}", s.get_client_list()))
         }
     }
 
@@ -84,8 +91,15 @@ impl Server {
         self.author.to_string()
     }
 
-    pub fn start(&self) -> Result<(), io::Error>{
+    pub fn get_client_list(&self) -> Vec<String> {
+        let map = self.connected_clients.lock().unwrap();
+        map.iter().map(|(_k, v)| format!("{:?}", v)).collect()
+    }
+
+    pub fn start(&mut self) -> Result<(), io::Error> {
         println!("server: starting server...");
+
+        self.running = true;
 
         // MARK: - creating clones of the server property references
         let name = self.name.clone();
@@ -205,15 +219,16 @@ impl Server {
                     client.handle_connection();
                 }
             }
-            println!("server: stopped");
+            info!("server: stopped");
         });
-        println!("server: started");
+        info!("server: started");
         Ok(())
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         info!("server: sending stop message");
         let _ = self.sender.send(ServerMessages::Shutdown);
+        self.running = false;
     }
 
     fn transmit_data(stream: &mut TcpStream, data: &str) -> Result<(), Error>{
