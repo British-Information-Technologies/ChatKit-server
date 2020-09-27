@@ -39,9 +39,9 @@ pub enum ServerMessages {
 
 // MARK: - server struct
 pub struct Server {
-    name: Arc<String>,
-    address: Arc<String>,
-    author: Arc<String>,
+    pub name: String,
+    pub address: String,
+    pub author: String,
 
     connected_clients: Arc<Mutex<HashMap<String, Client>>>,
 
@@ -115,6 +115,7 @@ impl Server {
         let listener = TcpListener::bind(self.get_address())?;
         listener.set_nonblocking(true)?;
 
+
         println!("server: spawning threads");
         let _ = thread::Builder::new().name("Server Thread".to_string()).spawn(move || {
             
@@ -138,7 +139,7 @@ impl Server {
                                 if Server::read_data(&mut stream, &mut buffer).unwrap_or(Commands::Error(None)) == Commands::Success(None) {
                                     println!("Success Confirmed");
                                 } else {
-                                    println!("no success read");
+                                    println!("No success read");
                                     let error = Commands::Error(None);
                                     let _ = Server::transmit_data(&mut stream, error.to_string().as_str());
                                 }
@@ -146,7 +147,7 @@ impl Server {
                         },
                         ServerMessages::RequestInfo(uuid, stream_arc) => {
                             let mut stream = stream_arc.lock().unwrap();
-                            
+
                             if let Some(client) = connected_clients.lock().unwrap().get(&uuid) {
                                 let params: HashMap<String, String> = [(String::from("uuid"), client.get_uuid()), (String::from("name"), client.get_username()), (String::from("host"), client.get_address())].iter().cloned().collect();
                                 let command = Commands::Success(Some(params));
@@ -182,24 +183,24 @@ impl Server {
                                     let uuid = data.get("uuid").unwrap();
                                     let username = data.get("name").unwrap();
                                     let address = data.get("host").unwrap();
-        
+
                                     println!("{}", format!("Server: new Client connection: _addr = {}", address ));
-        
+
                                     let client = Client::new(stream, sender.clone(), &uuid, &username, &address);
 
                                     connected_clients.lock().unwrap().insert(uuid.to_string(), client);
-        
+
                                     let params: HashMap<String, String> = [(String::from("name"), username.clone()), (String::from("host"), address.clone()), (String::from("uuid"), uuid.clone())].iter().cloned().collect();
                                     let new_client = Commands::Client(Some(params));
-        
+
                                     let _ = connected_clients.lock().unwrap().iter().map(|(_k, v)| v.sender.send(new_client.clone()));
-                                },    
+                                },
                                 // TODO: - correct connection reset error when getting info.
                                 Commands::Info(None) => {
                                     println!("Server: info requested");
                                     let params: HashMap<String, String> = [(String::from("name"), name.to_string().clone()), (String::from("owner"), author.to_string().clone())].iter().cloned().collect();
                                     let command = Commands::Info(Some(params));
-        
+
                                     let _ = Server::transmit_data(&mut stream, command.to_string().as_str());
                                 },
                                 _ => {
@@ -265,7 +266,7 @@ impl Drop for Server {
 }
 
 
-/* The new version of the server no long works with these unit
+/* The new version of the server No long works with these unit
  * tests.
  * They will be fixed soon!
  * TODO: fix unit tests
@@ -290,7 +291,7 @@ mod tests{
     static START: Once = Once::new();
 
     /*
-     * These tests must be executed individually to ensure that no errors
+     * These tests must be executed individually to ensure that No errors
      * occur, this is due to the fact that the server is created everytime.
      * Setup a system for the server to close after every test.
      */
