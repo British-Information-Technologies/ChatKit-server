@@ -125,9 +125,7 @@ impl Client {
                 self.send_data(Commands::Error(None).to_string().as_str());
             },
 
-            Err(_) => {
-                // No data was read
-            },
+
         }
 
         println!("buffer");
