@@ -92,7 +92,7 @@ impl Server {
         // MARK: - creating clones of the server property references
         let name = self.name.clone();
         #[allow(dead_code)]
-        let address = self.address.clone();
+        let _ = self.address.clone();
         let author = self.author.clone(); 
         let connected_clients = self.connected_clients.clone();
         let sender = self.sender.clone();
