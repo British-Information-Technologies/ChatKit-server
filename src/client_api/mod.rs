@@ -72,8 +72,4 @@ impl ClientApi {
             }
         }
     }
-
-    pub fn get_clients(&self) {
-
-    }
 }
