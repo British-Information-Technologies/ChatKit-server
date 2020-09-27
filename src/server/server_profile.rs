@@ -66,7 +66,7 @@ impl Server {
 
             running: false,
 
-            client_list_changed_handle: Box::new(|s| println!("client list: {:#?}", s.get_client_list()))
+            client_list_changed_handle: Box::new(|_s| println!("help"))
         }
     }
 
