@@ -119,8 +119,8 @@ impl Server {
 
                     println!("server: shutting down...");
 
-                    for (k, v) in self.connected_clients.iter() {
-                        v.sender.send(Commands::Disconnect(None));
+                    for (_k, v) in self.connected_clients.iter() {
+                        let _ = v.sender.send(Commands::Disconnect(None));
                     }
                     self.state = ServerState::Stopping;
                 },
