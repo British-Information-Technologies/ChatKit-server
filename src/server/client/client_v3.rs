@@ -43,6 +43,7 @@ pub struct Client {
 }
 
 impl Client {
+    #[allow(dead_code)]
     pub fn new(stream: TcpStream, server_sender: Sender<ServerMessages>, uuid: &str, username: &str, address: &str) -> Self {
         let (sender, receiver): (Sender<Commands>, Receiver<Commands>) = unbounded();
         stream.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
@@ -83,6 +84,7 @@ impl Client {
     }
 
     // TODO: - add heartbeat timer.
+    #[allow(dead_code)]
     pub fn handle_connection(&mut self) {
         let mut buffer = [0; 1024];
 
@@ -180,6 +182,7 @@ impl Client {
         self.stream.lock().unwrap().shutdown(Shutdown::Both).expect("shutdown call failed");
     }
 
+    #[allow(dead_code)]
     pub fn send_data(&self, data: &str) {
         println!("Transmitting data: {}", data);
 
@@ -195,6 +198,7 @@ impl Client {
         }
     }
 
+    #[allow(dead_code)]
     fn read_data(&mut self, buffer: &mut [u8; 1024]) -> Result<Commands, Error> {
         let _ = self.stream.lock().unwrap().read(buffer)?;
         let command = Commands::from(buffer);

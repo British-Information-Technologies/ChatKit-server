@@ -8,6 +8,7 @@ use crate::{
     server::client::client_profile::Client,
 };
 
+#[allow(dead_code)]
 pub struct ClientApi {
     socket: TcpStream,
     addr: String,
@@ -17,6 +18,8 @@ pub struct ClientApi {
 }
 
 impl ClientApi {
+
+    #[allow(dead_code)]
     pub fn new(addr: &str) -> Result<Self, io::Error> {
         let socket = TcpStream::connect(addr)?;
 
@@ -31,14 +34,17 @@ impl ClientApi {
         Ok(a)
     }
 
+    #[allow(dead_code)]
     pub fn set_on_client_add(&mut self, func: fn(Client) -> ()) {
         self.on_client_add_handle = func;
     }
 
+    #[allow(dead_code)]
     pub fn set_on_client_removed(&mut self, func: fn(String) -> ()) {
         self.on_client_remove_handle = func;
     }
 
+    #[allow(dead_code)]
     pub fn get_info(host: &str) -> Result<Commands, io::Error> {
         let mut buffer: [u8; 1024] = [0; 1024];
         let addr = host.parse().unwrap();

@@ -52,6 +52,7 @@ pub enum Commands {
     Error(Option<HashMap<String, String>>),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum CommandParseError {
     UnknownCommand,

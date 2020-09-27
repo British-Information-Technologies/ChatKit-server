@@ -30,6 +30,7 @@ pub enum ServerMessages {
 }
 
 // MARK: - server struct
+#[allow(dead_code)]
 pub struct Server {
     pub name: String,
     pub address: String,
@@ -213,6 +214,7 @@ impl Server {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn stop(&mut self) {
         info!("server: sending stop message");
         let _ = self.sender.send(ServerMessages::Shutdown);

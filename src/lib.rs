@@ -17,6 +17,7 @@ pub struct ThreadPool{
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
+#[allow(dead_code)]
 impl ThreadPool{
     /// Create a new ThreadPool.
     ///

@@ -3,6 +3,7 @@ use cursive::view::SizeConstraint;
 use cursive::views::{LinearLayout, ListView, Panel, ResizedView, TextView};
 
 use crate::server::server_v3::Server;
+#[allow(dead_code)]
 pub fn control_panel(s: &mut Cursive) -> Box<dyn View> {
     Box::new(
         ResizedView::new(
