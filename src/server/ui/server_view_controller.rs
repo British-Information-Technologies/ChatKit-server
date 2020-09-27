@@ -9,6 +9,8 @@ pub struct ServerControlView {
     display: Cursive,
 
     // MARK: - ViewModel stuff
+pub struct ServerViewController {
+    display: Cursive,
 
     server_name: String,
     server_host: String,
