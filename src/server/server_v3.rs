@@ -305,7 +305,7 @@ mod tests {
 
 
         assert_eq!(server.name, "test server");
-        assert_eq!(server.address, "0.0.0.0:6000")
-        assert_eq!(server)
+        assert_eq!(server.address, "0.0.0.0:6000");
+        assert_eq!(server.owner, "michael");
     }
 }
