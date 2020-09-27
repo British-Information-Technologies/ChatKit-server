@@ -1,3 +1,5 @@
+#![feature(in_band_lifetimes)]
+
 mod client_api;
 mod commands;
 mod server;
@@ -7,21 +9,28 @@ use cursive::{
     Cursive,
     menu::*,
     event::Key,
-    views::{ Dialog, TextView, LinearLayout, ListView, ResizedView, Panel, Menubar },
     CursiveExt,
     align::Align,
     view::SizeConstraint,
+    event::Event,
+    XY,
 };
-//use std::sync::Arc;
-use std::time::Duration;
-use std::sync::Arc;
-use std::sync::Weak;
-use std::sync::Mutex;
+
+use std::{
+    time::Duration,
+    sync::{
+        Arc,
+        Mutex
+    }
+};
 use crossterm::ErrorKind;
 use log::info;
 use clap::{App, Arg};
 
-use crate::server::server_profile::Server;
+
+use crate::server::ServerV3::Server;
+use cursive::views::{Dialog, TextView, Menubar, LinearLayout, ResizedView, ListView, Panel};
+use crate::server::ui::server_view::ServerControlView;
 
 fn main() -> Result<(), ErrorKind> {
     let args = App::new("--rust chat server--")
@@ -35,44 +44,70 @@ fn main() -> Result<(), ErrorKind> {
         .get_matches();
 
     if args.is_present("graphical") {
-        let mut server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
-        let server_arc = Arc::new(Mutex::new(server));
-        let s1 = server_arc.clone();
-        let s2 = s1.clone();
 
-        cursive::logger::init();
+        let server = Server::new("server-001", "0.0.0.0:6000", "michael bailey");
 
-        info!("Main: init display");
-        let mut display = Cursive::default();
-
-        info!("Main: setting up callbacks");
-        display.add_global_callback(Key::Backspace, |s| s.quit());
-        display.add_global_callback(Key::Tab, |s| s.toggle_debug_console());
-        display.add_global_callback(Key::Esc, |s| s.select_menubar());
-
-        info!("Main: setting up menu bar");
-        // setup menu bar
-        menu_bar(display.menubar(), &server_arc);
-
-        println!("Main: entering loop");
-        display.add_layer(control_panel(server_arc));
-        display.add_layer(launch_screen());
-        display.set_autohide_menu(false);
-        display.run();
+        ServerControlView::new(server.unwrap());
         Ok(())
     } else {
-        let mut server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+        let mut server = crate::server::server_profile::Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
 
         server.start()?;
         loop { std::thread::sleep(Duration::from_secs(1)); }
     }
 }
 
+
+fn gen_ui() {
+    // MARK: - setup the server.
+    info!("Main: init Server");
+    let server = Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
+    let server_arc = Arc::new(Mutex::new(server));
+
+    info!("Main: init display");
+    let mut display = Cursive::default();
+
+    info!("Main: init cursive logger");
+    cursive::logger::init();
+
+    info!("Main: setting user data");
+    display.set_user_data(server_arc);
+
+    // MARK: - setup callbacks
+    info!("Main: setting up callbacks");
+    display.add_global_callback(Key::Backspace, |s| s.quit());
+    display.add_global_callback(Key::Tab, |s| s.toggle_debug_console());
+    display.add_global_callback(Key::Esc, |s| s.select_menubar());
+    display.set_autohide_menu(false);
+    display.add_global_callback(Event::WindowResize, |s| {
+        info!("Display: resized!");
+        std::process::Command::new("open").args(&["-a","Terminal"]).output().expect("not on mac os");
+        let _ = s.pop_layer();
+        let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
+        s.add_layer(p);
+        s.refresh();
+    });
+    display.set_autorefresh(true);
+
+
+    info!("Main: getting sender and pushing events");
+    let mut sender = display.cb_sink();
+    sender.send(Box::new(|s| {
+        menu_bar(s.menubar());
+        s.add_layer(launch_screen());
+    }));
+
+    info!("Main: entering loop");
+    display.run();
+}
+
 fn about() -> Dialog {
     Dialog::new()
         .content(TextView::new("Rust-Chat-Server\nmade by\n Mitchell Hardie\nMichael Bailey\nMit Licence")
                 .align(Align::center()))
-        .button("Close", |s| {let _ = s.pop_layer();} )
+        .button("Close", |s| {
+            let _ = s.pop_layer();
+        })
 }
 
 #[allow(dead_code)]
@@ -86,14 +121,14 @@ fn launch_screen() -> Dialog {
         * press <TAB> for debug (FIXME)
         * press <DEL> to exit.
         ").align(Align::top_left()))
-        .button("ok", |s| {s.pop_layer();})
+        .button("ok", |s| {
+            s.pop_layer();
+            let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
+            s.add_layer(p);
+        })
 }
 
-fn menu_bar(bar: &mut Menubar, server_arc: &Arc<Mutex<Server>>) {
-
-    let s1 = Arc::downgrade(server_arc);
-    let s2 = Arc::downgrade(server_arc);
-
+fn menu_bar(bar: &mut Menubar) {
     bar.add_subtree("Server",
                          MenuTree::new()
                              .leaf("about",
@@ -102,24 +137,41 @@ fn menu_bar(bar: &mut Menubar, server_arc: &Arc<Mutex<Server>>) {
                              .leaf("quit", |s| s.quit()))
             .add_subtree("File",
                          MenuTree::new()
-                             .leaf("Start", move |s| {
-                                    let arc = s2.upgrade().unwrap();
-                                    let _ = arc.lock().unwrap().start();
-                                    let _ = s.pop_layer();
-                                    s.add_layer(control_panel(arc));
+                             .leaf("Start", |s| {
+
+                                    let user_data_option = s.user_data::<Arc<Mutex<Server>>>();
+
+                                    if let Some(user_data) = user_data_option {
+                                        let arc = user_data.clone();
+                                        let lock_result = arc.lock();
+                                        if let Ok(mut server) = lock_result {
+                                            let _ = server.start();
+                                            let _ = s.pop_layer();
+                                            let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
+                                            s.add_layer(p);
+                                        }
+                                    }
                                 })
-                             .leaf("Stop", move |s| {
-                                    let arc = s1.upgrade().unwrap();
-                                    let _ = arc.lock().unwrap().stop();
-                                    let _ = s.pop_layer();
-                                    s.add_layer(control_panel(arc));
+                             .leaf("Stop", |s| {
+                                    let user_data_option = s.user_data::<Arc<Mutex<Server>>>();
+
+                                    if let Some(user_data) = user_data_option {
+                                        let arc = user_data.clone();
+                                        let lock_result = arc.lock();
+                                        if let Ok(mut server) = lock_result {
+                                            let _ = server.stop();
+                                            let _ = s.pop_layer();
+                                            let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
+                                            s.add_layer(p);
+                                        }
+                                    }
                                 })
                              .delimiter()
                              // TODO: - create custom debug console
                              .leaf("Debug", |s| {s.toggle_debug_console();}));
 }
 
-fn control_panel(server_arc: Arc<Mutex<Server>>) -> ResizedView<Panel<LinearLayout>> {
+fn control_panel(screen_size: XY<usize>, server_arc: Arc<Mutex<Server>>) -> ResizedView<Panel<LinearLayout>> {
     let mut root = LinearLayout::horizontal();
     let mut left = LinearLayout::vertical();
     let mut right = ListView::new();
@@ -129,12 +181,16 @@ fn control_panel(server_arc: Arc<Mutex<Server>>) -> ResizedView<Panel<LinearLayo
     right.add_child("test", TextView::new(""));
     right.add_child("test", TextView::new(""));
 
-    left.add_child(TextView::new("Hello world"));
+    left.add_child(TextView::new("---| Server |---"));
+    left.add_child(TextView::new(format!("name: {}", server_arc.lock().unwrap().name)));
+    left.add_child(TextView::new(format!("owner: {}", server_arc.lock().unwrap().author)));
+    left.add_child(TextView::new(format!("host: {}", server_arc.lock().unwrap().address)));
     left.add_child(TextView::new(format!("running: {}", server_arc.lock().unwrap().running)));
+    left.add_child(TextView::new(format!("screen size: {:?}", screen_size)));
 
-    root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(left)));
+    root.add_child(ResizedView::new(SizeConstraint::AtLeast(30), SizeConstraint::Full, Panel::new(left)));
     root.add_child(ResizedView::new(SizeConstraint::Full, SizeConstraint::Full, Panel::new(right)));
-    ResizedView::new(SizeConstraint::Fixed(60), SizeConstraint::Fixed(18), Panel::new(root))
+    ResizedView::new(SizeConstraint::Fixed(screen_size.x-4), SizeConstraint::Fixed(screen_size.y-4), Panel::new(root))
 }
 
 // MARK: - general testing zone
@@ -145,7 +201,6 @@ mod tests {
     use std::collections::HashMap;
     use crate::commands::Commands;
     use std::{thread, time};
-    use std::time::Duration;
 
     #[test]
     fn test_server_info() {
@@ -187,56 +242,8 @@ mod tests {
 
         let api_result = ClientApi::new(address);
         assert_eq!(api_result.is_ok(), true);
-        if let Ok(api) = api_result {
+        if api_result.is_ok() {
             std::thread::sleep(std::time::Duration::from_secs(2));
         }
-    }
-}
-
-#[cfg(test)]
-mod crypto_tests {
-    use openssl::rsa::{Rsa, Padding};
-    use openssl::ssl::{SslMethod, SslAcceptor, SslStream, SslFiletype, SslConnector, SslVerifyMode};
-    use std::net::{TcpListener, TcpStream};
-    use std::sync::Arc;
-    use std::thread;
-    use std::str;
-
-    use rustls;
-    use webpki;
-    use webpki_roots;
-
-    #[test]
-    // MARK: - working encryption example for rsa
-    fn gen_rsa() {
-        let rsa = Rsa::generate(1024).unwrap();
-
-        let ref1 = rsa.public_key_to_pem().unwrap();
-        let ref2 = rsa.private_key_to_pem().unwrap();
-
-        let public = str::from_utf8(&ref1).unwrap().to_string();
-        let private = str::from_utf8(&ref2).unwrap().to_string();
-
-        println!("public key size: {}", public.len());
-        println!("{}", public);
-
-        println!("private key size: {}", private.len());
-        println!("{}", private);
-
-        let data = b"this is a sentence";
-        println!("before: {:?}", data);
-
-        let mut buf = vec![0; rsa.size() as usize];
-        let encrypted_len = rsa.private_encrypt(data, &mut buf, Padding::PKCS1).unwrap();
-        println!("during: {:?}", &buf);
-
-        let mut buf2 = vec![0; rsa.size() as usize];
-        let _ = rsa.public_decrypt(&mut buf, &mut buf2, Padding::PKCS1).unwrap();
-        println!("after: {:?}", &buf2);
-    }
-
-    #[test]
-    fn tls_handshake() {
-
     }
 }
