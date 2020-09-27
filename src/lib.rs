@@ -1,7 +1,8 @@
-use std::thread;
-use crossbeam::{unbounded , Sender, Receiver};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
+
+use crossbeam::{Receiver, Sender, unbounded};
 
 enum Message {
     NewJob(Job),

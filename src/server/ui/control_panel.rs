@@ -1,9 +1,8 @@
-use cursive::{View, Printer, Cursive};
-use cursive::event::{EventResult, Event};
-use cursive::views::{Panel, ResizedView, StackView, LinearLayout, TextView};
+use cursive::{Cursive, View};
 use cursive::view::SizeConstraint;
-use crate::server::ServerV3::Server;
+use cursive::views::{LinearLayout, ListView, Panel, ResizedView, TextView};
 
+use crate::server::server_v3::Server;
 pub fn control_panel(s: &mut Cursive) -> Box<dyn View> {
     Box::new(
         ResizedView::new(

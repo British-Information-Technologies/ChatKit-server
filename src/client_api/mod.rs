@@ -1,10 +1,12 @@
-use std::{net::TcpStream, io::{Write, Read}, io};
-use crate::{
-    server::client::client_profile::Client,
-    commands::Commands,
-};
+use std::{io::{Read, Write}, io, net::TcpStream};
 use std::time::Duration;
+
 use zeroize::Zeroize;
+
+use crate::{
+    commands::Commands,
+    server::client::client_profile::Client,
+};
 
 pub struct ClientApi {
     socket: TcpStream,

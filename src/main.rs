@@ -5,32 +5,13 @@ mod commands;
 mod server;
 mod lib;
 
-use cursive::{
-    Cursive,
-    menu::*,
-    event::Key,
-    CursiveExt,
-    align::Align,
-    view::SizeConstraint,
-    event::Event,
-    XY,
-};
+use std::time::Duration;
 
-use std::{
-    time::Duration,
-    sync::{
-        Arc,
-        Mutex
-    }
-};
-use crossterm::ErrorKind;
-use log::info;
 use clap::{App, Arg};
+use crossterm::ErrorKind;
 
-
-use crate::server::ServerV3::Server;
-use cursive::views::{Dialog, TextView, Menubar, LinearLayout, ResizedView, ListView, Panel};
-use crate::server::ui::server_view_controller::ServerControlView;
+use crate::server::server_v3::Server;
+use crate::server::ui::server_view_controller::ServerViewController;
 
 fn main() -> Result<(), ErrorKind> {
     let args = App::new("--rust chat server--")
