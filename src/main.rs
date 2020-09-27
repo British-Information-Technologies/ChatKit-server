@@ -1,5 +1,3 @@
-#![feature(in_band_lifetimes)]
-
 mod client_api;
 mod commands;
 mod server;
