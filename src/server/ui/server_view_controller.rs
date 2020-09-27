@@ -5,7 +5,6 @@ use crate::server::ui::about_panel::about;
 use crate::server::ui::main_menu::main_menu;
 use cursive::event::Event;
 
-    // MARK: - ViewModel stuff
 #[allow(dead_code)]
 pub enum UpdateTypes {
     AddClient()
