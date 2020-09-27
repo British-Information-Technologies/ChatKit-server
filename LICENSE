@@ -42,7 +42,7 @@ know their rights.
 giving you legal permission to copy, distribute and/or modify it.
 
   For the developers' and authors' protection, the GPL clearly explains
-that there is no warranty for this free software.  For both users' and
+that there is No warranty for this free software.  For both users' and
 authors' sake, the GPL requires that modified versions be marked as
 changed, so that their problems will not be attributed erroneously to
 authors of previous versions.
@@ -98,14 +98,14 @@ public, and in some countries other activities as well.
 
   To "convey" a work means any kind of propagation that enables other
 parties to make or receive copies.  Mere interaction with a user through
-a computer network, with no transfer of a copy, is not conveying.
+a computer network, with No transfer of a copy, is not conveying.
 
   An interactive user interface displays "Appropriate Legal Notices"
 to the extent that it includes a convenient and prominently visible
 feature that (1) displays an appropriate copyright notice, and (2)
-tells the user that there is no warranty for the work (except to the
+tells the user that there is No warranty for the work (except to the
 extent that warranties are provided), that licensees may convey the
-work under this License, and how to view a copy of this License.  If
+work under this License, and how to View a copy of this License.  If
 the interface presents a list of user commands or options, such as a
 menu, a prominent item in the list meets this criterion.
 
@@ -202,7 +202,7 @@ non-permissive terms added in accord with section 7 apply to the code;
 keep intact all notices of the absence of any warranty; and give all
 recipients a copy of this License along with the Program.
 
-  You may charge any price or no price for each copy that you convey,
+  You may charge any price or No price for each copy that you convey,
 and you may offer support or warranty protection for a fee.
 
   5. Conveying Modified Source Versions.
@@ -223,7 +223,7 @@ terms of section 4, provided that you also meet all of these conditions:
     License to anyone who comes into possession of a copy.  This
     License will therefore apply, along with any applicable section 7
     additional terms, to the whole of the work, and all its parts,
-    regardless of how they are packaged.  This License gives no
+    regardless of how they are packaged.  This License gives No
     permission to license the work in any other way, but it does not
     invalidate such permission if you have separately received it.
 
@@ -258,13 +258,13 @@ in one of these ways:
     (including a physical distribution medium), accompanied by a
     written offer, valid for at least three years and valid for as
     long as you offer spare parts or customer support for that product
-    model, to give anyone who possesses the object code either (1) a
+    Model, to give anyone who possesses the object code either (1) a
     copy of the Corresponding Source for all the software in the
     product that is covered by this License, on a durable physical
-    medium customarily used for software interchange, for a price no
+    medium customarily used for software interchange, for a price No
     more than your reasonable cost of physically performing this
     conveying of source, or (2) access to copy the
-    Corresponding Source from a network server at no charge.
+    Corresponding Source from a network server at No charge.
 
     c) Convey individual copies of the object code with a copy of the
     written offer to provide the Corresponding Source.  This
@@ -274,7 +274,7 @@ in one of these ways:
 
     d) Convey the object code by offering access from a designated
     place (gratis or for a charge), and offer equivalent access to the
-    Corresponding Source in the same way through the same place at no
+    Corresponding Source in the same way through the same place at No
     further charge.  You need not require recipients to copy the
     Corresponding Source along with the object code.  If the place to
     copy the object code is a network server, the Corresponding Source
@@ -287,7 +287,7 @@ in one of these ways:
 
     e) Convey the object code using peer-to-peer transmission, provided
     you inform other peers where the object code and Corresponding
-    Source of the work are being offered to the general public at no
+    Source of the work are being offered to the general public at No
     charge under subsection 6d.
 
   A separable portion of the object code, whose source code is excluded
@@ -312,7 +312,7 @@ procedures, authorization keys, or other information required to install
 and execute modified versions of a covered work in that User Product from
 a modified version of its Corresponding Source.  The information must
 suffice to ensure that the continued functioning of the modified object
-code is in no case prevented or interfered with solely because
+code is in No case prevented or interfered with solely because
 modification has been made.
 
   If you convey an object code work under this section in, or with, or
@@ -337,7 +337,7 @@ protocols for communication across the network.
   Corresponding Source conveyed, and Installation Information provided,
 in accord with this section must be in a format that is publicly
 documented (and with an implementation available to the public in
-source code form), and must require no special password or key for
+source code form), and must require No special password or key for
 unpacking, reading or copying.
 
   7. Additional Terms.
@@ -582,7 +582,7 @@ public statement of acceptance of a version permanently authorizes you
 to choose that version for the Program.
 
   Later license versions may give you additional or different
-permissions.  However, no additional obligations are imposed on any
+permissions.  However, No additional obligations are imposed on any
 author or copyright holder as a result of your choosing to follow a
 later version.
 
