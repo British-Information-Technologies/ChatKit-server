@@ -242,10 +242,11 @@ impl Server {
     #[allow(dead_code)]
     pub fn start(&mut self) -> Result<(), io::Error> {
 
-        let listener = TcpListener::bind(self.address)?;
+        let listener = TcpListener::bind(&self.address)?;
         listener.set_nonblocking(true)?;
 
         self.listener = Some(listener);
+        Ok(())
     }
 
     #[allow(dead_code)]
