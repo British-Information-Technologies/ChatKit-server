@@ -183,7 +183,7 @@ impl Server {
         }
 
         println!("server: checking for new connections");
-        if let Ok((mut stream, _addr)) = self.listener.accept() {
+        if let Ok((mut stream, _addr)) = self.listener.as_ref().expect("tcpListener not here").accept() {
             let _ = stream.set_read_timeout(Some(Duration::from_millis(1000)));
             let _ = stream.set_nonblocking(false);
 
