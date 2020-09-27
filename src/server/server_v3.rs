@@ -290,3 +290,22 @@ impl Drop for Server {
         let _ = self.sender.send(ServerMessages::Shutdown);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::server::server_v3::Server;
+
+    #[test]
+    fn test_creation() {
+        let server = Server::new(
+            "test server",
+            "0.0.0.0:6000",
+            "michael"
+        );
+
+
+        assert_eq!(server.name, "test server");
+        assert_eq!(server.address, "0.0.0.0:6000")
+        assert_eq!(server)
+    }
+}
