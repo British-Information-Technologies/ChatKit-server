@@ -1,6 +1,3 @@
-extern crate regex;
-extern crate rayon;
-
 use crate::{
     server::{
         client::client_profile::Client,
