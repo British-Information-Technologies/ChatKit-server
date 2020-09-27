@@ -18,6 +18,7 @@ pub enum ServerMessages {
 }
 
 #[allow(dead_code)]
+#[derive(Eq, PartialEq)]
 pub enum ServerState {
     starting,
     started,
