@@ -14,6 +14,7 @@ pub enum ServerMessages {
     Shutdown,
 }
 
+#[allow(dead_code)]
 pub enum ServerState {
     starting,
     started,
@@ -22,6 +23,7 @@ pub enum ServerState {
 }
 
 // MARK: - server struct
+#[allow(dead_code)]
 pub struct Server {
     pub name: String,
     pub address: String,
@@ -95,6 +97,7 @@ impl Server {
         self.owner.clone()
     }
 
+    #[allow(dead_code)]
     pub fn tick(&mut self) {
 
         // check to see if this server is ready to execute things.
@@ -232,6 +235,7 @@ impl Server {
         }
     }
 
+    #[allow(dead_code)]
     pub fn start(&mut self) -> Result<(), io::Error> {
 
         let listener = TcpListener::bind(self.address)?;
@@ -240,12 +244,14 @@ impl Server {
         self.listener = Some(listener);
     }
 
+    #[allow(dead_code)]
     pub fn stop(&mut self) {
         info!("server: sending stop message");
         let _ = self.sender.send(ServerMessages::Shutdown);
         self.state = ServerState::stopping;
     }
 
+    #[allow(dead_code)]
     fn send_data(stream: &mut TcpStream, data: &str) -> Result<(), io::Error>{
         println!("Transmitting...");
         println!("data: {}", data);
@@ -260,6 +266,7 @@ impl Server {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn recv_data(stream: &mut TcpStream, buffer: &mut [u8; 1024]) -> Result<Commands, io::Error> {
         let _ = stream.read(buffer)?;
         let command = Commands::from(buffer);
