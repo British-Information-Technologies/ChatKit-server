@@ -43,11 +43,12 @@ fn main() -> Result<(), ErrorKind> {
 // MARK: - general testing zone
 #[cfg(test)]
 mod tests {
-    use crate::server::server_profile::Server;
-    use crate::client_api::ClientApi;
-    use std::collections::HashMap;
-    use crate::commands::Commands;
     use std::{thread, time};
+    use std::collections::HashMap;
+
+    use crate::client_api::ClientApi;
+    use crate::commands::Commands;
+    use crate::server::server_profile::Server;
 
     #[test]
     fn test_server_info() {
