@@ -30,7 +30,7 @@ use clap::{App, Arg};
 
 use crate::server::ServerV3::Server;
 use cursive::views::{Dialog, TextView, Menubar, LinearLayout, ResizedView, ListView, Panel};
-use crate::server::ui::server_view::ServerControlView;
+use crate::server::ui::server_view_controller::ServerControlView;
 
 fn main() -> Result<(), ErrorKind> {
     let args = App::new("--rust chat server--")
