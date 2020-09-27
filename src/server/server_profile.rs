@@ -61,9 +61,9 @@ impl Server {
         let (sender, receiver) = unbounded();
 
         Self {
-            name: Arc::new(name.to_string()),
-            address: Arc::new(address.to_string()),
-            author: Arc::new(author.to_string()),
+            name: name.to_string(),
+            address: address.to_string(),
+            author: author.to_string(),
             connected_clients: Arc::new(Mutex::new(HashMap::new())),
             thread_pool: ThreadPool::new(16), 
 
