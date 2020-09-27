@@ -128,49 +128,6 @@ fn launch_screen() -> Dialog {
         })
 }
 
-fn menu_bar(bar: &mut Menubar) {
-    bar.add_subtree("Server",
-                         MenuTree::new()
-                             .leaf("about",
-                                   |s| s.add_layer(about()))
-                             .delimiter()
-                             .leaf("quit", |s| s.quit()))
-            .add_subtree("File",
-                         MenuTree::new()
-                             .leaf("Start", |s| {
-
-                                    let user_data_option = s.user_data::<Arc<Mutex<Server>>>();
-
-                                    if let Some(user_data) = user_data_option {
-                                        let arc = user_data.clone();
-                                        let lock_result = arc.lock();
-                                        if let Ok(mut server) = lock_result {
-                                            let _ = server.start();
-                                            let _ = s.pop_layer();
-                                            let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
-                                            s.add_layer(p);
-                                        }
-                                    }
-                                })
-                             .leaf("Stop", |s| {
-                                    let user_data_option = s.user_data::<Arc<Mutex<Server>>>();
-
-                                    if let Some(user_data) = user_data_option {
-                                        let arc = user_data.clone();
-                                        let lock_result = arc.lock();
-                                        if let Ok(mut server) = lock_result {
-                                            let _ = server.stop();
-                                            let _ = s.pop_layer();
-                                            let p = control_panel(s.screen_size(), s.user_data::<Arc<Mutex<Server>>>().unwrap().clone());
-                                            s.add_layer(p);
-                                        }
-                                    }
-                                })
-                             .delimiter()
-                             // TODO: - create custom debug console
-                             .leaf("Debug", |s| {s.toggle_debug_console();}));
-}
-
 fn control_panel(screen_size: XY<usize>, server_arc: Arc<Mutex<Server>>) -> ResizedView<Panel<LinearLayout>> {
     let mut root = LinearLayout::horizontal();
     let mut left = LinearLayout::vertical();
