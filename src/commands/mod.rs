@@ -8,7 +8,6 @@ use log::info;
 use regex::Regex;
 use zeroize::Zeroize;
 
-
 #[derive(Clone, Debug)]
 pub enum Commands {
     /* TODO: this is the new commands system but still needs work.
