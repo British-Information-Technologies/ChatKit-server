@@ -20,10 +20,10 @@ pub enum ServerMessages {
 #[allow(dead_code)]
 #[derive(Eq, PartialEq)]
 pub enum ServerState {
-    starting,
-    started,
-    stopping,
-    stopped,
+    Starting,
+    Started,
+    Stopping,
+    Stopped,
 }
 
 // MARK: - server struct
@@ -65,7 +65,7 @@ impl Server {
                 address: address.to_string(),
                 owner: author.to_string(),
                 connected_clients: HashMap::new(),
-                state: ServerState::ready,
+                state: ServerState::Stopped,
 
                 // messages & connections
                 sender,
@@ -105,7 +105,7 @@ impl Server {
     pub fn tick(&mut self) {
 
         // check to see if this server is ready to execute things.
-        if self.state != ServerState::ready {
+        if self.state == ServerState::Stopped {
             ()
         }
 
@@ -122,7 +122,7 @@ impl Server {
                     for (k, v) in self.connected_clients.iter() {
                         v.sender.send(Commands::Disconnect(None));
                     }
-                    self.state = ServerState::stopping;
+                    self.state = ServerState::Stopping;
                 },
 
                 // client requests
@@ -252,7 +252,7 @@ impl Server {
     pub fn stop(&mut self) {
         info!("server: sending stop message");
         let _ = self.sender.send(ServerMessages::Shutdown);
-        self.state = ServerState::stopping;
+        self.state = ServerState::Stopping;
     }
 
     #[allow(dead_code)]
