@@ -26,7 +26,7 @@ fn main() -> Result<(), ErrorKind> {
 
         let server = Server::new("server-001", "0.0.0.0:6000", "michael bailey");
 
-        ServerControlView::new(server.unwrap());
+        ServerViewController::new(server.unwrap());
         Ok(())
     } else {
         let mut server = crate::server::server_profile::Server::new("Server-01", "0.0.0.0:6000", "noreply@email.com");
