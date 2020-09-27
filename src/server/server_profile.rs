@@ -91,11 +91,6 @@ impl Server {
         self.author.to_string()
     }
 
-    pub fn get_client_list(&self) -> Vec<String> {
-        let map = self.connected_clients.lock().unwrap();
-        map.iter().map(|(_k, v)| format!("{:?}", v)).collect()
-    }
-
     pub fn start(&mut self) -> Result<(), io::Error> {
         println!("server: starting server...");
 
