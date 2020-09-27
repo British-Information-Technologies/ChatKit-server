@@ -57,7 +57,9 @@ pub fn control_panel(s: &mut Cursive) -> Box<dyn View> {
                                 )
                             )
                     )
-                    .child()
+                    .child(
+                        ListView::new()
+                    )
             )
         )
     )
