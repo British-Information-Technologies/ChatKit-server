@@ -23,10 +23,6 @@ use std::{
 use log::info;
 
 use crossbeam_channel::{Sender, Receiver, unbounded};
-//use zeroize::Zeroize;
-//use parking_lot::FairMutex;
-//use dashmap::DashMap;
-//use regex::Regex;
 use crate::lib::ThreadPool;
 
 #[derive(Debug)]
