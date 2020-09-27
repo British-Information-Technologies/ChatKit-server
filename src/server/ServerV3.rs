@@ -1,6 +1,5 @@
 use std::{sync::{Mutex, Arc}, net::{TcpStream, TcpListener}, collections::HashMap, io, io::{Write, Read}, thread};
 use crate::{
-    server::client::clientV3::Client,
     commands::Commands
 };
 use crossbeam_channel::{Sender, Receiver, unbounded};
