@@ -1,11 +1,11 @@
-use std::string::ToString;
-use std::collections::HashMap;
-use std::str::FromStr;
-
 use std::borrow::Borrow;
-use regex::Regex;
+use std::collections::HashMap;
 use std::ops::Index;
+use std::str::FromStr;
+use std::string::ToString;
+
 use log::info;
+use regex::Regex;
 use zeroize::Zeroize;
 
 

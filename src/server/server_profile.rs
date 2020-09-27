@@ -1,27 +1,25 @@
+use std::{
+    collections::HashMap,
+    io,
+    io::Error,
+    io::prelude::*,
+    net::{TcpListener, TcpStream},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration
+};
+
+use crossbeam_channel::{Receiver, Sender, unbounded};
+use log::info;
+
 use crate::{
+    commands::Commands,
     server::{
         client::client_profile::Client,
 
-    },
-    commands::Commands
+    }
 };
-
-use std::{
-    sync::{Arc, Mutex},
-    net::{TcpStream, TcpListener},
-    collections::HashMap,
-    io::prelude::*,
-    time::Duration,
-    io::Error,
-    thread,
-    io
-};
-
-use log::info;
-
-use crossbeam_channel::{Sender, Receiver, unbounded};
 use crate::lib::ThreadPool;
-
 
 #[derive(Debug)]
 pub enum ServerMessages {

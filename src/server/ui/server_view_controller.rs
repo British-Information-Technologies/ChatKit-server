@@ -1,12 +1,9 @@
-use cursive::{Cursive, CursiveExt, CbSink, Printer, View};
-use cursive::event::{EventResult, Event};
-use cursive::views::{ResizedView, Dialog, TextView};
-use cursive::menu::MenuTree;
-use cursive::view::ViewWrapper;
-use std::sync::Arc;
-use crate::server::ServerV3::Server;
-pub struct ServerControlView {
-    display: Cursive,
+use cursive::{CbSink, Cursive, CursiveExt};
+
+use crate::server::server_v3::Server;
+use crate::server::ui::about_panel::about;
+use crate::server::ui::main_menu::main_menu;
+use cursive::event::Event;
 
     // MARK: - ViewModel stuff
 pub struct ServerViewController {

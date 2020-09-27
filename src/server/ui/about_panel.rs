@@ -1,6 +1,5 @@
 use cursive::views::{Dialog, TextView};
-use cursive::view::ViewWrapper;
-use cursive::{Printer, View};
+use cursive::View;
 
 pub fn about() -> Box<dyn View> {
     Box::new(
