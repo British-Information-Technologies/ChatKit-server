@@ -24,8 +24,6 @@ use crate::{
     server::server_v3::ServerMessages,
 };
 
-
-
 #[derive(Debug)]
 pub struct Client {
     uuid: String,
@@ -41,8 +39,9 @@ pub struct Client {
 
     server_sender: Sender<ServerMessages>,
 }
-
+/// # client Struct
 impl Client {
+
     #[allow(dead_code)]
     pub fn new(stream: TcpStream, server_sender: Sender<ServerMessages>, uuid: &str, username: &str, address: &str) -> Self {
         let (sender, receiver): (Sender<Commands>, Receiver<Commands>) = unbounded();
