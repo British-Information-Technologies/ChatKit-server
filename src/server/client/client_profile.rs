@@ -11,14 +11,13 @@ use std::{
     io,
 };
 
-use crossbeam::{
+use crossbeam_channel::{
     Sender,
     Receiver,
     TryRecvError,
     unbounded
 };
 
-use openssl::rsa::Rsa;
 use log::info;
 
 use crate::{
@@ -129,7 +128,7 @@ impl Client {
                 }
             },
             Err(_) => {
-                // no data was read
+                // No data was read
             },
         }
 
@@ -172,7 +171,7 @@ impl Client {
                 }
 
             },
-            /*no data available yet*/
+            /*No data available yet*/
             Err(TryRecvError::Empty) => {},
             _ => {},
         }
