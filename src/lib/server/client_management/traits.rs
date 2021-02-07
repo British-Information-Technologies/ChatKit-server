@@ -4,6 +4,9 @@ use uuid::Uuid;
 
 use super::client::traits;
 
+/**
+ * @michael-bailey
+ */
 pub trait TClientManager<TClient,TClientMessage> {
   fn addClient(&self, client: Arc<TClient>);
   fn removeClient(&self, id: Uuid);
