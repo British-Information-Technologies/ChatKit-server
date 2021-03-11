@@ -25,8 +25,6 @@ enum ClientManagerMessages {}
 pub struct ClientManager {
   clients: Mutex<Vec<Arc<Client>>>,
 
-  // weak_self: Mutex<Option<Weak<Self>>>,
-
 	server_channel: Sender<ServerMessages>,
 
   sender: Sender<ClientManagerMessages>,
