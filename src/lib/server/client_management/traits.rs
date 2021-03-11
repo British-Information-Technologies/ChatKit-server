@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use super::client::traits;
-
 /**
  * @michael-bailey
  */

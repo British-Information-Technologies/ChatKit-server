@@ -1,16 +1,14 @@
 mod lib;
 
 use clap::{App, Arg};
-
-use lib::server::Server;
  
 fn main() {
-  let args = App::new("--rust chat server--")
+  let _args = App::new("--rust chat server--")
     .version("0.1.5")
     .author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
     .about("this is a chat server developed in rust, depending on the version one of two implementations will be used")
     .arg(
-      Arg::with_name("config")
+      Arg::new("config")
       .short('p')
       .long("port")
       .value_name("PORT")

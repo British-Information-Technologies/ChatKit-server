@@ -32,7 +32,7 @@ impl ClientManager {
 
     let channels = unbounded();
 
-    let mut manager_ref: Arc<Self> = Arc::new(ClientManager {
+    let manager_ref: Arc<Self> = Arc::new(ClientManager {
       clients: Mutex::default(),
 
       weak_self: Mutex::default(),
@@ -63,15 +63,15 @@ impl ClientManager {
 }
 
 impl TClientManager<Client, ClientMessage> for ClientManager {
-  fn addClient(&self, Client: std::sync::Arc<Client>) {
-    self.clients.lock().unwrap().push(Client);
+  fn add_client(&self, client: std::sync::Arc<Client>) {
+    self.clients.lock().unwrap().push(client);
   }
 
-  fn removeClient(&self, uuid: Uuid) {
+  fn remove_client(&self, _uuid: Uuid) {
     self.clients.lock().unwrap().sort();
   }
 
-  fn messageClient(&self, id: Uuid, msg: ClientMessage) {
+  fn message_client(&self, _id: Uuid, _msg: ClientMessage) {
     todo!()
   }
   fn tick(&self) {
@@ -86,9 +86,9 @@ mod test {
 
   #[test]
   fn test_get_ref() {
-    let mut clientManager = ClientManager::new();
-    let cm_ref = clientManager.get_ref();
-    assert_eq!(Arc::weak_count(&clientManager), 2);
+    let client_manager = ClientManager::new();
+    let _cm_ref = client_manager.get_ref();
+    assert_eq!(Arc::weak_count(&client_manager), 2);
   }
 
   #[test]
