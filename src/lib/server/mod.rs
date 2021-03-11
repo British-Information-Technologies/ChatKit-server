@@ -27,7 +27,7 @@ impl Server {
 
 		Arc::new(Server {
 			server_socket: listener,
-			client_manager: ClientManager::new(sender),
+			client_manager: ClientManager::new(/*sender*/),
 			
 			sender,
 			receiver,
