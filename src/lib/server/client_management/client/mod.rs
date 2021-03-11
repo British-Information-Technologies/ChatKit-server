@@ -29,7 +29,7 @@ pub enum ClientMessage {
 /// - owner: An optional reference to the owning object.
 #[derive(Serialize, Deserialize)]
 pub struct Client {
-  uuid: String,
+  pub uuid: String,
   username: String,
   address: String,
 
