@@ -6,9 +6,10 @@ use std::sync::Mutex;
 use std::sync::Weak;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
-
 use uuid::Uuid;
 
+use IOwner::lib::Foundation::IOwner;
+use IOwned::lib::Foundation::IOwned;
 use self::client::Client;
 use self::client::ClientMessage;
 // use client::client_v3::Client;
@@ -65,7 +66,7 @@ impl ClientManager {
 
 impl TClientManager<Client, ClientMessage> for ClientManager {
   fn add_client(&self, client: std::sync::Arc<Client>) {
-    self.clients.lock().unwrap().push(client);
+    self.add_child(client);
   }
 
   fn remove_client(&self, uuid: Uuid) {
@@ -92,6 +93,13 @@ impl TClientManager<Client, ClientMessage> for ClientManager {
   fn tick(&self) {
 		let client_list = self.clients.lock().unwrap();
 		let _ = client_list.iter().map(|client| client.tick());
+  }
+}
+
+impl IOwner<Client> for ClientManager{
+  fn add_child(&self, child: Arc<Client>) {
+		child.set_owner(self.get_ref());
+    self.clients.lock().unwrap().push(child);
   }
 }
 
