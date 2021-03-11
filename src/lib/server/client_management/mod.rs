@@ -13,6 +13,7 @@ use self::client::Client;
 use self::client::ClientMessage;
 // use client::client_v3::Client;
 use self::traits::TClientManager;
+use client::traits::TClient;
 
 enum ClientManagerMessages {}
 
@@ -67,15 +68,30 @@ impl TClientManager<Client, ClientMessage> for ClientManager {
     self.clients.lock().unwrap().push(client);
   }
 
-  fn remove_client(&self, _uuid: Uuid) {
-    self.clients.lock().unwrap().sort();
+  fn remove_client(&self, uuid: Uuid) {
+		let uuid_str = uuid.to_string();
+    let mut client_list = self.clients.lock().unwrap();
+		client_list.sort();
+		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid_str)) {
+			client_list.remove(index);
+		}
   }
 
-  fn message_client(&self, _id: Uuid, _msg: ClientMessage) {
-    todo!()
+  fn message_client(&self, id: Uuid, msg: ClientMessage) -> Result<(), &str> {
+		let uuid_str = id.to_string();
+    let mut client_list = self.clients.lock().unwrap();
+		client_list.sort();
+		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid_str)) {
+			if let Some(client) = client_list.get(index) {
+				let _ = client.send_msg(msg);
+			} 
+		}
+		Ok(())
   }
+
   fn tick(&self) {
-    todo!()
+		let client_list = self.clients.lock().unwrap();
+		let _ = client_list.iter().map(|client| client.tick());
   }
 }
 
