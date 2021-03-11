@@ -7,11 +7,10 @@ use std::net::TcpStream;
 use std::sync::Weak;
 use std::sync::Arc;
 use uuid::Uuid;
+use std::cmp::Ordering;
 
-use super::traits::TClientManager;
 use super::ClientManager;
 use traits::TClient;
-
 
 pub enum ClientMessage {
   a,
@@ -51,4 +50,25 @@ impl TClient<ClientMessage> for Client {
   fn recv_msg(&self) -> Option<ClientMessage> { todo!() }
 
   fn tick(&self) {  }
+}
+
+impl PartialEq for Client {
+      fn eq(&self, other: &Self) -> bool {
+        self.uuid == other.uuid
+    }
+}
+
+impl Eq for Client {
+}
+
+impl Ord for Client {
+      fn cmp(&self, other: &Self) -> Ordering {
+        self.uuid.cmp(&other.uuid)
+    }
+}
+
+impl PartialOrd for Client {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
