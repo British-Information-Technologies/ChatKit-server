@@ -12,14 +12,9 @@ use uuid::Uuid;
 /// - recv: if there is a message in the queue, returns the message
 /// - send_msg: sends a event message to the client
 /// - recv_msg: used by the client to receive and process event messages
-pub trait TClient<TClientMessage> {
+pub trait IClient<TClientMessage> {
   fn new(uuid: Uuid, name: String, addr: String) -> Arc<Self>;
 
   fn send(&self, bytes: Vec<u8>) -> Result<(), &str>;
   fn recv(&self) -> Option<Vec<u8>>;
-
-  fn send_msg(&self, msg: TClientMessage) -> Result<(), &str>;
-  fn recv_msg(&self) -> Option<TClientMessage>;
-
-  fn tick(&self);
 }

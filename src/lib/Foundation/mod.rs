@@ -9,3 +9,10 @@ pub trait IOwner<T> {
 	fn get_ref(&self) -> Weak<Self>;
 }
 
+pub trait IMessagable<M> {
+	fn send_message(&self, msg: M);
+}
+
+pub trait ICooperative {
+	fn tick(&self);
+}

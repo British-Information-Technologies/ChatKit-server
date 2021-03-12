@@ -8,13 +8,12 @@ use std::sync::Weak;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use uuid::Uuid;
 
-use IOwner::lib::Foundation::IOwner;
-use IOwned::lib::Foundation::IOwned;
+use crate::lib::Foundation::{IOwner, IOwned};
 use self::client::Client;
 use self::client::ClientMessage;
-// use client::client_v3::Client;
 use self::traits::TClientManager;
-use client::traits::TClient;
+use crate::lib::Foundation::IMessagable;
+use crate::lib::Foundation::ICooperative;
 
 enum ClientManagerMessages {}
 
@@ -54,9 +53,7 @@ impl ClientManager {
     manager_ref
   }
 
-  pub fn get_ref(&self) -> Weak<Self> {
-    self.weak_self.lock().unwrap().clone().unwrap()
-  }
+
 
   fn set_ref(&self, reference: Arc<Self>) {
     let mut lock = self.weak_self.lock().unwrap();
@@ -70,21 +67,19 @@ impl TClientManager<Client, ClientMessage> for ClientManager {
   }
 
   fn remove_client(&self, uuid: Uuid) {
-		let uuid_str = uuid.to_string();
     let mut client_list = self.clients.lock().unwrap();
 		client_list.sort();
-		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid_str)) {
+		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid)) {
 			client_list.remove(index);
 		}
   }
 
   fn message_client(&self, id: Uuid, msg: ClientMessage) -> Result<(), &str> {
-		let uuid_str = id.to_string();
     let mut client_list = self.clients.lock().unwrap();
 		client_list.sort();
-		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid_str)) {
+		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&id)) {
 			if let Some(client) = client_list.get(index) {
-				let _ = client.send_msg(msg);
+				let _ = client.send_message(msg);
 			} 
 		}
 		Ok(())
@@ -101,12 +96,17 @@ impl IOwner<Client> for ClientManager{
 		child.set_owner(self.get_ref());
     self.clients.lock().unwrap().push(child);
   }
+
+	fn get_ref(&self) -> Weak<Self> {
+    self.weak_self.lock().unwrap().clone().unwrap()
+  }
 }
 
 #[cfg(test)]
 mod test {
   use super::ClientManager;
   use std::sync::Arc;
+	use crate::lib::Foundation::{IOwner};
 
   #[test]
   fn test_get_ref() {
