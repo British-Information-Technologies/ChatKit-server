@@ -1,41 +1,37 @@
 pub mod client_management;
 
+use crossbeam_channel::{Sender, Receiver, unbounded};
 use std::sync::{Arc, Weak, Mutex};
 use std::net::TcpListener;
 
 use crate::lib::server::client_management::ClientManager;
 use crate::lib::Foundation::{IOwner, IOwned, ICooperative};
+use client_management::client::Client;
+
+enum ServerMessages {
+	ClientConnected(Client),
+}
 
 pub struct Server {
 	server_socket: TcpListener,
-
 	client_manager: Arc<ClientManager>,
+
+	sender: Sender<ServerMessages>,
+	receiver: Receiver<ServerMessages>,
 }
 
 impl Server {
 	pub fn new() -> Arc<Server> {
-
 		let listener = TcpListener::bind("0.0.0.0:5600").expect("Could not bind to address");
+		let (sender, receiver) = unbounded();
 
-		let server: Arc<Self> = Arc::new(Server {
+		Arc::new(Server {
 			server_socket: listener,
-			weak_self: Mutex::new(None),
-			client_manager: ClientManager::new()
-		});
-
-		server.
-	}
-
-
-}
-
-impl IOwner<ClientManager> for Server {
-	fn add_child(&self, child: Arc<ClientManager>) {
-		self.client_manager
-	}
-
-	fn get_ref(&self) -> Weak<Self> {
-		self.weak_self.lock().unwrap().unwrap().clone()
+			client_manager: ClientManager::new(sender),
+			
+			sender,
+			receiver,
+		})
 	}
 }
 
