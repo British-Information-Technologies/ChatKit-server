@@ -23,6 +23,7 @@ pub struct ClientManager {
   clients: Mutex<Vec<Arc<Client>>>,
 
   weak_self: Mutex<Option<Weak<Self>>>,
+	server_ref: Mutex<Option<Weak<Server>>,
 
   sender: Sender<ClientManagerMessages>,
   receiver: Receiver<ClientManagerMessages>,
@@ -52,8 +53,6 @@ impl ClientManager {
     manager_ref.set_ref(manager_ref.clone());
     manager_ref
   }
-
-
 
   fn set_ref(&self, reference: Arc<Self>) {
     let mut lock = self.weak_self.lock().unwrap();
@@ -98,7 +97,7 @@ impl IOwner<Client> for ClientManager{
   }
 
 	fn get_ref(&self) -> Weak<Self> {
-    self.weak_self.lock().unwrap().clone().unwrap()
+    self.weak_self.lock().unwrap().unwrap().clone()
   }
 }
 
