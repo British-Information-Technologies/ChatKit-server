@@ -3,6 +3,7 @@ mod lib;
 use clap::{App, Arg};
 
 use crate::lib::server::Server;
+use crate::lib::Foundation::ICooperative;
  
 fn main() {
   let _args = App::new("--rust chat server--")
@@ -18,7 +19,11 @@ fn main() {
       .takes_value(true))
     .get_matches();
 
-	let mut server = Server::new();
+	let server = Server::new();
+
+  loop {
+    server.tick();
+  }
 }
 
 

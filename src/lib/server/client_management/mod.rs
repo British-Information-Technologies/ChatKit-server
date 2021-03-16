@@ -1,6 +1,8 @@
 pub mod client;
 mod traits;
 
+// use crate::lib::server::ServerMessages;
+use crate::lib::server::ServerMessages;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Weak;
@@ -19,69 +21,45 @@ enum ClientManagerMessages {}
 
 /// # ClientManager
 /// This struct manages all connected users
+#[derive(Debug)]
 pub struct ClientManager {
   clients: Mutex<Vec<Arc<Client>>>,
 
-  weak_self: Mutex<Option<Weak<Self>>>,
-	server_ref: Mutex<Option<Weak<Server>>,
+  // weak_self: Mutex<Option<Weak<Self>>>,
+
+	server_channel: Sender<ServerMessages>,
 
   sender: Sender<ClientManagerMessages>,
   receiver: Receiver<ClientManagerMessages>,
 }
 
 impl ClientManager {
-  pub fn new() -> Arc<Self> {
+  pub fn new(server_channel:  Sender<ServerMessages>) -> Arc<Self> {
 
-    let channels = unbounded();
+    let (sender, receiver) = unbounded();
 
-    let manager_ref: Arc<Self> = Arc::new(ClientManager {
+    Arc::new(ClientManager {
       clients: Mutex::default(),
 
-      weak_self: Mutex::default(),
+			server_channel,
 
-      sender: channels.0,
-      receiver: channels.1,
-    });
-
-    // get the reference
-    {
-      let mut lock = manager_ref.weak_self.lock().unwrap();
-      let tmp = manager_ref.clone();
-      *lock = Some(Arc::downgrade(&tmp));
-    }
-
-    manager_ref.set_ref(manager_ref.clone());
-    manager_ref
-  }
-
-  fn set_ref(&self, reference: Arc<Self>) {
-    let mut lock = self.weak_self.lock().unwrap();
-    *lock = Some(Arc::downgrade(&reference));
+      sender,
+      receiver,
+    })
   }
 }
 
 impl TClientManager<Client, ClientMessage> for ClientManager {
   fn add_client(&self, client: std::sync::Arc<Client>) {
-    self.add_child(client);
+    self.clients.lock().unwrap().push(client);
   }
 
-  fn remove_client(&self, uuid: Uuid) {
-    let mut client_list = self.clients.lock().unwrap();
-		client_list.sort();
-		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&uuid)) {
-			client_list.remove(index);
-		}
+  fn remove_client(&self, _uuid: Uuid) {
+    self.clients.lock().unwrap().sort();
   }
 
-  fn message_client(&self, id: Uuid, msg: ClientMessage) -> Result<(), &str> {
-    let mut client_list = self.clients.lock().unwrap();
-		client_list.sort();
-		if let Ok(index) = client_list.binary_search_by(move |client| client.uuid.cmp(&id)) {
-			if let Some(client) = client_list.get(index) {
-				let _ = client.send_message(msg);
-			} 
-		}
-		Ok(())
+  fn message_client(&self, _id: Uuid, _msg: ClientMessage) {
+    todo!()
   }
 
   fn tick(&self) {
@@ -90,16 +68,6 @@ impl TClientManager<Client, ClientMessage> for ClientManager {
   }
 }
 
-impl IOwner<Client> for ClientManager{
-  fn add_child(&self, child: Arc<Client>) {
-		child.set_owner(self.get_ref());
-    self.clients.lock().unwrap().push(child);
-  }
-
-	fn get_ref(&self) -> Weak<Self> {
-    self.weak_self.lock().unwrap().unwrap().clone()
-  }
-}
 
 #[cfg(test)]
 mod test {
@@ -109,9 +77,9 @@ mod test {
 
   #[test]
   fn test_get_ref() {
-    let client_manager = ClientManager::new();
-    let _cm_ref = client_manager.get_ref();
-    assert_eq!(Arc::weak_count(&client_manager), 2);
+    // let client_manager = ClientManager::new();
+    // let _cm_ref = client_manager.get_ref();
+    // assert_eq!(Arc::weak_count(&client_manager), 2);
   }
 
   #[test]
