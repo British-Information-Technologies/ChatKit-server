@@ -2,6 +2,7 @@
 pub mod prelude;
 pub mod server;
 pub mod Foundation;
+pub mod commands;
 
 use std::sync::Arc;
 use std::sync::Mutex;
