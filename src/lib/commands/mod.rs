@@ -230,6 +230,14 @@ impl From<&mut [u8; 1024]> for Commands {
     }
 }
 
+impl From<&mut Vec<u8>> for Commands {
+    fn from(data: &mut Vec<u8>) -> Self {
+        let incoming_message = String::from(String::from_utf8_lossy(data));
+        data.zeroize();
+        Commands::from(incoming_message)
+    }
+}
+
 // TODO: check if unit tests still work
 /*#[cfg(test)]
 mod test_commands_v2 {
