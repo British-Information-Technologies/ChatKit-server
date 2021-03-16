@@ -1,15 +1,21 @@
 pub mod client_management;
 
-use crossbeam_channel::{Sender, Receiver, unbounded};
+
 use std::sync::{Arc, Weak, Mutex};
 use std::net::TcpListener;
+use std::io::Write;
+use std::io::Read;
+
+use crossbeam_channel::{Sender, Receiver, unbounded};
 
 use crate::lib::server::client_management::ClientManager;
 use crate::lib::Foundation::{IOwner, IOwned, ICooperative};
 use client_management::client::Client;
+use crate::lib::commands::Commands;
 
-enum ServerMessages {
-	ClientConnected(Client),
+#[derive(Debug)]
+pub enum ServerMessages {
+	ClientConnected(Arc<Client>),
 }
 
 pub struct Server {
@@ -27,7 +33,7 @@ impl Server {
 
 		Arc::new(Server {
 			server_socket: listener,
-			client_manager: ClientManager::new(/*sender*/),
+			client_manager: ClientManager::new(sender.clone()),
 			
 			sender,
 			receiver,
@@ -38,5 +44,34 @@ impl Server {
 impl ICooperative for Server{
 	fn tick(&self) {
 
+    let mut buffer = vec![0; 1024];
+
+    // get connections 
+    for connection in self.server_socket.incoming() {
+      match connection {
+        Ok(mut stream) => {
+          let _ = stream.write(Commands::Request(None).to_string().as_bytes());
+          let _ = stream.read(&mut buffer);
+
+          let command = Commands::from(&mut buffer);
+
+          match command {
+            Commands::Info(None) => {let _ = stream.write("todo".as_bytes());}
+            _ => {let _ = stream.write("not implemented!".as_bytes());}
+          }
+
+        },
+        _ => println!("!connection error occured!"),
+      }
+    }
+
+
+
+    // message loop
+    for message in self.receiver.iter() {
+      match message {
+        ServerMessages::ClientConnected(client) => println!("client connected: {:?}", client),
+      }
+    }
 	}
 }

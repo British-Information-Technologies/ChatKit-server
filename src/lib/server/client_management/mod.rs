@@ -2,6 +2,7 @@ pub mod client;
 mod traits;
 
 // use crate::lib::server::ServerMessages;
+use crate::lib::server::ServerMessages;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Weak;
@@ -20,38 +21,32 @@ enum ClientManagerMessages {}
 
 /// # ClientManager
 /// This struct manages all connected users
+#[derive(Debug)]
 pub struct ClientManager {
   clients: Mutex<Vec<Arc<Client>>>,
 
-  weak_self: Mutex<Option<Weak<Self>>>,
+  // weak_self: Mutex<Option<Weak<Self>>>,
 
-	// server_channel: Sender<ServerMessages>,
+	server_channel: Sender<ServerMessages>,
 
   sender: Sender<ClientManagerMessages>,
   receiver: Receiver<ClientManagerMessages>,
 }
 
 impl ClientManager {
-  pub fn new(/*server_channel:  Sender<ServerMessages> */) -> Arc<Self> {
+  pub fn new(server_channel:  Sender<ServerMessages>) -> Arc<Self> {
 
     let (sender, receiver) = unbounded();
 
     Arc::new(ClientManager {
       clients: Mutex::default(),
 
-      weak_self: Mutex::default(),
-
-			// server_channel,
+			server_channel,
 
       sender,
       receiver,
     })
   }
-
-  fn set_ref(&self, reference: Arc<Self>) {
-    let mut lock = self.weak_self.lock().unwrap();
-    *lock = Some(Arc::downgrade(&reference));
-	}
 }
 
 impl TClientManager<Client, ClientMessage> for ClientManager {

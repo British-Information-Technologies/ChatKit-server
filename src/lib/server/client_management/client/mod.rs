@@ -32,7 +32,7 @@ pub enum ClientMessage {
 /// 
 /// - stream: The socket for the connected client.
 /// - owner: An optional reference to the owning object.
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Client {
   pub uuid: Uuid,
   username: String,
