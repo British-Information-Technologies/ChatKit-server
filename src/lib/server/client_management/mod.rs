@@ -27,8 +27,6 @@ pub struct ClientManager {
 
 	server_channel: Sender<ServerMessages>,
 
-	// server_channel: Sender<ServerMessages>,
-
   sender: Sender<ClientManagerMessages>,
   receiver: Receiver<ClientManagerMessages>,
 }
