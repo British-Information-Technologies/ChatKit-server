@@ -2,25 +2,21 @@
 // pub mod client_v3;
 pub mod traits;
 
-use std::sync::Mutex;
-use std::net::TcpStream;
-use std::sync::Weak;
-use std::sync::Arc;
+use std::collections::HashMap;
 use std::cmp::Ordering;
-use std::mem;
+use std::net::TcpStream;
+use std::sync::Mutex;
+use std::sync::Arc;
 
 use uuid::Uuid;
 use serde::Serialize;
 use crossbeam_channel::{Sender, Receiver, unbounded};
 
-use crate::lib::Foundation::{IOwned, ICooperative, IMessagable};
-use super::ClientManager;
 use traits::IClient;
+use crate::lib::Foundation::{ICooperative, IMessagable};
+use crate::lib::server::ServerMessages;
 
-pub enum ClientMessage {
-  a,
-  b,
-}
+pub enum ClientMessage {}
 
 /// # Client
 /// This struct represents a connected user.
@@ -40,43 +36,46 @@ pub struct Client {
 
 	// non serializable
 	#[serde(skip)]
-  server_channel: Sender<ServerMessages>,
+  server_channel: Option<Sender<ServerMessages>>,
+
+  #[serde(skip)]
+  input: Sender<ClientMessage>,
+
+  #[serde(skip)]
+  output: Receiver<ClientMessage>,
 
 	#[serde(skip)]
   stream: Mutex<Option<TcpStream>>,
-
-	#[serde(skip)]
-  owner: Mutex<Option<Weak<ClientManager>>>
-
 }
 
 // client funciton implmentations
 impl IClient<ClientMessage> for Client {
-  fn new(uuid: Uuid, name: String, addr: String) -> Arc<Client> {
-		let (sender, reciever) = unbounded();
+  fn new(map: HashMap<String, String>, server_channel: Sender<ServerMessages> ) -> Arc<Client> {
+    let (sender, receiver) = unbounded();
 
     Arc::new(Client {
-      username: name,
-      uuid: Uuid::new_v4(),
-      address: addr,
+      username: map.get(&"name".to_string()).unwrap().clone(),
+      uuid: Uuid::parse_str(map.get(&"uuid".to_string()).unwrap().as_str()).expect("invalid id"),
+      address: map.get(&"host".to_string()).unwrap().clone(),
 
-			output_channel: Mutex::new(reciever),
-			input_channel: Mutex::new(sender),
+      server_channel: Some(server_channel),
+
+      input: sender,
+      output: receiver,
 
       stream: Mutex::new(None),
-      owner: Mutex::new(None)
     })
   }
 
 	// MARK: - removeable
-  fn send(&self, bytes: Vec<u8>) -> Result<(), &str> { todo!() }
+  fn send(&self, _bytes: Vec<u8>) -> Result<(), &str> { todo!() }
   fn recv(&self) -> Option<Vec<u8>> { todo!() }
 	// Mark: end -
 }
 
 impl IMessagable<ClientMessage> for Client{
 	fn send_message(&self, msg: ClientMessage) {
-		self.input_channel.lock().unwrap().send(msg);
+		self.input.send(msg).expect("failed to send message to client.");
 	}
 }
 
@@ -90,16 +89,17 @@ impl ICooperative for Client {
 impl Default for Client {
 	fn default() -> Self {
 		let (sender, reciever) = unbounded();
-		return Client {
+		Client {
 			username: "generic_client".to_string(),
       uuid: Uuid::new_v4(),
       address: "127.0.0.1".to_string(),
 
-			output_channel: Mutex::new(reciever),
-			input_channel: Mutex::new(sender),
+		  output: reciever,
+			input: sender,
+
+      server_channel: None,
 
       stream: Mutex::new(None),
-      owner: Mutex::new(None)
 		}
 	}
 }
