@@ -40,10 +40,7 @@ pub struct Client {
 
 	// non serializable
 	#[serde(skip)]
-	output_channel: Mutex<Receiver<ClientMessage>>,
-
-	#[serde(skip)]
-	input_channel: Mutex<Sender<ClientMessage>>,
+  server_channel: Sender<ServerMessages>,
 
 	#[serde(skip)]
   stream: Mutex<Option<TcpStream>>,
@@ -75,13 +72,6 @@ impl IClient<ClientMessage> for Client {
   fn send(&self, bytes: Vec<u8>) -> Result<(), &str> { todo!() }
   fn recv(&self) -> Option<Vec<u8>> { todo!() }
 	// Mark: end -
-}
-
-impl IOwned<ClientManager> for Client {
-  fn set_owner(&self, owner: Weak<ClientManager>) {
-    let mut owner_mut = self.owner.lock().unwrap();
-    let _ = mem::replace(&mut *owner_mut, Some(owner));
-  }
 }
 
 impl IMessagable<ClientMessage> for Client{
