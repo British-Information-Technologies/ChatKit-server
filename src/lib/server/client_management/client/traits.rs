@@ -1,6 +1,9 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 
-use uuid::Uuid;
+use crossbeam_channel::Sender;
+
+use crate::lib::server::ServerMessages;
 
 /// # TClient
 /// This trait represents the methods that a client must implement
@@ -13,7 +16,7 @@ use uuid::Uuid;
 /// - send_msg: sends a event message to the client
 /// - recv_msg: used by the client to receive and process event messages
 pub trait IClient<TClientMessage> {
-  fn new(uuid: Uuid, name: String, addr: String) -> Arc<Self>;
+  fn new(map: HashMap<String, String>, server_channel: Sender<ServerMessages> ) -> Arc<Self>;
 
   fn send(&self, bytes: Vec<u8>) -> Result<(), &str>;
   fn recv(&self) -> Option<Vec<u8>>;
