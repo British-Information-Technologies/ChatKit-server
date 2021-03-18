@@ -1,11 +1,13 @@
 pub mod client_management;
+pub mod network_manager;
 
-
+use crate::lib::server::network_manager::NetworkManager;
 use std::collections::HashMap;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::io::Write;
 use std::io::Read;
+
 
 use uuid::Uuid;
 use crossbeam_channel::{Sender, Receiver, unbounded};
@@ -27,6 +29,7 @@ pub enum ServerMessages {
 pub struct Server {
 	server_socket: TcpListener,
 	client_manager: Arc<ClientManager>,
+  network_manager: Arc<NetworkManager>,
 
 	sender: Sender<ServerMessages>,
 	receiver: Receiver<ServerMessages>,
@@ -40,6 +43,8 @@ impl Server {
 		Arc::new(Server {
 			server_socket: listener,
 			client_manager: ClientManager::new(sender.clone()),
+
+      network_manager: NetworkManager::new("5600".to_string(), sender.clone()),
 			
 			sender,
 			receiver,
