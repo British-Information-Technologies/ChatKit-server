@@ -7,16 +7,39 @@ use std::cmp::Ordering;
 use std::net::TcpStream;
 use std::sync::Mutex;
 use std::sync::Arc;
+use std::io::{BufReader, BufWriter};
+use std::io::BufRead;
 
 use uuid::Uuid;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use crossbeam_channel::{Sender, Receiver, unbounded};
 
 use traits::IClient;
 use crate::lib::Foundation::{ICooperative, IMessagable};
 use crate::lib::server::ServerMessages;
 
-pub enum ClientMessage {}
+/// # ClientMessage
+/// This enum defined the message that a client can receive from the server
+/// This uses the serde library to transform to and from json. 
+#[derive(Serialize, Deserialize)]
+pub enum ClientMessage {
+  Disconnect {id: String},
+  Update {id: String},
+
+  ServerMessage {id: String, msg: String},
+
+  NewMessage {id: String, from_user_id: String, msg: String},
+  NewgroupMessage {id: String, from_group_id: String, from_user_id: String, msg: String},
+}
+
+/// # ClientSocketMessage
+/// This enum defines a message that can be sent from a client to the server once connected
+/// This uses the serde library to transform to and from json. 
+#[derive(Serialize, Deserialize)]
+pub enum ClientSocketMessage {
+  Disconnect {id: String},
+  SendMessage {id: String, to_user_id: String, msg: String}
+}
 
 /// # Client
 /// This struct represents a connected user.
@@ -46,12 +69,22 @@ pub struct Client {
 
 	#[serde(skip)]
   stream: Mutex<Option<TcpStream>>,
+
+  #[serde(skip)]
+  stream_reader: Mutex<Option<BufReader<TcpStream>>>,
+
+  #[serde(skip)]
+  stream_writer: Mutex<Option<BufWriter<TcpStream>>>,
+
 }
 
 // client funciton implmentations
 impl IClient<ClientMessage> for Client {
-  fn new(map: HashMap<String, String>, server_channel: Sender<ServerMessages> ) -> Arc<Client> {
+  fn new(map: HashMap<String, String>, stream: TcpStream, server_channel: Sender<ServerMessages> ) -> Arc<Client> {
     let (sender, receiver) = unbounded();
+
+    let out_stream = stream.try_clone().unwrap();
+    let in_stream = stream.try_clone().unwrap();
 
     Arc::new(Client {
       username: map.get(&"name".to_string()).unwrap().clone(),
@@ -63,7 +96,10 @@ impl IClient<ClientMessage> for Client {
       input: sender,
       output: receiver,
 
-      stream: Mutex::new(None),
+      stream: Mutex::new(Some(stream)),
+
+      stream_reader: Mutex::new(Some(BufReader::new(in_stream))),
+      stream_writer: Mutex::new(Some(BufWriter::new(out_stream))),
     })
   }
 
@@ -82,6 +118,30 @@ impl IMessagable<ClientMessage> for Client{
 // cooperative multitasking implementation
 impl ICooperative for Client {
 	fn tick(&self) {
+    // aquire locks (so value isn't dropped)
+    let mut reader_lock = self.stream_reader.lock().unwrap();
+    let mut writer_lock = self.stream_writer.lock().unwrap();
+
+    // aquiring mutable buffers
+    let reader = reader_lock.as_mut().unwrap();
+    let _writer = writer_lock.as_mut().unwrap();
+
+    // create buffer
+    let mut buffer = String::new();
+
+    // loop over all lines that have been sent.
+    while let Ok(_size) = reader.read_line(&mut buffer) {
+      let command = serde_json::from_str::<ClientSocketMessage>(buffer.as_str()).unwrap();
+
+      match command {
+        ClientSocketMessage::Disconnect {id} => println!("got Disconnect from id: {:?}", id),
+        _ => println!("New command found"),
+      }
+    }
+
+
+    // handle incomming messages
+
 	}
 }
 
@@ -100,6 +160,9 @@ impl Default for Client {
       server_channel: None,
 
       stream: Mutex::new(None),
+
+      stream_reader: Mutex::new(None),
+      stream_writer: Mutex::new(None),
 		}
 	}
 }
