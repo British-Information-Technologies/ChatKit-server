@@ -2,7 +2,6 @@
 // pub mod client_v3;
 pub mod traits;
 
-use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::net::TcpStream;
 use std::sync::Mutex;

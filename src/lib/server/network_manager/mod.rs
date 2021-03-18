@@ -1,4 +1,4 @@
-
+use crate::lib::server::Client;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::io::BufReader;
@@ -11,6 +11,7 @@ use crossbeam_channel::Sender;
 
 use crate::lib::server::ServerMessages;
 use crate::lib::Foundation::ICooperative;
+use crate::lib::server::client_management::client::traits::IClient;
 
 
 /// # NetworkSockIn
@@ -40,7 +41,10 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
-  pub fn new(port: String, server_channel: Sender<ServerMessages>) -> Arc<NetworkManager> {
+  pub fn new(
+		port: String, 
+		server_channel: Sender<ServerMessages>
+	) -> Arc<NetworkManager> {
     let mut address = "0.0.0.0:".to_string();
     address.push_str(&port);
 
@@ -68,7 +72,9 @@ impl ICooperative for NetworkManager {
 				let mut buffer = String::new();
 
 				// request is always sent on new connection
-				writer.write_all(serde_json::to_string(&NetworkSockOut::Request).unwrap().as_bytes()).unwrap_or_default();
+				writer.write_all(
+					serde_json::to_string(&NetworkSockOut::Request).unwrap().as_bytes()
+				).unwrap_or_default();
 				writer.write_all(b"\n").unwrap_or_default();
 				writer.flush().unwrap_or_default();
 
@@ -83,13 +89,25 @@ impl ICooperative for NetworkManager {
 						NetworkSockIn::Info => {
 							writer.write_all(
 								serde_json::to_string(
-									&NetworkSockOut::GotInfo {server_name: "oof", server_owner: "michael"}
+									&NetworkSockOut::GotInfo {
+										server_name: "oof", 
+										server_owner: "michael"
+									}
 								).unwrap().as_bytes()
 							).unwrap();
 							writer.flush().unwrap();
 						}
 						NetworkSockIn::Connect { uuid, username, address } => {
-							self.server_channel.send().unwrap_or_default()
+							let new_client = Client::new(
+                uuid,
+								username,
+								address,
+								stream.try_clone().unwrap(),
+								self.server_channel.clone()
+							);
+							self.server_channel.send(
+								ServerMessages::ClientConnected(new_client)
+							).unwrap_or_default();
 						}
 					}
 				}
