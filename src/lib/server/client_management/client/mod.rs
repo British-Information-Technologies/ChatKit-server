@@ -80,16 +80,22 @@ pub struct Client {
 
 // client funciton implmentations
 impl IClient<ClientMessage> for Client {
-  fn new(map: HashMap<String, String>, stream: TcpStream, server_channel: Sender<ServerMessages> ) -> Arc<Client> {
+  fn new(
+		uuid: String,
+		username: String,
+		address: String,
+		stream: TcpStream,
+		server_channel: Sender<ServerMessages>
+	) -> Arc<Client> {
     let (sender, receiver) = unbounded();
 
     let out_stream = stream.try_clone().unwrap();
     let in_stream = stream.try_clone().unwrap();
 
     Arc::new(Client {
-      username: map.get(&"name".to_string()).unwrap().clone(),
-      uuid: Uuid::parse_str(map.get(&"uuid".to_string()).unwrap().as_str()).expect("invalid id"),
-      address: map.get(&"host".to_string()).unwrap().clone(),
+      username,
+      uuid: Uuid::parse_str(&uuid).expect("invalid id"),
+      address,
 
       server_channel: Some(server_channel),
 

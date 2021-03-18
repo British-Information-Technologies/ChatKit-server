@@ -89,7 +89,7 @@ impl ICooperative for NetworkManager {
 							writer.flush().unwrap();
 						}
 						NetworkSockIn::Connect { uuid, username, address } => {
-							println!("Connection requested")
+							self.server_channel.send().unwrap_or_default()
 						}
 					}
 				}

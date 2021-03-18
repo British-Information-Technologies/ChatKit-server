@@ -17,7 +17,13 @@ use crate::lib::server::ServerMessages;
 /// - send_msg: sends a event message to the client
 /// - recv_msg: used by the client to receive and process event messages
 pub trait IClient<TClientMessage> {
-  fn new(map: HashMap<String, String>, stream: TcpStream, server_channel: Sender<ServerMessages> ) -> Arc<Self>;
+  fn new(
+		uuid: String,
+		username: String,
+		address: String,
+		stream: TcpStream,
+		server_channel: Sender<ServerMessages>
+	) -> Arc<Self>;
 
   fn send(&self, bytes: Vec<u8>) -> Result<(), &str>;
   fn recv(&self) -> Option<Vec<u8>>;
