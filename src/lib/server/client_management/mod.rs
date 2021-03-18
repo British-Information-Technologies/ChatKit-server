@@ -1,8 +1,7 @@
 pub mod client;
-mod traits;
+pub mod traits;
 
 // use crate::lib::server::ServerMessages;
-use crate::lib::server::ServerMessages;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::collections::HashMap;
