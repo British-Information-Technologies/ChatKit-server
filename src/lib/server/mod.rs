@@ -1,20 +1,21 @@
 pub mod client_management;
 
 
-use std::collections::HashMap;
+use std::io::BufWriter;
+use std::io::BufReader;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::io::Write;
-use std::io::Read;
+use std::io::BufRead;
 
 use uuid::Uuid;
 use crossbeam_channel::{Sender, Receiver, unbounded};
+use serde::{Serialize, Deserialize};
 
 use crate::lib::server::client_management::ClientManager;
 use crate::lib::server::client_management::traits::TClientManager;
 use crate::lib::Foundation::{ICooperative};
 use client_management::client::Client;
-use crate::lib::commands::Commands;
 
 /// # ServerMessages
 /// This is used internally 
@@ -22,6 +23,13 @@ use crate::lib::commands::Commands;
 pub enum ServerMessages {
 	ClientConnected(Arc<Client>),
   ClientDisconnected(Uuid)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ServerSocketMessages {
+	Request,
+	Info,
+	Connect {uuid: Uuid, username: String, address: String}
 }
 
 pub struct Server {
@@ -54,35 +62,25 @@ impl Server {
 impl ICooperative for Server{
 	fn tick(&self) {
 
-    let mut buffer = vec![0; 64];
+    let mut buffer = String::new();
 
     // handle new connections 
     for connection in self.server_socket.incoming() {
-      match connection {
-        Ok(mut stream) => {
-          stream.write_all(Commands::Request(None).to_string().as_bytes()).expect("error writing socket");
-          stream.read_to_end(&mut buffer).expect("error reading sokcet");
-          
-          println!("buffer: {:?}", &buffer);
+      let (mut reader, mut writer) = match connection {
+        Ok(mut stream) => (BufReader::new(stream.try_clone().unwrap()), BufWriter::new(stream.try_clone().unwrap())),
+        Err(_) => break,
+      };
 
-          let command = Commands::from(&mut buffer);
+			writer.write_all(serde_json::to_string(&ServerSocketMessages::Request).unwrap().as_bytes());
+			writer.flush();
 
-          match command {
-            Commands::Info(None) => {
-              let server_config = vec![
-                ("name".to_string(), "Test server".to_string())
-              ];
-              let map: HashMap<String, String> = server_config.into_iter().collect();
-              stream.write_all(Commands::Success(Some(map)).to_string().as_bytes())
-                .expect("error sending response");
-            }
-            Commands::Connect(Some(map)) => println!("connect command: {:?}", &map),
+			reader.read_line(&mut buffer);
 
-            _ => {let _ = stream.write("not implemented!".as_bytes());}
-          }
-        },
-        _ => println!("!connection error occured!"),
-      }
+			println!("recieved: {:?}", &buffer);
+
+			let msg: ServerSocketMessages = serde_json::from_str(&buffer).unwrap();
+
+			println!("got msg: {:?}", msg)
     }
 
     // handle new messages loop
