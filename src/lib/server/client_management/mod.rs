@@ -2,18 +2,17 @@ pub mod client;
 mod traits;
 
 // use crate::lib::server::ServerMessages;
-use crate::lib::server::ServerMessages;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::Weak;
+use std::collections::HashMap;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use uuid::Uuid;
 
-use crate::lib::Foundation::{IOwner, IOwned};
 use self::client::Client;
 use self::client::ClientMessage;
 use self::traits::TClientManager;
+use crate::lib::server::ServerMessages;
 use crate::lib::Foundation::IMessagable;
 use crate::lib::Foundation::ICooperative;
 
@@ -23,13 +22,9 @@ enum ClientManagerMessages {}
 /// This struct manages all connected users
 #[derive(Debug)]
 pub struct ClientManager {
-  clients: Mutex<Vec<Arc<Client>>>,
-
-  // weak_self: Mutex<Option<Weak<Self>>>,
+  clients: Mutex<HashMap<Uuid, Arc<Client>>>,
 
 	server_channel: Sender<ServerMessages>,
-
-	// server_channel: Sender<ServerMessages>,
 
   sender: Sender<ClientManagerMessages>,
   receiver: Receiver<ClientManagerMessages>,
@@ -53,29 +48,32 @@ impl ClientManager {
 
 impl TClientManager<Client, ClientMessage> for ClientManager {
   fn add_client(&self, client: std::sync::Arc<Client>) {
-    self.clients.lock().unwrap().push(client);
+    self.clients.lock().unwrap().insert(client.uuid, client);
   }
 
-  fn remove_client(&self, _uuid: Uuid) {
-    self.clients.lock().unwrap().sort();
+  fn remove_client(&self, uuid: Uuid) {
+    let _ = self.clients.lock().unwrap().remove(&uuid);
   }
 
-  fn message_client(&self, _id: Uuid, _msg: ClientMessage) {
-    todo!()
+  fn send_message_to_client(&self, uuid: Uuid, msg: ClientMessage) {
+    let clients = self.clients.lock().unwrap();
+    let client = clients.get(&uuid).unwrap();
+    client.send_message(msg);
   }
+}
 
+impl ICooperative for ClientManager {
   fn tick(&self) {
-		let client_list = self.clients.lock().unwrap();
-		let _ = client_list.iter().map(|client| client.tick());
+
   }
 }
 
 
 #[cfg(test)]
 mod test {
-  use super::ClientManager;
-  use std::sync::Arc;
-	use crate::lib::Foundation::{IOwner};
+  // use super::ClientManager;
+  // use std::sync::Arc;
+	// use crate::lib::Foundation::{IOwner};
 
   #[test]
   fn test_get_ref() {
