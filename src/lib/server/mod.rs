@@ -53,7 +53,7 @@ impl ICooperative for Server{
 	fn tick(&self) {
 
 		// handle new messages loop
-		for message in self.receiver.iter() {
+		for message in self.receiver.try_iter() {
 			match message {
 				ServerMessages::ClientConnected(client) => {
 					self.client_manager.add_client(client);
