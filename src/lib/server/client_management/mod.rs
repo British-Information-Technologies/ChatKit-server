@@ -16,7 +16,10 @@ use crate::lib::server::ServerMessages;
 use crate::lib::Foundation::IMessagable;
 use crate::lib::Foundation::ICooperative;
 
-enum ClientManagerMessages {}
+enum ClientManagerMessages {
+  DropAll,
+  MessageClient,
+}
 
 /// # ClientManager
 /// This struct manages all connected users
@@ -65,6 +68,18 @@ impl TClientManager<Client, ClientMessage> for ClientManager {
 impl ICooperative for ClientManager {
   fn tick(&self) {
 
+    for message in self.receiver.iter() {
+      match message {
+        ClientManagerMessages::DropAll => {
+          println!("cannot drop all clients yet")
+        }
+        _ => println!("[Client Manager]: method not implemented")
+      }
+    }
+
+    // allocate time for clients.
+    let clients = self.clients.lock().unwrap();
+    let _ = clients.iter().map(|(_uuid, client)| client.tick());
   }
 }
 
