@@ -1,22 +1,27 @@
 pub mod client_management;
 
 
-use std::sync::{Arc, Weak, Mutex};
 use std::collections::HashMap;
 use std::net::TcpListener;
+use std::sync::Arc;
 use std::io::Write;
 use std::io::Read;
 
+use uuid::Uuid;
 use crossbeam_channel::{Sender, Receiver, unbounded};
 
 use crate::lib::server::client_management::ClientManager;
-use crate::lib::Foundation::{IOwner, IOwned, ICooperative};
+use crate::lib::server::client_management::traits::TClientManager;
+use crate::lib::Foundation::{ICooperative};
 use client_management::client::Client;
 use crate::lib::commands::Commands;
 
+/// # ServerMessages
+/// This is used internally 
 #[derive(Debug)]
 pub enum ServerMessages {
 	ClientConnected(Arc<Client>),
+  ClientDisconnected(Uuid)
 }
 
 pub struct Server {
@@ -40,6 +45,10 @@ impl Server {
 			receiver,
 		})
 	}
+
+  pub fn send_message(&self, msg: ServerMessages) {
+    self.sender.send(msg).expect("!error sending message to server!")
+  }
 }
 
 impl ICooperative for Server{
@@ -80,6 +89,7 @@ impl ICooperative for Server{
     for message in self.receiver.iter() {
       match message {
         ServerMessages::ClientConnected(client) => println!("client connected: {:?}", client),
+        ServerMessages::ClientDisconnected(uuid) => {self.client_manager.remove_client(uuid);}
       }
     }
 	}
