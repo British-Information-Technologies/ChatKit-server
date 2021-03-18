@@ -23,6 +23,8 @@ use client_management::client::Client;
 pub enum ServerMessages {
 	ClientConnected(Arc<Client>),
   ClientDisconnected(Uuid)
+
+
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -53,10 +55,6 @@ impl Server {
 			receiver,
 		})
 	}
-
-  pub fn send_message(&self, msg: ServerMessages) {
-    self.sender.send(msg).expect("!error sending message to server!")
-  }
 }
 
 impl ICooperative for Server{
