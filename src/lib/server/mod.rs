@@ -47,23 +47,26 @@ impl Server {
 			receiver,
 		})
 	}
-
-  pub fn send_message(&self, msg: ServerMessages) {
-    self.sender.send(msg).expect("!error sending message to server!")
-  }
 }
 
 impl ICooperative for Server{
 	fn tick(&self) {
 
-		self.network_manager.tick();
+		// handle new messages loop
+		for message in self.receiver.iter() {
+			match message {
+				ServerMessages::ClientConnected(client) => {
+					self.client_manager.add_client(client);
+				},
+				ServerMessages::ClientDisconnected(uuid) => {
+					self.client_manager.remove_client(uuid);
+				}
+			}
+		}
 
-    // handle new messages loop
-    for message in self.receiver.iter() {
-      match message {
-        ServerMessages::ClientConnected(client) => println!("client connected: {:?}", client),
-        ServerMessages::ClientDisconnected(uuid) => {self.client_manager.remove_client(uuid);}
-      }
-    }
+		// alocate time for other components
+		self.network_manager.tick();
+		self.client_manager.tick();
+
 	}
 }
