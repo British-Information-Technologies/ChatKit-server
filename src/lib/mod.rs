@@ -1,7 +1,7 @@
 // pub mod commands;
 pub mod prelude;
 pub mod server;
-pub mod Foundation;
+pub mod foundation;
 pub mod commands;
 
 use std::sync::Arc;

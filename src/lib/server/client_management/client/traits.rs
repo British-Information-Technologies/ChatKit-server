@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use std::net::TcpStream;
-use std::collections::HashMap;
 
 use crossbeam_channel::Sender;
 

@@ -3,7 +3,7 @@ mod lib;
 use clap::{App, Arg};
 
 use crate::lib::server::Server;
-use crate::lib::Foundation::ICooperative;
+use crate::lib::foundation::ICooperative;
  
 fn main() {
   let _args = App::new("--rust chat server--")

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crossbeam_channel::Sender;
 
 use crate::lib::server::ServerMessages;
-use crate::lib::Foundation::ICooperative;
+use crate::lib::foundation::ICooperative;
 use crate::lib::server::client_management::client::traits::IClient;
 
 
@@ -31,9 +31,9 @@ enum NetworkSockOut<'a> {
 }
 
 // these are control signals from the server.
-pub enum NetworkMessages {
+// pub enum NetworkMessages {
 
-}
+// }
 
 pub struct NetworkManager {
   listener: TcpListener,

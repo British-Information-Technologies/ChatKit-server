@@ -14,7 +14,7 @@ use serde::{Serialize, Deserialize};
 use crossbeam_channel::{Sender, Receiver, unbounded};
 
 use traits::IClient;
-use crate::lib::Foundation::{ICooperative, IMessagable};
+use crate::lib::foundation::{ICooperative, IMessagable};
 use crate::lib::server::ServerMessages;
 
 /// # ClientMessage

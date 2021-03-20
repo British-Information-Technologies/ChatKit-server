@@ -13,11 +13,13 @@ use self::client::Client;
 use self::client::ClientMessage;
 use self::traits::TClientManager;
 use crate::lib::server::ServerMessages;
-use crate::lib::Foundation::IMessagable;
-use crate::lib::Foundation::ICooperative;
+use crate::lib::foundation::IMessagable;
+use crate::lib::foundation::ICooperative;
 
 enum ClientManagerMessages {
+  #[allow(dead_code)]
   DropAll,
+  #[allow(dead_code)]
   MessageClient,
 }
 
