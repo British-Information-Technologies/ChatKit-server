@@ -10,6 +10,7 @@ pub enum NetworkSockIn {
 #[derive(Serialize, Deserialize)]
 pub enum NetworkSockOut<'a> {
 	Request,
+  
 	GotInfo {server_name: &'a str, server_owner: &'a str},
   Connecting,
 }
