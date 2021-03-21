@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+use std::net::TcpStream;
 use crate::client::Client;
 use crate::messages::ServerMessage;
 use std::io::BufWriter;
@@ -14,6 +16,7 @@ use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 
 pub struct NetworkManager {
   listener: TcpListener,
+  connection_queue: VecDeque<TcpStream>,
   server_channel: Sender<ServerMessage>,
 }
 
@@ -31,6 +34,7 @@ impl NetworkManager {
 
     Arc::new(NetworkManager {
       listener,
+      connection_queue: VecDeque::new(),
       server_channel,
     })
   }
@@ -39,7 +43,6 @@ impl NetworkManager {
 impl ICooperative for NetworkManager {
   fn tick(&self) {
     println!("[NetworkManager]: Tick!");
-
 
     // get all new connections
 		// handle each request
@@ -63,7 +66,6 @@ impl ICooperative for NetworkManager {
           writer.write_all(b"\n").unwrap_or_default();
           writer.flush().unwrap_or_default();
 
-          // read the new request into a buffer
           let res = reader.read_line(&mut buffer);
 
           // if reading caused an error skip the connection
