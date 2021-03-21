@@ -4,13 +4,15 @@ use std::sync::Arc;
 use crate::client::Client;
 
 pub enum ClientMessage {
-  Disconnect
+  Message(Uuid, String),
+
+  Disconnect,
 }
 
 pub enum ClientMgrMessage {
   Remove(Uuid),
   Add(Arc<Client>),
-  SendMessage(Uuid, String),
+  SendMessage(Uuid, Uuid, String),
 }
 
 pub enum ServerMessage {

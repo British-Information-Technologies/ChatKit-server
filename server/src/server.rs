@@ -32,7 +32,7 @@ impl Server {
 		Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
 
-      network_manager: NetworkManager::new("5600".to_string(), sender.clone()),
+      network_manager: NetworkManager::new("5600".to_string(), sender),
 			receiver,
 		})
 	}
@@ -44,9 +44,9 @@ impl ICooperative for Server{
 		// handle new messages loop
 		for message in self.receiver.try_iter() {
 			match message {
-				ServerMessage::ClientConnected(client) => {
+				ServerMessage::ClientConnected(_client) => {
 				},
-				ServerMessage::ClientDisconnected(uuid) => {
+				ServerMessage::ClientDisconnected(_uuid) => {
 				}
 			}
 		}

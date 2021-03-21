@@ -1,3 +1,4 @@
+use std::mem::replace;
 use crate::messages::ClientMessage;
 use crate::messages::ServerMessage;
 use std::cmp::Ordering;
@@ -34,7 +35,7 @@ pub struct Client {
 
 	// non serializable
 	#[serde(skip)]
-  server_channel: Option<Sender<ServerMessage>>,
+  server_channel: Mutex<Option<Sender<ServerMessage>>>,
 
   #[serde(skip)]
   input: Sender<ClientMessage>,
@@ -72,7 +73,7 @@ impl Client {
       uuid: Uuid::parse_str(&uuid).expect("invalid id"),
       address,
 
-      server_channel: Some(server_channel),
+      server_channel: Mutex::new(Some(server_channel)),
 
       input: sender,
       output: receiver,
@@ -95,7 +96,8 @@ impl IMessagable<ClientMessage, Sender<ServerMessage>> for Client{
 		self.input.send(msg).expect("failed to send message to client.");
 	}
   fn set_sender(&self, sender: Sender<ServerMessage>) {
-
+    let mut server_lock = self.server_channel.lock().unwrap();
+    let _ = replace(&mut *server_lock, Some(sender));
   }
 }
 
@@ -141,7 +143,7 @@ impl Default for Client {
 		  output: reciever,
 			input: sender,
 
-      server_channel: None,
+      server_channel: Mutex::new(None),
 
       stream: Mutex::new(None),
 
