@@ -3,7 +3,6 @@ use crate::messages::ServerMessage;
 use std::io::BufWriter;
 use std::io::BufReader;
 use std::sync::Arc;
-use crate::server::ServerMessages;
 use std::net::TcpListener;
 use std::io::Write;
 use std::io::BufRead;
@@ -49,7 +48,7 @@ impl ICooperative for NetworkManager {
 
 				let mut buffer = String::new();
 
-				// request is always sent on new connection
+				// send request message to connection
 				writer.write_all(
 					serde_json::to_string(&NetworkSockOut::Request).unwrap().as_bytes()
 				).unwrap_or_default();
@@ -58,13 +57,15 @@ impl ICooperative for NetworkManager {
 
 				// read the new request into a buffer
 				let res = reader.read_line(&mut buffer);
+
+        // if reading caused an error skip the connection
 				if res.is_err() {continue;}
 
-				// turn into enum for pattern matching
+				// turn into enum and perform pattern matching
 				if let Ok(request) = serde_json::from_str::<NetworkSockIn>(&buffer) {
-					// perform action based on the enum
 					match request {
 						NetworkSockIn::Info => {
+              // send back server info to the connection
 							writer.write_all(
 								serde_json::to_string(
 									&NetworkSockOut::GotInfo {
@@ -76,6 +77,7 @@ impl ICooperative for NetworkManager {
 							writer.flush().unwrap();
 						}
 						NetworkSockIn::Connect { uuid, username, address } => {
+              // create client and send to server
 							let new_client = Client::new(
                 uuid,
 								username,

@@ -118,7 +118,7 @@ impl ICooperative for Client {
       let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str()).unwrap();
 
       match command {
-        ClientStreamIn::Disconnect {id} => println!("got Disconnect from id: {:?}", id),
+        ClientStreamIn::Disconnect => println!("got Disconnect"),
         _ => println!("New command found"),
       }
     }

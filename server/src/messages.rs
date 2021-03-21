@@ -7,6 +7,12 @@ pub enum ClientMessage {
   Disconnect
 }
 
+pub enum ClientMgrMessage {
+  Remove(Uuid),
+  Add(Arc<Client>),
+  SendMessage(Uuid, String),
+}
+
 pub enum ServerMessage {
   ClientConnected(Arc<Client>),
   ClientDisconnected(Uuid)
