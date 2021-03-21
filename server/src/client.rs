@@ -104,24 +104,43 @@ impl IMessagable<ClientMessage, Sender<ServerMessage>> for Client{
 // cooperative multitasking implementation
 impl ICooperative for Client {
 	fn tick(&self) {
-    // aquire locks (so value isn't dropped)
-    let mut reader_lock = self.stream_reader.lock().unwrap();
-    let mut writer_lock = self.stream_writer.lock().unwrap();
+    println!("[client]: Tick!");
+    {
+      // aquire locks (so value isn't dropped)
+      let mut reader_lock = self.stream_reader.lock().unwrap();
+      let mut writer_lock = self.stream_writer.lock().unwrap();
 
-    // aquiring mutable buffers
-    let reader = reader_lock.as_mut().unwrap();
-    let _writer = writer_lock.as_mut().unwrap();
+      // aquiring mutable buffers
+      let reader = reader_lock.as_mut().unwrap();
+      let _writer = writer_lock.as_mut().unwrap();
 
-    // create buffer
-    let mut buffer = String::new();
+      // create buffer
+      let mut buffer = String::new();
 
-    // loop over all lines that have been sent.
-    while let Ok(_size) = reader.read_line(&mut buffer) {
-      let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str()).unwrap();
+      // loop over all lines that have been sent.
+      while let Ok(_size) = reader.read_line(&mut buffer) {
+        let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str()).unwrap();
 
-      match command {
-        ClientStreamIn::Disconnect => println!("got Disconnect"),
-        _ => println!("New command found"),
+        match command {
+          ClientStreamIn::Disconnect => println!("got Disconnect"),
+          _ => println!("New command found"),
+        }
+      }
+    }
+
+    {
+      for message in self.output.iter() {
+        use ClientMessage::{Disconnect};
+        match message {
+          Disconnect => {
+            let lock = self.server_channel.lock().unwrap();
+            
+            if let Some(sender) = lock.as_ref() {
+              sender.send(ServerMessage::ClientDisconnected(self.uuid)).unwrap();
+            }
+          },
+          _ => println!("command not implemneted yet"),
+        }
       }
     }
 

@@ -54,25 +54,28 @@ impl IMessagable<ClientMgrMessage, Sender<ServerMessage>> for ClientManager {
 
 impl ICooperative for ClientManager {
   fn tick(&self) {
+    println!("[client manager]: Tick!");
 
-    for message in self.receiver.iter() {
-      use ClientMgrMessage::{Add, Remove, SendMessage};
+    if !self.receiver.is_empty() {
+      for message in self.receiver.iter() {
+        use ClientMgrMessage::{Add, Remove, SendMessage};
 
-      match message {
-        Add(client) => {
-          self.clients.lock().unwrap().insert(client.uuid, client).unwrap();
-        },
-        Remove(uuid) => {
-          let _ = self.clients.lock().unwrap().remove(&uuid);
-        },
-        SendMessage(to_uuid, from_uuid, content) => {
-          let lock = self.clients.lock().unwrap();
-          if let Some(client) = lock.get(&to_uuid) {
-            client.send_message(ClientMessage::Message(from_uuid, content))
-          }
-        },
-        #[allow(unreachable_patterns)]
-        _ => println!("[Client manager]: not implemented")
+        match message {
+          Add(client) => {
+            self.clients.lock().unwrap().insert(client.uuid, client).unwrap_or_default();
+          },
+          Remove(uuid) => {
+            let _ = self.clients.lock().unwrap().remove(&uuid);
+          },
+          SendMessage(to_uuid, from_uuid, content) => {
+            let lock = self.clients.lock().unwrap();
+            if let Some(client) = lock.get(&to_uuid) {
+              client.send_message(ClientMessage::Message(from_uuid, content))
+            }
+          },
+          #[allow(unreachable_patterns)]
+          _ => println!("[Client manager]: not implemented")
+        }
       }
     }
 
