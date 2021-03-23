@@ -1,16 +1,16 @@
-pub mod server;
-pub mod network_manager;
 pub mod client;
 pub mod client_manager;
 pub mod messages;
+pub mod network_manager;
+pub mod server;
 
 use clap::{App, Arg};
 
 use foundation::prelude::IPreemtive;
 use server::Server;
- 
+
 fn main() {
-  let _args = App::new("--rust chat server--")
+	let _args = App::new("--rust chat server--")
     .version("0.1.5")
     .author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
     .about("this is a chat server developed in rust, depending on the version one of two implementations will be used")

@@ -1,60 +1,57 @@
 // use crate::lib::server::ServerMessages;
 use foundation::prelude::IPreemtive;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::collections::HashMap;
 use std::mem::replace;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use uuid::Uuid;
 
 use crate::client::Client;
+use crate::messages::ClientMessage;
 use crate::messages::ClientMgrMessage;
 use crate::messages::ServerMessage;
-use crate::messages::ClientMessage;
 use foundation::prelude::IMessagable;
-use foundation::prelude::ICooperative;
 
 /// # ClientManager
 /// This struct manages all connected users
 #[derive(Debug)]
 pub struct ClientManager {
-  clients: Mutex<HashMap<Uuid, Arc<Client>>>,
+	clients: Mutex<HashMap<Uuid, Arc<Client>>>,
 
 	server_channel: Mutex<Sender<ServerMessage>>,
 
-  sender: Sender<ClientMgrMessage>,
-  receiver: Receiver<ClientMgrMessage>,
+	sender: Sender<ClientMgrMessage>,
+	receiver: Receiver<ClientMgrMessage>,
 }
 
 impl ClientManager {
-  pub fn new(server_channel:  Sender<ServerMessage>) -> Arc<Self> {
+	pub fn new(server_channel: Sender<ServerMessage>) -> Arc<Self> {
+		let (sender, receiver) = unbounded();
 
-    let (sender, receiver) = unbounded();
-
-    Arc::new(ClientManager {
-      clients: Mutex::default(),
+		Arc::new(ClientManager {
+			clients: Mutex::default(),
 
 			server_channel: Mutex::new(server_channel),
 
-      sender,
-      receiver,
-    })
-  }
+			sender,
+			receiver,
+		})
+	}
 }
 
 impl IMessagable<ClientMgrMessage, Sender<ServerMessage>> for ClientManager {
 	fn send_message(&self, msg: ClientMgrMessage) {
-    self.sender.send(msg).unwrap();
-  }
-  fn set_sender(&self, sender: Sender<ServerMessage>) {
-    let mut server_lock = self.server_channel.lock().unwrap();
-    let _ = replace(&mut *server_lock, sender);
-  }
+		self.sender.send(msg).unwrap();
+	}
+	fn set_sender(&self, sender: Sender<ServerMessage>) {
+		let mut server_lock = self.server_channel.lock().unwrap();
+		let _ = replace(&mut *server_lock, sender);
+	}
 }
 
 impl IPreemtive for ClientManager {
-
 	fn run(arc: &Arc<Self>) {
 		loop {
 			std::thread::sleep(std::time::Duration::from_secs(1));
@@ -67,29 +64,33 @@ impl IPreemtive for ClientManager {
 
 					match message {
 						Add(client) => {
-							arc.clients.lock().unwrap().insert(client.uuid, client).unwrap_or_default();
-						},
+							arc.clients
+								.lock()
+								.unwrap()
+								.insert(client.uuid, client)
+								.unwrap_or_default();
+						}
 						Remove(uuid) => {
 							let _ = arc.clients.lock().unwrap().remove(&uuid);
-						},
+						}
 						SendMessage(to_uuid, from_uuid, content) => {
 							let lock = arc.clients.lock().unwrap();
 							if let Some(client) = lock.get(&to_uuid) {
-								client.send_message(ClientMessage::Message(from_uuid, content))
+								client.send_message(ClientMessage::Message(
+									from_uuid, content,
+								))
 							}
-						},
+						}
 						#[allow(unreachable_patterns)]
-						_ => println!("[Client manager]: not implemented")
+						_ => println!("[Client manager]: not implemented"),
 					}
 				}
 			}
 		}
 	}
 
-  fn start(arc: &Arc<Self>) {
+	fn start(arc: &Arc<Self>) {
 		let arc = arc.clone();
-		std::thread::spawn(move || {
-			ClientManager::run(&arc)
-		});
-  }
+		std::thread::spawn(move || ClientManager::run(&arc));
+	}
 }

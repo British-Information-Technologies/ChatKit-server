@@ -1,16 +1,22 @@
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum NetworkSockIn {
-  Info,
-  Connect {uuid: String, username: String, address: String},
+	Info,
+	Connect {
+		uuid: String,
+		username: String,
+		address: String,
+	},
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum NetworkSockOut<'a> {
 	Request,
-  
-	GotInfo {server_name: &'a str, server_owner: &'a str},
-  Connecting,
+
+	GotInfo {
+		server_name: &'a str,
+		server_owner: &'a str,
+	},
+	Connecting,
 }

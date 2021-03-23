@@ -1,24 +1,24 @@
-use uuid::Uuid;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::client::Client;
 
 #[derive(Debug)]
 pub enum ClientMessage {
-  Message(Uuid, String),
+	Message(Uuid, String),
 
-  Disconnect,
+	Disconnect,
 }
 
 #[derive(Debug)]
 pub enum ClientMgrMessage {
-  Remove(Uuid),
-  Add(Arc<Client>),
-  SendMessage(Uuid, Uuid, String),
+	Remove(Uuid),
+	Add(Arc<Client>),
+	SendMessage(Uuid, Uuid, String),
 }
 
 #[derive(Debug)]
 pub enum ServerMessage {
-  ClientConnected(Arc<Client>),
-  ClientDisconnected(Uuid)
+	ClientConnected(Arc<Client>),
+	ClientDisconnected(Uuid),
 }

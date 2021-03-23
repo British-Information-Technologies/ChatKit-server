@@ -1,27 +1,26 @@
-
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// # ClientMessage
 /// This enum defined the message that a client can receive from the server
-/// This uses the serde library to transform to and from json. 
-/// 
+/// This uses the serde library to transform to and from json.
+///
 #[derive(Serialize, Deserialize)]
 pub enum ClientStreamIn {
-  Connected,
+	Connected,
 
-  Update,
-  SendMessage {to_uuid: String, contents: String},
-  SendGlobalMessage {contents: String},
+	Update,
+	SendMessage { to_uuid: String, contents: String },
+	SendGlobalMessage { contents: String },
 
-  Disconnect,
+	Disconnect,
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientStreamOut {
-  Connected,
+	Connected,
 
-  UserMessage {from_uuid: String, contents: String},
-  GlobalMessage {contents: String},
+	UserMessage { from_uuid: String, contents: String },
+	GlobalMessage { contents: String },
 
-  Disconnected,
+	Disconnected,
 }
