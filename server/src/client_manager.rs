@@ -1,4 +1,5 @@
 // use crate::lib::server::ServerMessages;
+use foundation::prelude::IPreemtive;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -52,35 +53,43 @@ impl IMessagable<ClientMgrMessage, Sender<ServerMessage>> for ClientManager {
   }
 }
 
-impl ICooperative for ClientManager {
-  fn tick(&self) {
-    println!("[client manager]: Tick!");
+impl IPreemtive for ClientManager {
 
-    if !self.receiver.is_empty() {
-      for message in self.receiver.iter() {
-        use ClientMgrMessage::{Add, Remove, SendMessage};
+	fn run(arc: &Arc<Self>) {
+		loop {
+			std::thread::sleep(std::time::Duration::from_secs(1));
 
-        match message {
-          Add(client) => {
-            self.clients.lock().unwrap().insert(client.uuid, client).unwrap_or_default();
-          },
-          Remove(uuid) => {
-            let _ = self.clients.lock().unwrap().remove(&uuid);
-          },
-          SendMessage(to_uuid, from_uuid, content) => {
-            let lock = self.clients.lock().unwrap();
-            if let Some(client) = lock.get(&to_uuid) {
-              client.send_message(ClientMessage::Message(from_uuid, content))
-            }
-          },
-          #[allow(unreachable_patterns)]
-          _ => println!("[Client manager]: not implemented")
-        }
-      }
-    }
+			println!("[client manager]: Tick!");
 
-    // allocate time for clients.
-    let clients = self.clients.lock().unwrap();
-    let _ = clients.iter().map(|(_uuid, client)| client.tick());
+			if !arc.receiver.is_empty() {
+				for message in arc.receiver.iter() {
+					use ClientMgrMessage::{Add, Remove, SendMessage};
+
+					match message {
+						Add(client) => {
+							arc.clients.lock().unwrap().insert(client.uuid, client).unwrap_or_default();
+						},
+						Remove(uuid) => {
+							let _ = arc.clients.lock().unwrap().remove(&uuid);
+						},
+						SendMessage(to_uuid, from_uuid, content) => {
+							let lock = arc.clients.lock().unwrap();
+							if let Some(client) = lock.get(&to_uuid) {
+								client.send_message(ClientMessage::Message(from_uuid, content))
+							}
+						},
+						#[allow(unreachable_patterns)]
+						_ => println!("[Client manager]: not implemented")
+					}
+				}
+			}
+		}
+	}
+
+  fn start(arc: &Arc<Self>) {
+		let arc = arc.clone();
+		std::thread::spawn(move || {
+			ClientManager::run(&arc)
+		});
   }
 }

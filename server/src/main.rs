@@ -6,7 +6,7 @@ pub mod messages;
 
 use clap::{App, Arg};
 
-use foundation::prelude::ICooperative;
+use foundation::prelude::IPreemtive;
 use server::Server;
  
 fn main() {
@@ -25,7 +25,5 @@ fn main() {
 
 	let server = Server::new();
 
-  loop {
-    server.tick();
-  }
+	Server::run(&server);
 }

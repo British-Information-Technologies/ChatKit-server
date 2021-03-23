@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::thread;
 
 use uuid::Uuid;
 use crossbeam_channel::{Receiver, unbounded};
 
+use foundation::prelude::IPreemtive;
 use foundation::prelude::ICooperative;
 use foundation::prelude::IMessagable;
 use crate::client_manager::ClientManager;
@@ -67,7 +69,28 @@ impl ICooperative for Server{
 
 		// alocate time for other components
     println!("[server]: allocating time for others");
-		self.network_manager.tick();
-		self.client_manager.tick();
+		// 
+	}
+}
+
+
+impl IPreemtive for Server {
+
+	fn run(arc: &std::sync::Arc<Self>) {
+		// start services
+		NetworkManager::start(&arc.network_manager);
+		ClientManager::start(&arc.client_manager);
+		loop {
+			thread::sleep(std::time::Duration::from_secs(1));
+			arc.tick();
+		}
+	}
+	
+	fn start(arc: &std::sync::Arc<Self>) {
+		let arc = arc.clone();
+		// start thread
+		std::thread::spawn(move || {
+			Server::run(&arc)
+		});
 	}
 }
