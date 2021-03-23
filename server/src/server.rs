@@ -10,7 +10,7 @@ use crate::messages::ServerMessage;
 use crate::network_manager::NetworkManager;
 use foundation::prelude::ICooperative;
 use foundation::prelude::IMessagable;
-use foundation::prelude::IPreemtive;
+use foundation::prelude::IPreemptive;
 
 /// # ServerMessages
 /// This is used internally
@@ -48,7 +48,6 @@ impl ICooperative for Server {
 		use ClientMgrMessage::{Add, Remove};
 
 		// handle new messages loop
-
 		if !self.receiver.is_empty() {
 			println!("[server]: entering loop!");
 			for message in self.receiver.try_iter() {
@@ -64,14 +63,10 @@ impl ICooperative for Server {
 				}
 			}
 		}
-
-		// alocate time for other components
-		println!("[server]: allocating time for others");
-		//
 	}
 }
 
-impl IPreemtive for Server {
+impl IPreemptive for Server {
 	fn run(arc: &std::sync::Arc<Self>) {
 		// start services
 		NetworkManager::start(&arc.network_manager);

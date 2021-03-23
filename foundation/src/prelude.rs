@@ -9,7 +9,7 @@ pub trait ICooperative {
 	fn tick(&self);
 }
 
-pub trait IPreemtive {
+pub trait IPreemptive {
 	fn run(arc: &Arc<Self>) {}
 	fn start(arc: &Arc<Self>);
 }

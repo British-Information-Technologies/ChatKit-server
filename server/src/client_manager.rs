@@ -1,5 +1,5 @@
 // use crate::lib::server::ServerMessages;
-use foundation::prelude::IPreemtive;
+use foundation::prelude::IPreemptive;
 use std::collections::HashMap;
 use std::mem::replace;
 use std::sync::Arc;
@@ -51,7 +51,7 @@ impl IMessagable<ClientMgrMessage, Sender<ServerMessage>> for ClientManager {
 	}
 }
 
-impl IPreemtive for ClientManager {
+impl IPreemptive for ClientManager {
 	fn run(arc: &Arc<Self>) {
 		loop {
 			std::thread::sleep(std::time::Duration::from_secs(1));
@@ -64,6 +64,7 @@ impl IPreemtive for ClientManager {
 
 					match message {
 						Add(client) => {
+							Client::start(&client);
 							arc.clients
 								.lock()
 								.unwrap()

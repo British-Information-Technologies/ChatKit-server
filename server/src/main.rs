@@ -6,7 +6,7 @@ pub mod server;
 
 use clap::{App, Arg};
 
-use foundation::prelude::IPreemtive;
+use foundation::prelude::IPreemptive;
 use server::Server;
 
 fn main() {

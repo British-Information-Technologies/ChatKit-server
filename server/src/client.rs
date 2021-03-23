@@ -1,7 +1,11 @@
 use crate::messages::ClientMessage;
+use crate::messages::ClientMessage::Disconnect;
 use crate::messages::ServerMessage;
+use foundation::prelude::IPreemptive;
 use std::cmp::Ordering;
 use std::io::BufRead;
+use std::io::Read;
+use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::mem::replace;
 use std::net::TcpStream;
@@ -12,7 +16,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use serde::Serialize;
 use uuid::Uuid;
 
-use foundation::messages::client::ClientStreamIn;
+use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::prelude::{ICooperative, IMessagable};
 
 /// # Client
@@ -81,15 +85,6 @@ impl Client {
 			stream_writer: Mutex::new(Some(BufWriter::new(out_stream))),
 		})
 	}
-
-	// MARK: - removeable
-	pub fn send(&self, _bytes: Vec<u8>) -> Result<(), &str> {
-		todo!()
-	}
-	pub fn recv(&self) -> Option<Vec<u8>> {
-		todo!()
-	}
-	// Mark: end -
 }
 
 impl IMessagable<ClientMessage, Sender<ServerMessage>> for Client {
@@ -105,55 +100,75 @@ impl IMessagable<ClientMessage, Sender<ServerMessage>> for Client {
 }
 
 // cooperative multitasking implementation
-impl ICooperative for Client {
-	fn tick(&self) {
-		println!("[client]: Tick!");
-		{
-			// aquire locks (so value isn't dropped)
-			let mut reader_lock = self.stream_reader.lock().unwrap();
-			let mut writer_lock = self.stream_writer.lock().unwrap();
+impl IPreemptive for Client {
+	fn run(arc: &Arc<Self>) {
+		let arc1 = arc.clone();
+		let arc2 = arc.clone();
 
-			// aquiring mutable buffers
-			let reader = reader_lock.as_mut().unwrap();
-			let _writer = writer_lock.as_mut().unwrap();
-
-			// create buffer
+		// read thread
+		std::thread::spawn(move || {
+			let arc = arc1.clone();
 			let mut buffer = String::new();
+			let mut reader_lock = arc.stream_reader.lock().unwrap();
+			let reader = reader_lock.as_mut().unwrap();
 
-			// loop over all lines that have been sent.
-			while let Ok(_size) = reader.read_line(&mut buffer) {
+			while let Ok(size) = reader.read_line(&mut buffer) {
+				if size == 0 {
+					arc.send_message(Disconnect);
+					break;
+				}
+
 				let command =
 					serde_json::from_str::<ClientStreamIn>(buffer.as_str())
 						.unwrap();
 
 				match command {
-					ClientStreamIn::Disconnect => println!("got Disconnect"),
-					_ => println!("New command found"),
+					ClientStreamIn::Disconnect => arc.send_message(Disconnect),
+					_ => println!("[client]: command not found"),
 				}
 			}
-		}
+		});
 
-		{
-			for message in self.output.iter() {
-				use ClientMessage::Disconnect;
-				match message {
-					Disconnect => {
-						let lock = self.server_channel.lock().unwrap();
+		// write thread
+		std::thread::spawn(move || {
+			let arc = arc2.clone();
+			let mut writer_lock = arc.stream_writer.lock().unwrap();
+			let writer = writer_lock.as_mut().unwrap();
 
-						if let Some(sender) = lock.as_ref() {
-							sender
+			let mut buffer: Vec<u8> = Vec::new();
+
+			writeln!(
+				buffer,
+				"{}",
+				serde_json::to_string(&ClientStreamOut::Connected).unwrap()
+			);
+			writer.write_all(&buffer).unwrap();
+			writer.flush().unwrap();
+
+			loop {
+				for message in arc.output.iter() {
+					match message {
+						Disconnect => {
+							arc.server_channel
+								.lock()
+								.unwrap()
+								.as_mut()
+								.unwrap()
 								.send(ServerMessage::ClientDisconnected(
-									self.uuid,
+									arc.uuid,
 								))
 								.unwrap();
+							break;
 						}
+						_ => println!("[client]: message not implemented"),
 					}
-					_ => println!("command not implemneted yet"),
 				}
 			}
-		}
+		});
+	}
 
-		// handle incomming messages
+	fn start(arc: &Arc<Self>) {
+		Client::run(arc)
 	}
 }
 
@@ -197,5 +212,11 @@ impl PartialOrd for Client {
 impl Ord for Client {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.uuid.cmp(&other.uuid)
+	}
+}
+
+impl Drop for Client {
+	fn drop(&mut self) {
+		println!("[Client] dropped!");
 	}
 }

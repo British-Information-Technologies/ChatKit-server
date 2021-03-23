@@ -1,4 +1,4 @@
-use foundation::prelude::IPreemtive;
+use foundation::prelude::IPreemptive;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
@@ -36,7 +36,7 @@ impl NetworkManager {
 	}
 }
 
-impl IPreemtive for NetworkManager {
+impl IPreemptive for NetworkManager {
 	fn start(arc: &Arc<Self>) {
 		let arc = arc.clone();
 		std::thread::spawn(move || {
@@ -86,13 +86,13 @@ impl IPreemtive for NetworkManager {
 										NetworkSockIn::Info => {
 											// send back server info to the connection
 											writer.write_all(
-											serde_json::to_string(
-												&NetworkSockOut::GotInfo {
-													server_name: "oof", 
-													server_owner: "michael"
-												}
-											).unwrap().as_bytes()
-										).unwrap();
+                    serde_json::to_string(
+                      &NetworkSockOut::GotInfo {
+                        server_name: "oof", 
+                        server_owner: "michael"
+                      }
+                    ).unwrap().as_bytes()
+                  ).unwrap();
 											writer.write_all(b"\n").unwrap();
 											writer.flush().unwrap();
 										}
@@ -110,8 +110,8 @@ impl IPreemtive for NetworkManager {
 												server_channel.clone(),
 											);
 											server_channel.send(
-											ServerMessage::ClientConnected(new_client)
-										).unwrap_or_default();
+                    ServerMessage::ClientConnected(new_client)
+                  ).unwrap_or_default();
 										}
 									}
 								}
