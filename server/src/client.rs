@@ -4,7 +4,6 @@ use crate::messages::ServerMessage;
 use foundation::prelude::IPreemptive;
 use std::cmp::Ordering;
 use std::io::BufRead;
-use std::io::Read;
 use std::io::Write;
 use std::io::{BufReader, BufWriter};
 use std::mem::replace;
@@ -17,7 +16,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
-use foundation::prelude::{ICooperative, IMessagable};
+use foundation::prelude::IMessagable;
 
 /// # Client
 /// This struct represents a connected user.
@@ -106,65 +105,74 @@ impl IPreemptive for Client {
 		let arc2 = arc.clone();
 
 		// read thread
-		std::thread::spawn(move || {
-			let arc = arc1.clone();
-			let mut buffer = String::new();
-			let mut reader_lock = arc.stream_reader.lock().unwrap();
-			let reader = reader_lock.as_mut().unwrap();
+		let _ = std::thread::Builder::new()
+			.name(format!("client thread recv [{:?}]", &arc.uuid))
+			.spawn(move || {
+				let arc = arc1;
 
-			while let Ok(size) = reader.read_line(&mut buffer) {
-				if size == 0 {
-					arc.send_message(Disconnect);
-					break;
-				}
+				let mut buffer = String::new();
+				let mut reader_lock = arc.stream_reader.lock().unwrap();
+				let reader = reader_lock.as_mut().unwrap();
 
-				let command =
-					serde_json::from_str::<ClientStreamIn>(buffer.as_str())
-						.unwrap();
+				'main: while let Ok(size) = reader.read_line(&mut buffer) {
+					if size == 0 {arc.send_message(Disconnect); break 'main;}
 
-				match command {
-					ClientStreamIn::Disconnect => arc.send_message(Disconnect),
-					_ => println!("[client]: command not found"),
-				}
-			}
-		});
-
-		// write thread
-		std::thread::spawn(move || {
-			let arc = arc2.clone();
-			let mut writer_lock = arc.stream_writer.lock().unwrap();
-			let writer = writer_lock.as_mut().unwrap();
-
-			let mut buffer: Vec<u8> = Vec::new();
-
-			writeln!(
-				buffer,
-				"{}",
-				serde_json::to_string(&ClientStreamOut::Connected).unwrap()
-			);
-			writer.write_all(&buffer).unwrap();
-			writer.flush().unwrap();
-
-			loop {
-				for message in arc.output.iter() {
-					match message {
-						Disconnect => {
-							arc.server_channel
-								.lock()
-								.unwrap()
-								.as_mut()
-								.unwrap()
-								.send(ServerMessage::ClientDisconnected(
-									arc.uuid,
-								))
-								.unwrap();
-							break;
+					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
+					match command {
+						Ok(ClientStreamIn::Disconnect) => {
+							println!("[Client {:?}]: Disconnect recieved", &arc.uuid);
+							arc.send_message(Disconnect);
+							break 'main;
 						}
-						_ => println!("[client]: message not implemented"),
+						_ => println!("[Client {:?}]: command not found", &arc.uuid),
 					}
 				}
-			}
-		});
+				println!("[Client {:?}] exited thread 1", &arc.uuid);
+			});
+
+		// write thread
+		let _ = std::thread::Builder::new()
+			.name(format!("client thread msg [{:?}]", &arc.uuid))
+			.spawn(move || {
+				let arc = arc2;
+				let mut writer_lock = arc.stream_writer.lock().unwrap();
+				let writer = writer_lock.as_mut().unwrap();
+
+				let mut buffer: Vec<u8> = Vec::new();
+
+				writeln!(
+					buffer,
+					"{}",
+					serde_json::to_string(&ClientStreamOut::Connected).unwrap()
+				);
+				let _ = writer.write_all(&buffer);
+				let _ = writer.flush();
+
+				'main: loop {
+					std::thread::sleep(std::time::Duration::from_secs(1));
+					println!("[Client {:?}]: thread 2 tick!", &arc.uuid);
+
+					for message in arc.output.iter() {
+						match message {
+							Disconnect => {
+								arc.server_channel
+									.lock()
+									.unwrap()
+									.as_mut()
+									.unwrap()
+									.send(ServerMessage::ClientDisconnected(arc.uuid))
+									.unwrap();
+								break 'main;
+							}
+							_ => println!(
+								"[Client {:?}]: message not implemented",
+								&arc.uuid
+							),
+						}
+					}
+				}
+				println!("[Client {:?}]: exited thread 2", &arc.uuid);
+			});
 	}
 
 	fn start(arc: &Arc<Self>) {

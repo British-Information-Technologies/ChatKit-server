@@ -10,6 +10,6 @@ pub trait ICooperative {
 }
 
 pub trait IPreemptive {
-	fn run(arc: &Arc<Self>) {}
+	fn run(arc: &Arc<Self>);
 	fn start(arc: &Arc<Self>);
 }

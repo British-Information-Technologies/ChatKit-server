@@ -56,23 +56,27 @@ impl IPreemptive for ClientManager {
 		loop {
 			std::thread::sleep(std::time::Duration::from_secs(1));
 
-			println!("[client manager]: Tick!");
-
 			if !arc.receiver.is_empty() {
-				for message in arc.receiver.iter() {
+				for message in arc.receiver.try_iter() {
+					println!("[Client manager]: recieved message: {:?}", message);
 					use ClientMgrMessage::{Add, Remove, SendMessage};
 
 					match message {
 						Add(client) => {
+							println!("[Client Manager]: adding new client");
 							Client::start(&client);
-							arc.clients
-								.lock()
-								.unwrap()
-								.insert(client.uuid, client)
-								.unwrap_or_default();
+							let mut lock = arc.clients.lock().unwrap();
+							if lock.insert(client.uuid, client).is_none() {
+								println!("value is new");
+							}
 						}
 						Remove(uuid) => {
-							let _ = arc.clients.lock().unwrap().remove(&uuid);
+							println!("[Client Manager]: removing client: {:?}", &uuid);
+							if let Some(client) =
+								arc.clients.lock().unwrap().remove(&uuid)
+							{
+								client.send_message(ClientMessage::Disconnect);
+							}
 						}
 						SendMessage(to_uuid, from_uuid, content) => {
 							let lock = arc.clients.lock().unwrap();
@@ -88,6 +92,7 @@ impl IPreemptive for ClientManager {
 				}
 			}
 		}
+		println!("client manager exited");
 	}
 
 	fn start(arc: &Arc<Self>) {

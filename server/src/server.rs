@@ -44,7 +44,6 @@ impl Server {
 
 impl ICooperative for Server {
 	fn tick(&self) {
-		println!("[server]: Tick!");
 		use ClientMgrMessage::{Add, Remove};
 
 		// handle new messages loop
