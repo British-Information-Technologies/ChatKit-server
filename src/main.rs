@@ -1,6 +1,9 @@
 mod lib;
 
 use clap::{App, Arg};
+
+use crate::lib::server::Server;
+use crate::lib::foundation::ICooperative;
  
 fn main() {
   let _args = App::new("--rust chat server--")
@@ -8,15 +11,19 @@ fn main() {
     .author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
     .about("this is a chat server developed in rust, depending on the version one of two implementations will be used")
     .arg(
-      Arg::new("config")
-      .short('p')
+      Arg::with_name("config")
+      .short("p")
       .long("port")
       .value_name("PORT")
-      .about("sets the port the server listens on.")
+			.help("sets the port the server runs on.")
       .takes_value(true))
     .get_matches();
 
-  // creating the server object
+	let server = Server::new();
+
+  loop {
+    server.tick();
+  }
 }
 
 
