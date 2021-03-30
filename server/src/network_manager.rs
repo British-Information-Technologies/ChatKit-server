@@ -36,8 +36,7 @@ impl NetworkManager {
 }
 
 impl IPreemptive for NetworkManager {
-
-  fn run(_: &Arc<Self>) {}
+	fn run(_: &Arc<Self>) {}
 
 	fn start(arc: &Arc<Self>) {
 		let arc = arc.clone();

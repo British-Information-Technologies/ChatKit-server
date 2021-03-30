@@ -78,12 +78,10 @@ impl IPreemptive for ClientManager {
 								client.send_message(ClientMessage::Disconnect);
 							}
 						}
-						SendMessage(to_uuid, from_uuid, content) => {
+						SendMessage {to, from, contents} => {
 							let lock = arc.clients.lock().unwrap();
-							if let Some(client) = lock.get(&to_uuid) {
-								client.send_message(ClientMessage::Message(
-									from_uuid, content,
-								))
+							if let Some(client) = lock.get(&to) {
+								client.send_message(ClientMessage::Message { from, contents })
 							}
 						}
 						#[allow(unreachable_patterns)]

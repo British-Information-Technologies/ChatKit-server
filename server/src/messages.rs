@@ -5,7 +5,7 @@ use crate::client::Client;
 
 #[derive(Debug)]
 pub enum ClientMessage {
-	Message(Uuid, String),
+	Message { from: Uuid, contents: String },
 
 	Disconnect,
 }
@@ -14,11 +14,20 @@ pub enum ClientMessage {
 pub enum ClientMgrMessage {
 	Remove(Uuid),
 	Add(Arc<Client>),
-	SendMessage(Uuid, Uuid, String),
+	SendMessage {
+		from: Uuid,
+		to: Uuid,
+		contents: String,
+	},
 }
 
 #[derive(Debug)]
 pub enum ServerMessage {
 	ClientConnected(Arc<Client>),
+	ClientSendMessage {
+		from: Uuid,
+		to: Uuid,
+		contents: String,
+	},
 	ClientDisconnected(Uuid),
 }

@@ -1,5 +1,5 @@
 use crate::messages::ClientMessage;
-use crate::messages::ClientMessage::Disconnect;
+use crate::messages::ClientMessage::{Disconnect, Message};
 use crate::messages::ServerMessage;
 use foundation::prelude::IPreemptive;
 use std::cmp::Ordering;
@@ -27,6 +27,8 @@ use foundation::prelude::IMessagable;
 /// - address: The the address of the connected client.
 ///
 /// - stream: The socket for the connected client.
+/// - stream_reader: the buffered reader used to receive messages
+/// - stream_writer: the buffered writer used to send messages
 /// - owner: An optional reference to the owning object.
 #[derive(Debug, Serialize)]
 pub struct Client {
@@ -115,7 +117,10 @@ impl IPreemptive for Client {
 				let reader = reader_lock.as_mut().unwrap();
 
 				'main: while let Ok(size) = reader.read_line(&mut buffer) {
-					if size == 0 {arc.send_message(Disconnect); break 'main;}
+					if size == 0 {
+						arc.send_message(Disconnect);
+						break 'main;
+					}
 
 					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
 					match command {
@@ -123,7 +128,13 @@ impl IPreemptive for Client {
 							println!("[Client {:?}]: Disconnect recieved", &arc.uuid);
 							arc.send_message(Disconnect);
 							break 'main;
-						}
+						},
+						Ok(ClientStreamIn::SendMessage{to_uuid, contents}) => {
+							println!("[Client {:?}]: send message to: {:?}",&arc.uuid, &to_uuid);
+							let lock = arc.server_channel.lock().unwrap();
+							let sender = lock.as_ref().unwrap();
+							sender.send(ServerMessage::ClientSendMessage {from: arc.uuid.clone(), to: to_uuid, contents });
+						},
 						_ => println!("[Client {:?}]: command not found", &arc.uuid),
 					}
 				}
@@ -163,6 +174,14 @@ impl IPreemptive for Client {
 									.send(ServerMessage::ClientDisconnected(arc.uuid))
 									.unwrap();
 								break 'main;
+							}
+							Message { from, contents } => {
+								writeln!(
+									buffer,
+									"{}",
+									serde_json::to_string(&ClientStreamOut::Connected)
+										.unwrap()
+								);
 							}
 							_ => println!(
 								"[Client {:?}]: message not implemented",

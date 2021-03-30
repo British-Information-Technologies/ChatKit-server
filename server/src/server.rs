@@ -44,7 +44,7 @@ impl Server {
 
 impl ICooperative for Server {
 	fn tick(&self) {
-		use ClientMgrMessage::{Add, Remove};
+		use ClientMgrMessage::{Add, Remove, SendMessage};
 
 		// handle new messages loop
 		if !self.receiver.is_empty() {
@@ -59,6 +59,9 @@ impl ICooperative for Server {
 						println!("disconnecting client {:?}", uuid);
 						self.client_manager.send_message(Remove(uuid));
 					}
+					ServerMessage::ClientSendMessage { from, to, contents } => self
+						.client_manager
+						.send_message(SendMessage { from, to, contents }),
 				}
 			}
 		}
