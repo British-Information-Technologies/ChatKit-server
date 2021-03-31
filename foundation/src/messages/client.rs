@@ -1,6 +1,5 @@
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// # ClientMessage
 /// This enum defined the message that a client can receive from the server
@@ -11,8 +10,8 @@ pub enum ClientStreamIn {
 	Connected,
 
 	Update,
-	SendMessage { to_uuid: Uuid, contents: String },
-	SendGlobalMessage { contents: String },
+	SendMessage { to: Uuid, content: String },
+	SendGlobalMessage { content: String },
 
 	Disconnect,
 }
@@ -21,8 +20,8 @@ pub enum ClientStreamIn {
 pub enum ClientStreamOut {
 	Connected,
 
-	UserMessage { from_uuid: String, contents: String },
-	GlobalMessage { contents: String },
+	UserMessage { from: Uuid, content: String },
+	GlobalMessage { content: String },
 
 	Disconnected,
 }

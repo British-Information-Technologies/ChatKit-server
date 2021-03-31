@@ -59,9 +59,9 @@ impl ICooperative for Server {
 						println!("disconnecting client {:?}", uuid);
 						self.client_manager.send_message(Remove(uuid));
 					}
-					ServerMessage::ClientSendMessage { from, to, contents } => self
+					ServerMessage::ClientSendMessage { from, to, content } => self
 						.client_manager
-						.send_message(SendMessage { from, to, contents }),
+						.send_message(SendMessage { from, to, content }),
 				}
 			}
 		}

@@ -129,11 +129,11 @@ impl IPreemptive for Client {
 							arc.send_message(Disconnect);
 							break 'main;
 						},
-						Ok(ClientStreamIn::SendMessage{to_uuid, contents}) => {
-							println!("[Client {:?}]: send message to: {:?}",&arc.uuid, &to_uuid);
+						Ok(ClientStreamIn::SendMessage{to, content}) => {
+							println!("[Client {:?}]: send message to: {:?}",&arc.uuid, &to);
 							let lock = arc.server_channel.lock().unwrap();
 							let sender = lock.as_ref().unwrap();
-							sender.send(ServerMessage::ClientSendMessage {from: arc.uuid.clone(), to: to_uuid, contents });
+							let _ = sender.send(ServerMessage::ClientSendMessage {from: arc.uuid, to, content });
 						},
 						_ => println!("[Client {:?}]: command not found", &arc.uuid),
 					}
@@ -164,6 +164,7 @@ impl IPreemptive for Client {
 					println!("[Client {:?}]: thread 2 tick!", &arc.uuid);
 
 					for message in arc.output.iter() {
+            println!("[Client {:?}]: {:?}", &arc.uuid, message);
 						match message {
 							Disconnect => {
 								arc.server_channel
@@ -175,14 +176,18 @@ impl IPreemptive for Client {
 									.unwrap();
 								break 'main;
 							}
-							Message { from, contents } => {
+							Message { from, content } => {
 								writeln!(
 									buffer,
 									"{}",
-									serde_json::to_string(&ClientStreamOut::Connected)
+									serde_json::to_string(&ClientStreamOut::UserMessage {from, content})
 										.unwrap()
 								);
+                let _ = writer.write_all(&buffer);
+                let _ = writer.write_all(b"\n");
+                let _ = writer.flush();
 							}
+              #[allow(unreachable_patterns)]
 							_ => println!(
 								"[Client {:?}]: message not implemented",
 								&arc.uuid
