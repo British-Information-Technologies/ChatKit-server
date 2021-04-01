@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::thread;
 
 use crossbeam_channel::{unbounded, Receiver};
 use uuid::Uuid;
@@ -13,12 +12,10 @@ use foundation::prelude::IMessagable;
 use foundation::prelude::IPreemptive;
 
 /// # ServerMessages
-/// This is used internally
+/// This is used internally to send messages to the server to be dispatched
 #[derive(Debug)]
 pub enum ServerMessages<TClient> {
 	ClientConnected(Arc<TClient>),
-
-	#[allow(dead_code)]
 	ClientDisconnected(Uuid),
 }
 
@@ -48,7 +45,6 @@ impl ICooperative for Server {
 
 		// handle new messages loop
 		if !self.receiver.is_empty() {
-			println!("[server]: entering loop!");
 			for message in self.receiver.try_iter() {
 				println!("[server]: received message {:?}", &message);
 				match message {
@@ -74,7 +70,6 @@ impl IPreemptive for Server {
 		NetworkManager::start(&arc.network_manager);
 		ClientManager::start(&arc.client_manager);
 		loop {
-			thread::sleep(std::time::Duration::from_secs(1));
 			arc.tick();
 		}
 	}

@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// # ClientMessage
 /// This enum defined the message that a client can receive from the server

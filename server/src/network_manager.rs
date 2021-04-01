@@ -55,28 +55,30 @@ impl IPreemptive for NetworkManager {
 						let _handle = thread::Builder::new()
 							.name("NetworkJoinThread".to_string())
 							.spawn(move || {
-								let mut buffer = String::new();
+								let mut out_buffer: Vec<u8> = Vec::new();
+								let mut in_buffer: String = String::new();
 
 								// send request message to connection
-								writer
-									.write_all(
-										serde_json::to_string(&NetworkSockOut::Request)
-											.unwrap()
-											.as_bytes(),
-									)
-									.unwrap_or_default();
-								writer.write_all(b"\n").unwrap_or_default();
-								writer.flush().unwrap_or_default();
+
+								let _ = writeln!(
+									out_buffer,
+									"{}",
+									serde_json::to_string(&NetworkSockOut::Request)
+										.unwrap()
+								);
+
+								let _ = writer.write_all(&out_buffer);
+								let _ = writer.flush();
 
 								// try get response
-								let res = reader.read_line(&mut buffer);
+								let res = reader.read_line(&mut in_buffer);
 								if res.is_err() {
 									return;
 								}
 
 								//match the response
 								if let Ok(request) =
-									serde_json::from_str::<NetworkSockIn>(&buffer)
+									serde_json::from_str::<NetworkSockIn>(&in_buffer)
 								{
 									match request {
 										NetworkSockIn::Info => {

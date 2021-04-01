@@ -78,10 +78,13 @@ impl IPreemptive for ClientManager {
 								client.send_message(ClientMessage::Disconnect);
 							}
 						}
-						SendMessage {to, from, content} => {
+						SendMessage { to, from, content } => {
 							let lock = arc.clients.lock().unwrap();
 							if let Some(client) = lock.get(&to) {
-								client.send_message(ClientMessage::Message { from, content })
+								client.send_message(ClientMessage::Message {
+									from,
+									content,
+								})
 							}
 						}
 						#[allow(unreachable_patterns)]
@@ -90,7 +93,6 @@ impl IPreemptive for ClientManager {
 				}
 			}
 		}
-		println!("client manager exited");
 	}
 
 	fn start(arc: &Arc<Self>) {

@@ -128,13 +128,20 @@ impl IPreemptive for Client {
 							println!("[Client {:?}]: Disconnect recieved", &arc.uuid);
 							arc.send_message(Disconnect);
 							break 'main;
-						},
-						Ok(ClientStreamIn::SendMessage{to, content}) => {
-							println!("[Client {:?}]: send message to: {:?}",&arc.uuid, &to);
+						}
+						Ok(ClientStreamIn::SendMessage { to, content }) => {
+							println!(
+								"[Client {:?}]: send message to: {:?}",
+								&arc.uuid, &to
+							);
 							let lock = arc.server_channel.lock().unwrap();
 							let sender = lock.as_ref().unwrap();
-							let _ = sender.send(ServerMessage::ClientSendMessage {from: arc.uuid, to, content });
-						},
+							let _ = sender.send(ServerMessage::ClientSendMessage {
+								from: arc.uuid,
+								to,
+								content,
+							});
+						}
 						_ => println!("[Client {:?}]: command not found", &arc.uuid),
 					}
 				}
@@ -148,10 +155,9 @@ impl IPreemptive for Client {
 				let arc = arc2;
 				let mut writer_lock = arc.stream_writer.lock().unwrap();
 				let writer = writer_lock.as_mut().unwrap();
-
 				let mut buffer: Vec<u8> = Vec::new();
 
-				writeln!(
+				let _ = writeln!(
 					buffer,
 					"{}",
 					serde_json::to_string(&ClientStreamOut::Connected).unwrap()
@@ -160,11 +166,8 @@ impl IPreemptive for Client {
 				let _ = writer.flush();
 
 				'main: loop {
-					std::thread::sleep(std::time::Duration::from_secs(1));
-					println!("[Client {:?}]: thread 2 tick!", &arc.uuid);
-
 					for message in arc.output.iter() {
-            println!("[Client {:?}]: {:?}", &arc.uuid, message);
+						println!("[Client {:?}]: {:?}", &arc.uuid, message);
 						match message {
 							Disconnect => {
 								arc.server_channel
@@ -177,21 +180,17 @@ impl IPreemptive for Client {
 								break 'main;
 							}
 							Message { from, content } => {
-								writeln!(
+								let _ = writeln!(
 									buffer,
 									"{}",
-									serde_json::to_string(&ClientStreamOut::UserMessage {from, content})
-										.unwrap()
+									serde_json::to_string(
+										&ClientStreamOut::UserMessage { from, content }
+									)
+									.unwrap()
 								);
-                let _ = writer.write_all(&buffer);
-                let _ = writer.write_all(b"\n");
-                let _ = writer.flush();
+								let _ = writer.write_all(&buffer);
+								let _ = writer.flush();
 							}
-              #[allow(unreachable_patterns)]
-							_ => println!(
-								"[Client {:?}]: message not implemented",
-								&arc.uuid
-							),
 						}
 					}
 				}
