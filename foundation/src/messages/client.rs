@@ -1,4 +1,6 @@
+use crate::ClientDetails;
 use serde::{Deserialize, Serialize};
+
 use uuid::Uuid;
 
 /// # ClientMessage
@@ -22,6 +24,8 @@ pub enum ClientStreamOut {
 
 	UserMessage { from: Uuid, content: String },
 	GlobalMessage { content: String },
+
+	ConnectedClients {clients: Vec<ClientDetails>},
 
 	Disconnected,
 }

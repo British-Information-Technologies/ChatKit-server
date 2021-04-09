@@ -7,6 +7,8 @@ use crate::client::Client;
 pub enum ClientMessage {
 	Message { from: Uuid, content: String },
 
+	Update {clients: Vec<Arc<Client>>},
+
 	Disconnect,
 }
 
@@ -14,6 +16,7 @@ pub enum ClientMessage {
 pub enum ClientMgrMessage {
 	Remove(Uuid),
 	Add(Arc<Client>),
+	SendClients {to: Uuid},
 	SendMessage {
 		from: Uuid,
 		to: Uuid,
@@ -30,4 +33,5 @@ pub enum ServerMessage {
 		content: String,
 	},
 	ClientDisconnected(Uuid),
+	ClientUpdate(Uuid),
 }

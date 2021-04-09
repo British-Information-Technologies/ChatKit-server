@@ -1,5 +1,4 @@
 use crate::messages::ClientMessage;
-use crate::messages::ClientMessage::{Disconnect, Message};
 use crate::messages::ServerMessage;
 use foundation::prelude::IPreemptive;
 use std::cmp::Ordering;
@@ -15,6 +14,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use serde::Serialize;
 use uuid::Uuid;
 
+use foundation::ClientDetails;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::prelude::IMessagable;
 
@@ -35,6 +35,7 @@ pub struct Client {
 	pub uuid: Uuid,
 	username: String,
 	address: String,
+	pub details: ClientDetails,
 
 	// non serializable
 	#[serde(skip)]
@@ -71,9 +72,15 @@ impl Client {
 		let in_stream = stream.try_clone().unwrap();
 
 		Arc::new(Client {
-			username,
+			username: username.clone(),
 			uuid: Uuid::parse_str(&uuid).expect("invalid id"),
-			address,
+			address: address.clone(),
+
+			details: ClientDetails {
+				uuid: Uuid::parse_str(&uuid).expect("invalid id"),
+				username,
+				address,
+			},
 
 			server_channel: Mutex::new(Some(server_channel)),
 
@@ -110,6 +117,7 @@ impl IPreemptive for Client {
 		let _ = std::thread::Builder::new()
 			.name(format!("client thread recv [{:?}]", &arc.uuid))
 			.spawn(move || {
+				use ClientMessage::{Disconnect};
 				let arc = arc1;
 
 				let mut buffer = String::new();
@@ -167,6 +175,7 @@ impl IPreemptive for Client {
 
 				'main: loop {
 					for message in arc.output.iter() {
+						use ClientMessage::{Disconnect,Message, Update};
 						println!("[Client {:?}]: {:?}", &arc.uuid, message);
 						match message {
 							Disconnect => {
@@ -191,6 +200,18 @@ impl IPreemptive for Client {
 								let _ = writer.write_all(&buffer);
 								let _ = writer.flush();
 							}
+							Update {clients} => {
+								let client_details_vec: Vec<ClientDetails> = clients.iter().map(|client| &client.details).cloned().collect();
+								let _ = writeln!(
+									buffer,
+									"{}",
+									serde_json::to_string(
+										&ClientStreamOut::ConnectedClients {clients: client_details_vec}
+									).unwrap()
+								);
+								let _ = writer.write_all(&buffer);
+								let _ = writer.flush();
+							}
 						}
 					}
 				}
@@ -211,6 +232,12 @@ impl Default for Client {
 			username: "generic_client".to_string(),
 			uuid: Uuid::new_v4(),
 			address: "127.0.0.1".to_string(),
+
+			details: ClientDetails {
+				uuid: Uuid::new_v4(),
+				username: "generic_client".to_string(),
+				address: "127.0.0.1".to_string(),
+			},
 
 			output: reciever,
 			input: sender,

@@ -59,7 +59,7 @@ impl IPreemptive for ClientManager {
 			if !arc.receiver.is_empty() {
 				for message in arc.receiver.try_iter() {
 					println!("[Client manager]: recieved message: {:?}", message);
-					use ClientMgrMessage::{Add, Remove, SendMessage};
+					use ClientMgrMessage::{Add, Remove, SendMessage, SendClients};
 
 					match message {
 						Add(client) => {
@@ -69,7 +69,7 @@ impl IPreemptive for ClientManager {
 							if lock.insert(client.uuid, client).is_none() {
 								println!("value is new");
 							}
-						}
+						},
 						Remove(uuid) => {
 							println!("[Client Manager]: removing client: {:?}", &uuid);
 							if let Some(client) =
@@ -77,7 +77,7 @@ impl IPreemptive for ClientManager {
 							{
 								client.send_message(ClientMessage::Disconnect);
 							}
-						}
+						},
 						SendMessage { to, from, content } => {
 							let lock = arc.clients.lock().unwrap();
 							if let Some(client) = lock.get(&to) {
@@ -86,7 +86,19 @@ impl IPreemptive for ClientManager {
 									content,
 								})
 							}
-						}
+						},
+						SendClients {to} => {
+							let lock = arc.clients.lock().unwrap();
+							if let Some(client) = lock.get(&to) {
+								let clients_vec: Vec<Arc<Client>> = lock.values().cloned().collect();
+
+								client.send_message(ClientMessage::Update {
+									clients: clients_vec,
+								})
+							}
+						},
+
+
 						#[allow(unreachable_patterns)]
 						_ => println!("[Client manager]: not implemented"),
 					}

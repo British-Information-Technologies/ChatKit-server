@@ -58,6 +58,7 @@ impl ICooperative for Server {
 					ServerMessage::ClientSendMessage { from, to, content } => self
 						.client_manager
 						.send_message(SendMessage { from, to, content }),
+					ServerMessage::ClientUpdate (_uuid) => println!("not implemented"),
 				}
 			}
 		}
