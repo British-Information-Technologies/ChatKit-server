@@ -13,10 +13,11 @@ use std::sync::Mutex;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use serde::Serialize;
 use uuid::Uuid;
+use zeroize::Zeroize;
 
-use foundation::ClientDetails;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::prelude::IMessagable;
+use foundation::ClientDetails;
 
 /// # Client
 /// This struct represents a connected user.
@@ -117,7 +118,7 @@ impl IPreemptive for Client {
 		let _ = std::thread::Builder::new()
 			.name(format!("client thread recv [{:?}]", &arc.uuid))
 			.spawn(move || {
-				use ClientMessage::{Disconnect};
+				use ClientMessage::Disconnect;
 				let arc = arc1;
 
 				let mut buffer = String::new();
@@ -131,6 +132,7 @@ impl IPreemptive for Client {
 					}
 
 					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
+					println!("[Client {:?}]: recieved {}", arc.uuid, &buffer);
 					match command {
 						Ok(ClientStreamIn::Disconnect) => {
 							println!("[Client {:?}]: Disconnect recieved", &arc.uuid);
@@ -138,10 +140,7 @@ impl IPreemptive for Client {
 							break 'main;
 						}
 						Ok(ClientStreamIn::SendMessage { to, content }) => {
-							println!(
-								"[Client {:?}]: send message to: {:?}",
-								&arc.uuid, &to
-							);
+							println!("[Client {:?}]: send message to: {:?}", &arc.uuid, &to);
 							let lock = arc.server_channel.lock().unwrap();
 							let sender = lock.as_ref().unwrap();
 							let _ = sender.send(ServerMessage::ClientSendMessage {
@@ -150,8 +149,14 @@ impl IPreemptive for Client {
 								content,
 							});
 						}
+						Ok(ClientStreamIn::Update) => {
+							let lock = arc.server_channel.lock().unwrap();
+							let sender = lock.as_ref().unwrap();
+							let _ = sender.send(ServerMessage::ClientUpdate { to: arc.uuid });
+						}
 						_ => println!("[Client {:?}]: command not found", &arc.uuid),
 					}
+					buffer.zeroize();
 				}
 				println!("[Client {:?}] exited thread 1", &arc.uuid);
 			});
@@ -175,7 +180,7 @@ impl IPreemptive for Client {
 
 				'main: loop {
 					for message in arc.output.iter() {
-						use ClientMessage::{Disconnect,Message, Update};
+						use ClientMessage::{Disconnect, Message, SendClients};
 						println!("[Client {:?}]: {:?}", &arc.uuid, message);
 						match message {
 							Disconnect => {
@@ -184,35 +189,33 @@ impl IPreemptive for Client {
 									.unwrap()
 									.as_mut()
 									.unwrap()
-									.send(ServerMessage::ClientDisconnected(arc.uuid))
+									.send(ServerMessage::ClientDisconnected { id: arc.uuid })
 									.unwrap();
 								break 'main;
 							}
 							Message { from, content } => {
-								let _ = writeln!(
-									buffer,
-									"{}",
-									serde_json::to_string(
-										&ClientStreamOut::UserMessage { from, content }
-									)
-									.unwrap()
-								);
+								let msg = &ClientStreamOut::UserMessage { from, content };
+								let _ = writeln!(buffer, "{}", serde_json::to_string(msg).unwrap());
 								let _ = writer.write_all(&buffer);
 								let _ = writer.flush();
 							}
-							Update {clients} => {
-								let client_details_vec: Vec<ClientDetails> = clients.iter().map(|client| &client.details).cloned().collect();
-								let _ = writeln!(
-									buffer,
-									"{}",
-									serde_json::to_string(
-										&ClientStreamOut::ConnectedClients {clients: client_details_vec}
-									).unwrap()
-								);
+							SendClients { clients } => {
+								let client_details_vec: Vec<ClientDetails> = clients
+									.iter()
+									.map(|client| &client.details)
+									.cloned()
+									.collect();
+
+								let msg = &ClientStreamOut::ConnectedClients {
+									clients: client_details_vec,
+								};
+
+								let _ = writeln!(buffer, "{}", serde_json::to_string(msg).unwrap());
 								let _ = writer.write_all(&buffer);
 								let _ = writer.flush();
 							}
 						}
+						buffer.zeroize();
 					}
 				}
 				println!("[Client {:?}]: exited thread 2", &arc.uuid);

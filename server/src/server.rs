@@ -48,17 +48,19 @@ impl ICooperative for Server {
 			for message in self.receiver.try_iter() {
 				println!("[server]: received message {:?}", &message);
 				match message {
-					ServerMessage::ClientConnected(client) => {
+					ServerMessage::ClientConnected { client } => {
 						self.client_manager.send_message(Add(client))
 					}
-					ServerMessage::ClientDisconnected(uuid) => {
-						println!("disconnecting client {:?}", uuid);
-						self.client_manager.send_message(Remove(uuid));
+					ServerMessage::ClientDisconnected { id } => {
+						println!("disconnecting client {:?}", id);
+						self.client_manager.send_message(Remove(id));
 					}
 					ServerMessage::ClientSendMessage { from, to, content } => self
 						.client_manager
 						.send_message(SendMessage { from, to, content }),
-					ServerMessage::ClientUpdate (_uuid) => println!("not implemented"),
+					ServerMessage::ClientUpdate { to } => self
+						.client_manager
+						.send_message(ClientMgrMessage::SendClients { to }),
 				}
 			}
 		}

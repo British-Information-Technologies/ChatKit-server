@@ -19,10 +19,7 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
-	pub fn new(
-		port: String,
-		server_channel: Sender<ServerMessage>,
-	) -> Arc<NetworkManager> {
+	pub fn new(port: String, server_channel: Sender<ServerMessage>) -> Arc<NetworkManager> {
 		let mut address = "0.0.0.0:".to_string();
 		address.push_str(&port);
 
@@ -63,8 +60,7 @@ impl IPreemptive for NetworkManager {
 								let _ = writeln!(
 									out_buffer,
 									"{}",
-									serde_json::to_string(&NetworkSockOut::Request)
-										.unwrap()
+									serde_json::to_string(&NetworkSockOut::Request).unwrap()
 								);
 
 								let _ = writer.write_all(&out_buffer);
@@ -112,9 +108,9 @@ impl IPreemptive for NetworkManager {
 												server_channel.clone(),
 											);
 											server_channel
-												.send(ServerMessage::ClientConnected(
-													new_client,
-												))
+												.send(ServerMessage::ClientConnected {
+													client: new_client,
+												})
 												.unwrap_or_default();
 										}
 									}

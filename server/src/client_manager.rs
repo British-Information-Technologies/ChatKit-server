@@ -39,6 +39,13 @@ impl ClientManager {
 			receiver,
 		})
 	}
+
+	fn send_to_client(&self, id: &Uuid, msg: ClientMessage) {
+		let lock = self.clients.lock().unwrap();
+		if let Some(client) = lock.get(id) {
+			client.send_message(msg)
+		}
+	}
 }
 
 impl IMessagable<ClientMgrMessage, Sender<ServerMessage>> for ClientManager {
@@ -59,7 +66,7 @@ impl IPreemptive for ClientManager {
 			if !arc.receiver.is_empty() {
 				for message in arc.receiver.try_iter() {
 					println!("[Client manager]: recieved message: {:?}", message);
-					use ClientMgrMessage::{Add, Remove, SendMessage, SendClients};
+					use ClientMgrMessage::{Add, Remove, SendClients, SendMessage};
 
 					match message {
 						Add(client) => {
@@ -69,35 +76,27 @@ impl IPreemptive for ClientManager {
 							if lock.insert(client.uuid, client).is_none() {
 								println!("value is new");
 							}
-						},
+						}
 						Remove(uuid) => {
 							println!("[Client Manager]: removing client: {:?}", &uuid);
-							if let Some(client) =
-								arc.clients.lock().unwrap().remove(&uuid)
-							{
+							if let Some(client) = arc.clients.lock().unwrap().remove(&uuid) {
 								client.send_message(ClientMessage::Disconnect);
 							}
-						},
+						}
 						SendMessage { to, from, content } => {
+							arc.send_to_client(&to, ClientMessage::Message { from, content })
+						}
+						SendClients { to } => {
 							let lock = arc.clients.lock().unwrap();
 							if let Some(client) = lock.get(&to) {
-								client.send_message(ClientMessage::Message {
-									from,
-									content,
-								})
-							}
-						},
-						SendClients {to} => {
-							let lock = arc.clients.lock().unwrap();
-							if let Some(client) = lock.get(&to) {
-								let clients_vec: Vec<Arc<Client>> = lock.values().cloned().collect();
+								let clients_vec: Vec<Arc<Client>> =
+									lock.values().cloned().collect();
 
-								client.send_message(ClientMessage::Update {
+								client.send_message(ClientMessage::SendClients {
 									clients: clients_vec,
 								})
 							}
-						},
-
+						}
 
 						#[allow(unreachable_patterns)]
 						_ => println!("[Client manager]: not implemented"),

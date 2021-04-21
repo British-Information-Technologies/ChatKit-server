@@ -25,7 +25,7 @@ pub enum ClientStreamOut {
 	UserMessage { from: Uuid, content: String },
 	GlobalMessage { content: String },
 
-	ConnectedClients {clients: Vec<ClientDetails>},
+	ConnectedClients { clients: Vec<ClientDetails> },
 
 	Disconnected,
 }
