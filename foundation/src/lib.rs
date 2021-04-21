@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ClientDetails {
-  pub uuid: Uuid,
-  pub username: String,
-  pub address: String,
+	pub uuid: Uuid,
+	pub username: String,
+	pub address: String,
 }
