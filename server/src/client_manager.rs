@@ -73,7 +73,7 @@ impl IPreemptive for ClientManager {
 							println!("[Client Manager]: adding new client");
 							Client::start(&client);
 							let mut lock = arc.clients.lock().unwrap();
-							if lock.insert(client.uuid, client).is_none() {
+							if lock.insert(client.details.uuid, client).is_none() {
 								println!("value is new");
 							}
 						}

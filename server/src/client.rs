@@ -23,9 +23,7 @@ use foundation::ClientDetails;
 /// This struct represents a connected user.
 ///
 /// ## Attrubutes
-/// - uuid: The id of the connected user.
-/// - username: The username of the connected user.
-/// - address: The the address of the connected client.
+/// - details: store of the clients infomation.
 ///
 /// - stream: The socket for the connected client.
 /// - stream_reader: the buffered reader used to receive messages
@@ -33,9 +31,6 @@ use foundation::ClientDetails;
 /// - owner: An optional reference to the owning object.
 #[derive(Debug, Serialize)]
 pub struct Client {
-	pub uuid: Uuid,
-	username: String,
-	address: String,
 	pub details: ClientDetails,
 
 	// non serializable
@@ -73,14 +68,11 @@ impl Client {
 		let in_stream = stream.try_clone().unwrap();
 
 		Arc::new(Client {
-			username: username.clone(),
-			uuid: Uuid::parse_str(&uuid).expect("invalid id"),
-			address: address.clone(),
-
 			details: ClientDetails {
 				uuid: Uuid::parse_str(&uuid).expect("invalid id"),
 				username,
 				address,
+        public_key: None
 			},
 
 			server_channel: Mutex::new(Some(server_channel)),
@@ -116,7 +108,7 @@ impl IPreemptive for Client {
 
 		// read thread
 		let _ = std::thread::Builder::new()
-			.name(format!("client thread recv [{:?}]", &arc.uuid))
+			.name(format!("client thread recv [{:?}]", &arc.details.uuid))
 			.spawn(move || {
 				use ClientMessage::Disconnect;
 				let arc = arc1;
@@ -132,19 +124,19 @@ impl IPreemptive for Client {
 					}
 
 					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
-					println!("[Client {:?}]: recieved {}", arc.uuid, &buffer);
+					println!("[Client {:?}]: recieved {}", arc.details.uuid, &buffer);
 					match command {
 						Ok(ClientStreamIn::Disconnect) => {
-							println!("[Client {:?}]: Disconnect recieved", &arc.uuid);
+							println!("[Client {:?}]: Disconnect recieved", &arc.details.uuid);
 							arc.send_message(Disconnect);
 							break 'main;
 						}
 						Ok(ClientStreamIn::SendMessage { to, content }) => {
-							println!("[Client {:?}]: send message to: {:?}", &arc.uuid, &to);
+							println!("[Client {:?}]: send message to: {:?}", &arc.details.uuid, &to);
 							let lock = arc.server_channel.lock().unwrap();
 							let sender = lock.as_ref().unwrap();
 							let _ = sender.send(ServerMessage::ClientSendMessage {
-								from: arc.uuid,
+								from: arc.details.uuid,
 								to,
 								content,
 							});
@@ -152,18 +144,18 @@ impl IPreemptive for Client {
 						Ok(ClientStreamIn::Update) => {
 							let lock = arc.server_channel.lock().unwrap();
 							let sender = lock.as_ref().unwrap();
-							let _ = sender.send(ServerMessage::ClientUpdate { to: arc.uuid });
+							let _ = sender.send(ServerMessage::ClientUpdate { to: arc.details.uuid });
 						}
-						_ => println!("[Client {:?}]: command not found", &arc.uuid),
+						_ => println!("[Client {:?}]: command not found", &arc.details.uuid),
 					}
 					buffer.zeroize();
 				}
-				println!("[Client {:?}] exited thread 1", &arc.uuid);
+				println!("[Client {:?}] exited thread 1", &arc.details.uuid);
 			});
 
 		// write thread
 		let _ = std::thread::Builder::new()
-			.name(format!("client thread msg [{:?}]", &arc.uuid))
+			.name(format!("client thread msg [{:?}]", &arc.details.uuid))
 			.spawn(move || {
 				let arc = arc2;
 				let mut writer_lock = arc.stream_writer.lock().unwrap();
@@ -181,7 +173,7 @@ impl IPreemptive for Client {
 				'main: loop {
 					for message in arc.output.iter() {
 						use ClientMessage::{Disconnect, Message, SendClients};
-						println!("[Client {:?}]: {:?}", &arc.uuid, message);
+						println!("[Client {:?}]: {:?}", &arc.details.uuid, message);
 						match message {
 							Disconnect => {
 								arc.server_channel
@@ -189,7 +181,7 @@ impl IPreemptive for Client {
 									.unwrap()
 									.as_mut()
 									.unwrap()
-									.send(ServerMessage::ClientDisconnected { id: arc.uuid })
+									.send(ServerMessage::ClientDisconnected { id: arc.details.uuid })
 									.unwrap();
 								break 'main;
 							}
@@ -218,7 +210,7 @@ impl IPreemptive for Client {
 						buffer.zeroize();
 					}
 				}
-				println!("[Client {:?}]: exited thread 2", &arc.uuid);
+				println!("[Client {:?}]: exited thread 2", &arc.details.uuid);
 			});
 	}
 
@@ -232,14 +224,11 @@ impl Default for Client {
 	fn default() -> Self {
 		let (sender, reciever) = unbounded();
 		Client {
-			username: "generic_client".to_string(),
-			uuid: Uuid::new_v4(),
-			address: "127.0.0.1".to_string(),
-
 			details: ClientDetails {
 				uuid: Uuid::new_v4(),
 				username: "generic_client".to_string(),
 				address: "127.0.0.1".to_string(),
+        public_key: None
 			},
 
 			output: reciever,
@@ -258,7 +247,7 @@ impl Default for Client {
 // MARK: - used for sorting.
 impl PartialEq for Client {
 	fn eq(&self, other: &Self) -> bool {
-		self.uuid == other.uuid
+		self.details.uuid == other.details.uuid
 	}
 }
 
@@ -272,7 +261,7 @@ impl PartialOrd for Client {
 
 impl Ord for Client {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.uuid.cmp(&other.uuid)
+		self.details.uuid.cmp(&other.details.uuid)
 	}
 }
 

@@ -14,7 +14,6 @@ serde_json = "1.0"
 crossbeam = "0.8.0"
 crossbeam-channel = "0.5.0"
 zeroize = "1.1.0"
-ring = "0.16.20"
-sodiumoxide = "0.2.6"
+openssl = "0.10.33"
 
 foundation = {path = '../foundation'}
