@@ -8,6 +8,7 @@ use uuid::Uuid;
 /// This uses the serde library to transform to and from json.
 ///
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum ClientStreamIn {
 	Connected,
 
@@ -19,6 +20,7 @@ pub enum ClientStreamIn {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum ClientStreamOut {
 	Connected,
 

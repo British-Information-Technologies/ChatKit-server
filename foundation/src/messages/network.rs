@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum NetworkSockIn {
 	Info,
 	Connect {
@@ -11,6 +12,7 @@ pub enum NetworkSockIn {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum NetworkSockOut<'a> {
 	Request,
 
