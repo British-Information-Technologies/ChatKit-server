@@ -29,4 +29,4 @@ A Chat server writen in rust to allow communication between peers.
   - Pros and cons of symetric and asymetric encryption.
   - resolving common encryption flaws
 
-> Questoins: For questions please add a issue with the question label. It will eventually be responded to
+> Questions: For questions please add a issue with the question label. It will eventually be responded to
