@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use crossbeam_channel::{unbounded, Receiver};
+// use crossbeam_channel::{unbounded, Receiver};
 use uuid::Uuid;
+use tokio::task;
+use tokio::sync::mpsc::{channel, Receiver};
+use futures::lock::Mutex;
 
 use crate::client_manager::ClientManager;
 use crate::messages::ClientMgrMessage;
 use crate::messages::ServerMessage;
 use crate::network_manager::NetworkManager;
-use foundation::prelude::ICooperative;
-use foundation::prelude::IMessagable;
-use foundation::prelude::IPreemptive;
 
 /// # ServerMessages
 /// This is used internally to send messages to the server to be dispatched
@@ -19,67 +19,68 @@ pub enum ServerMessages<TClient> {
 	ClientDisconnected(Uuid),
 }
 
+/// # Server
+/// authors: @michael-bailey, @Mitch161
+/// This Represents a server instance.
+/// it is componsed of a client manager and a network manager
+/// 
 pub struct Server {
 	client_manager: Arc<ClientManager>,
 	network_manager: Arc<NetworkManager>,
-
-	receiver: Receiver<ServerMessage>,
+	receiver: Mutex<Receiver<ServerMessage>>,
 }
 
 impl Server {
-	pub fn new() -> Arc<Server> {
-		let (sender, receiver) = unbounded();
+	/// Create a new server object
+	pub fn new() -> Result<Arc<Server>, Box<dyn std::error::Error>> {
+		let (sender, receiver) = channel(1024);
 
-		Arc::new(Server {
-			client_manager: ClientManager::new(sender.clone()),
-
-			network_manager: NetworkManager::new("5600".to_string(), sender),
-			receiver,
-		})
+		Ok(
+			Arc::new(
+				Server {
+					client_manager: ClientManager::new(sender.clone()),
+					network_manager: NetworkManager::new("5600".to_string(), sender),
+					receiver: Mutex::new(receiver),
+				}
+			)
+		)
 	}
-}
 
-impl ICooperative for Server {
-	fn tick(&self) {
+	pub async fn start(self: &Arc<Server>) {
+
+		// start client manager and network manager
+		self.network_manager.clone().start();
+		self.client_manager.clone().start();
+
+		// clone block items
+		let server = self.clone();
+
+
 		use ClientMgrMessage::{Add, Remove, SendMessage};
 
-		// handle new messages loop
-		if !self.receiver.is_empty() {
-			for message in self.receiver.try_iter() {
+		loop {
+			let mut lock = server.receiver.lock().await;
+			if let Some(message) = lock.recv().await {
 				println!("[server]: received message {:?}", &message);
+
 				match message {
 					ServerMessage::ClientConnected { client } => {
-						self.client_manager.send_message(Add(client))
+						server.client_manager.clone()
+						.send_message(Add(client)).await
 					}
 					ServerMessage::ClientDisconnected { id } => {
 						println!("disconnecting client {:?}", id);
-						self.client_manager.send_message(Remove(id));
+						server.client_manager.clone().send_message(Remove(id)).await;
 					}
-					ServerMessage::ClientSendMessage { from, to, content } => self
-						.client_manager
-						.send_message(SendMessage { from, to, content }),
-					ServerMessage::ClientUpdate { to } => self
-						.client_manager
-						.send_message(ClientMgrMessage::SendClients { to }),
+					ServerMessage::ClientSendMessage { from, to, content } => server
+						.client_manager.clone()
+						.send_message(SendMessage { from, to, content }).await,
+					ServerMessage::ClientUpdate { to } => server
+						.client_manager.clone()
+						.send_message(ClientMgrMessage::SendClients { to }).await,
 				}
 			}
 		}
 	}
 }
 
-impl IPreemptive for Server {
-	fn run(arc: &std::sync::Arc<Self>) {
-		// start services
-		NetworkManager::start(&arc.network_manager);
-		ClientManager::start(&arc.client_manager);
-		loop {
-			arc.tick();
-		}
-	}
-
-	fn start(arc: &std::sync::Arc<Self>) {
-		let arc = arc.clone();
-		// start thread
-		std::thread::spawn(move || Server::run(&arc));
-	}
-}

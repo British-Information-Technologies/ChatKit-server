@@ -1,56 +1,47 @@
-use crate::messages::ClientMessage;
-use crate::messages::ServerMessage;
-use foundation::prelude::IPreemptive;
-use std::cmp::Ordering;
-use std::io::BufRead;
-use std::io::Write;
-use std::io::{BufReader, BufWriter};
-use std::mem::replace;
-use std::net::TcpStream;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::cmp::Ordering;
+use std::fmt::Write;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use serde::Serialize;
 use uuid::Uuid;
+
 use zeroize::Zeroize;
 
-use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
-use foundation::prelude::IMessagable;
+use futures::lock::Mutex;
+
+use tokio::task;
+use tokio::io::{ReadHalf, WriteHalf};
+use tokio::sync::mpsc::{Sender, Receiver, channel};
+use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
+
+use crate::messages::ClientMessage;
+use crate::messages::ServerMessage;
+
 use foundation::ClientDetails;
+use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 
 /// # Client
 /// This struct represents a connected user.
 ///
-/// ## Attrubutes
+/// ## Attributes
 /// - details: store of the clients infomation.
 ///
 /// - stream: The socket for the connected client.
 /// - stream_reader: the buffered reader used to receive messages
 /// - stream_writer: the buffered writer used to send messages
 /// - owner: An optional reference to the owning object.
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct Client {
 	pub details: ClientDetails,
 
-	// non serializable
-	#[serde(skip)]
-	server_channel: Mutex<Option<Sender<ServerMessage>>>,
+	// server send channel
+	server_channel: Mutex<Sender<ServerMessage>>,
 
-	#[serde(skip)]
-	input: Sender<ClientMessage>,
+	// object channels
+	tx: Sender<ClientMessage>,
+	rx: Mutex<Receiver<ClientMessage>>,
 
-	#[serde(skip)]
-	output: Receiver<ClientMessage>,
-
-	#[serde(skip)]
-	stream: Mutex<Option<TcpStream>>,
-
-	#[serde(skip)]
-	stream_reader: Mutex<Option<BufReader<TcpStream>>>,
-
-	#[serde(skip)]
-	stream_writer: Mutex<Option<BufWriter<TcpStream>>>,
+	stream_rx: Mutex<BufReader<ReadHalf<tokio::net::TcpStream>>>,
+	stream_tx: Mutex<WriteHalf<tokio::net::TcpStream>>,
 }
 
 // client funciton implmentations
@@ -59,13 +50,11 @@ impl Client {
 		uuid: String,
 		username: String,
 		address: String,
-		stream: TcpStream,
+		stream_rx: BufReader<ReadHalf<tokio::net::TcpStream>>,
+		stream_tx: WriteHalf<tokio::net::TcpStream>,
 		server_channel: Sender<ServerMessage>,
 	) -> Arc<Client> {
-		let (sender, receiver) = unbounded();
-
-		let out_stream = stream.try_clone().unwrap();
-		let in_stream = stream.try_clone().unwrap();
+		let (sender, receiver) = channel(1024);
 
 		Arc::new(Client {
 			details: ClientDetails {
@@ -75,172 +64,134 @@ impl Client {
         public_key: None
 			},
 
-			server_channel: Mutex::new(Some(server_channel)),
+			server_channel: Mutex::new(server_channel),
 
-			input: sender,
-			output: receiver,
+			tx: sender,
+			rx: Mutex::new(receiver),
 
-			stream: Mutex::new(Some(stream)),
-
-			stream_reader: Mutex::new(Some(BufReader::new(in_stream))),
-			stream_writer: Mutex::new(Some(BufWriter::new(out_stream))),
+			stream_rx: Mutex::new(stream_rx),
+			stream_tx: Mutex::new(stream_tx),
 		})
 	}
-}
 
-impl IMessagable<ClientMessage, Sender<ServerMessage>> for Client {
-	fn send_message(&self, msg: ClientMessage) {
-		self.input
-			.send(msg)
-			.expect("failed to send message to client.");
-	}
-	fn set_sender(&self, sender: Sender<ServerMessage>) {
-		let mut server_lock = self.server_channel.lock().unwrap();
-		let _ = replace(&mut *server_lock, Some(sender));
-	}
-}
+	pub fn start(self: &Arc<Client>) {
 
-// cooperative multitasking implementation
-impl IPreemptive for Client {
-	fn run(arc: &Arc<Self>) {
-		let arc1 = arc.clone();
-		let arc2 = arc.clone();
+		let t1_client = self.clone();
+		let t2_client = self.clone();
 
-		// read thread
-		let _ = std::thread::Builder::new()
-			.name(format!("client thread recv [{:?}]", &arc.details.uuid))
-			.spawn(move || {
-				use ClientMessage::Disconnect;
-				let arc = arc1;
+		// client stream read task
+		tokio::spawn(async move {
 
+			use ClientMessage::Disconnect;
+
+			let client = t1_client;
+
+			let mut lock = client.stream_tx.lock().await;
+			let mut buffer = String::new();
+
+			// tell client that is is now connected
+			let _ = writeln!(buffer, "{}",
+				serde_json::to_string(&ClientStreamOut::Connected).unwrap()
+			);
+
+			let _ = lock.write_all(&buffer.as_bytes());
+			let _ = lock.flush().await;
+
+			drop(lock);
+
+			loop {
+				let mut stream_reader = client.stream_rx.lock().await;
 				let mut buffer = String::new();
-				let mut reader_lock = arc.stream_reader.lock().unwrap();
-				let reader = reader_lock.as_mut().unwrap();
 
-				'main: while let Ok(size) = reader.read_line(&mut buffer) {
-					if size == 0 {
-						arc.send_message(Disconnect);
-						break 'main;
-					}
+				if let Ok(_size) = stream_reader.read_line(&mut buffer).await {
 
 					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
-					println!("[Client {:?}]: recieved {}", arc.details.uuid, &buffer);
+					println!("[Client {:?}]: recieved {}", client.details.uuid, &buffer);
+
 					match command {
 						Ok(ClientStreamIn::Disconnect) => {
-							println!("[Client {:?}]: Disconnect recieved", &arc.details.uuid);
-							arc.send_message(Disconnect);
-							break 'main;
+							println!("[Client {:?}]: Disconnect recieved", &client.details.uuid);
+							client.send_message(Disconnect).await;
+							return;
 						}
 						Ok(ClientStreamIn::SendMessage { to, content }) => {
-							println!("[Client {:?}]: send message to: {:?}", &arc.details.uuid, &to);
-							let lock = arc.server_channel.lock().unwrap();
-							let sender = lock.as_ref().unwrap();
-							let _ = sender.send(ServerMessage::ClientSendMessage {
-								from: arc.details.uuid,
+							println!("[Client {:?}]: send message to: {:?}", &client.details.uuid, &to);
+							let lock = client.server_channel.lock().await;
+							let _ = lock.send(ServerMessage::ClientSendMessage {
+								from: client.details.uuid,
 								to,
 								content,
 							});
 						}
 						Ok(ClientStreamIn::Update) => {
-							let lock = arc.server_channel.lock().unwrap();
-							let sender = lock.as_ref().unwrap();
-							let _ = sender.send(ServerMessage::ClientUpdate { to: arc.details.uuid });
+							let lock = client.server_channel.lock().await;
+							let _ = lock.send(ServerMessage::ClientUpdate { to: client.details.uuid });
 						}
-						_ => println!("[Client {:?}]: command not found", &arc.details.uuid),
+						_ => println!("[Client {:?}]: command not found", &client.details.uuid),
 					}
 					buffer.zeroize();
 				}
-				println!("[Client {:?}] exited thread 1", &arc.details.uuid);
-			});
+				println!("[Client {:?}] exited thread 1", &client.details.uuid);
+			}
+		});
 
-		// write thread
-		let _ = std::thread::Builder::new()
-			.name(format!("client thread msg [{:?}]", &arc.details.uuid))
-			.spawn(move || {
-				let arc = arc2;
-				let mut writer_lock = arc.stream_writer.lock().unwrap();
-				let writer = writer_lock.as_mut().unwrap();
-				let mut buffer: Vec<u8> = Vec::new();
+		// client channel read thread
+		tokio::spawn(async move {
+			use ClientMessage::{Disconnect, Message, SendClients};
 
-				let _ = writeln!(
-					buffer,
-					"{}",
-					serde_json::to_string(&ClientStreamOut::Connected).unwrap()
-				);
-				let _ = writer.write_all(&buffer);
-				let _ = writer.flush();
+			let client = t2_client;
 
-				'main: loop {
-					for message in arc.output.iter() {
-						use ClientMessage::{Disconnect, Message, SendClients};
-						println!("[Client {:?}]: {:?}", &arc.details.uuid, message);
-						match message {
-							Disconnect => {
-								arc.server_channel
-									.lock()
-									.unwrap()
-									.as_mut()
-									.unwrap()
-									.send(ServerMessage::ClientDisconnected { id: arc.details.uuid })
-									.unwrap();
-								break 'main;
-							}
-							Message { from, content } => {
-								let msg = &ClientStreamOut::UserMessage { from, content };
-								let _ = writeln!(buffer, "{}", serde_json::to_string(msg).unwrap());
-								let _ = writer.write_all(&buffer);
-								let _ = writer.flush();
-							}
-							SendClients { clients } => {
-								let client_details_vec: Vec<ClientDetails> = clients
-									.iter()
-									.map(|client| &client.details)
-									.cloned()
-									.collect();
+			loop {
+				let mut channel = client.rx.lock().await;
+				let mut buffer = String::new();
 
-								let msg = &ClientStreamOut::ConnectedClients {
-									clients: client_details_vec,
-								};
+				let message = channel.recv().await.unwrap();
+				drop(channel);
 
-								let _ = writeln!(buffer, "{}", serde_json::to_string(msg).unwrap());
-								let _ = writer.write_all(&buffer);
-								let _ = writer.flush();
-							}
-						}
-						buffer.zeroize();
+				println!("[Client {:?}]: {:?}", &client.details.uuid, message);
+				match message {
+					Disconnect => {
+						let lock = client.server_channel.lock().await;
+						let _ = lock.send(ServerMessage::ClientDisconnected { id: client.details.uuid }).await;
+						return
+					}
+					Message { from, content } => {
+						let msg = ClientStreamOut::UserMessage { from, content };
+						let _ = writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
+
+						let mut stream = client.stream_tx.lock().await;
+
+						let _ = stream.write_all(&buffer.as_bytes());
+						let _ = stream.flush().await;
+
+						drop(stream);
+					}
+					SendClients { clients } => {
+						let client_details_vec: Vec<ClientDetails> = clients
+							.iter()
+							.map(|client| &client.details)
+							.cloned()
+							.collect();
+
+						let msg = ClientStreamOut::ConnectedClients {
+							clients: client_details_vec,
+						};
+
+						let _ = writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
+
+						let mut stream = client.stream_tx.lock().await;
+
+
+						let _ = stream.write_all(&buffer.as_bytes());
+						let _ = stream.flush().await;
 					}
 				}
-				println!("[Client {:?}]: exited thread 2", &arc.details.uuid);
-			});
+			}
+		});		
 	}
 
-	fn start(arc: &Arc<Self>) {
-		Client::run(arc)
-	}
-}
-
-// default value implementation
-impl Default for Client {
-	fn default() -> Self {
-		let (sender, reciever) = unbounded();
-		Client {
-			details: ClientDetails {
-				uuid: Uuid::new_v4(),
-				username: "generic_client".to_string(),
-				address: "127.0.0.1".to_string(),
-        public_key: None
-			},
-
-			output: reciever,
-			input: sender,
-
-			server_channel: Mutex::new(None),
-
-			stream: Mutex::new(None),
-
-			stream_reader: Mutex::new(None),
-			stream_writer: Mutex::new(None),
-		}
+	pub async fn send_message(self: &Arc<Client>, msg: ClientMessage) {
+		let _ = self.tx.send(msg).await;
 	}
 }
 

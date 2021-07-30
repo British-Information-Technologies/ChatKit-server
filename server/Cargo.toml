@@ -15,5 +15,7 @@ crossbeam = "0.8.0"
 crossbeam-channel = "0.5.0"
 zeroize = "1.1.0"
 openssl = "0.10.33"
+tokio = { version = "1.9.0", features = ["full"] }
+futures = "0.3.16"
 
 foundation = {path = '../foundation'}

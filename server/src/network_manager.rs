@@ -1,128 +1,104 @@
-use foundation::prelude::IPreemptive;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Write;
-use std::net::TcpListener;
 use std::sync::Arc;
-use std::thread;
+use std::io::Write;
 
-use crossbeam_channel::Sender;
+use tokio::task;
+use tokio::net::TcpListener;
+use tokio::sync::mpsc::Sender;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::client::Client;
 use crate::messages::ServerMessage;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 
 pub struct NetworkManager {
-	listener: TcpListener,
+	address: String,
 	server_channel: Sender<ServerMessage>,
 }
 
 impl NetworkManager {
-	pub fn new(port: String, server_channel: Sender<ServerMessage>) -> Arc<NetworkManager> {
-		let mut address = "0.0.0.0:".to_string();
-		address.push_str(&port);
-
-		let listener = TcpListener::bind(address).expect("Could not bind to address");
-
+	pub fn new(_port: String, server_channel: Sender<ServerMessage>) -> Arc<NetworkManager> {
 		Arc::new(NetworkManager {
-			listener,
+			address: "0.0.0.0:5600".to_string(),
 			server_channel,
 		})
 	}
-}
 
-impl IPreemptive for NetworkManager {
-	fn run(_: &Arc<Self>) {}
+	pub fn start(self: &Arc<NetworkManager>) {
 
-	fn start(arc: &Arc<Self>) {
-		let arc = arc.clone();
-		std::thread::spawn(move || {
-			// fetch new connections and add them to the client queue
-			for connection in arc.listener.incoming() {
-				println!("[NetworkManager]: New Connection!");
-				match connection {
-					Ok(stream) => {
-						let server_channel = arc.server_channel.clone();
+		let network_manager = self.clone();
 
-						// create readers
-						let mut reader = BufReader::new(stream.try_clone().unwrap());
-						let mut writer = BufWriter::new(stream.try_clone().unwrap());
+		tokio::spawn(async move {
+			let listener = TcpListener::bind(network_manager.address.clone()).await.unwrap();
 
-						let _handle = thread::Builder::new()
-							.name("NetworkJoinThread".to_string())
-							.spawn(move || {
-								let mut out_buffer: Vec<u8> = Vec::new();
-								let mut in_buffer: String = String::new();
+			loop {
+				let (connection, _) = listener.accept().await.unwrap();
+				let (rd, mut wd) = io::split(connection);
+				
+				let mut reader = BufReader::new(rd);
+				let server_channel = network_manager.server_channel.clone();
 
-								// send request message to connection
+				task::spawn(async move {
+					let mut out_buffer: Vec<u8> = Vec::new();
+					let mut in_buffer: String = String::new();
 
-								let _ = writeln!(
-									out_buffer,
-									"{}",
-									serde_json::to_string(&NetworkSockOut::Request).unwrap()
+					// write request
+					let a = serde_json::to_string(&NetworkSockOut::Request).unwrap();
+					println!("{:?}", &a);
+					let _ = writeln!(
+						out_buffer,
+						"{}",
+						a
+					);
+
+					let _ = wd.write_all(&out_buffer).await;
+					let _ = wd.flush().await;
+
+					// get response
+					let _ = reader.read_line(&mut in_buffer).await.unwrap();
+
+					//match the response
+					if let Ok(request) =
+						serde_json::from_str::<NetworkSockIn>(&in_buffer) 
+					{
+						match request {
+							NetworkSockIn::Info => {
+								// send back server info to the connection
+								let _ = wd.write_all(
+									serde_json::to_string(
+										&NetworkSockOut::GotInfo {
+											server_name: "oof",
+											server_owner: "michael",
+										},
+									)
+									.unwrap()
+									.as_bytes(),
+								).await;
+								let _ = wd.write_all(b"\n").await;
+								let _ = wd.flush().await;
+							}
+							NetworkSockIn::Connect {
+								uuid,
+								username,
+								address,
+							} => {
+								// create client and send to server
+								let new_client = Client::new(
+									uuid,
+									username,
+									address,
+									reader,
+									wd,
+									server_channel.clone(),
 								);
-
-								let _ = writer.write_all(&out_buffer);
-								let _ = writer.flush();
-
-								// try get response
-								let res = reader.read_line(&mut in_buffer);
-								if res.is_err() {
-									return;
-								}
-
-								//match the response
-								if let Ok(request) =
-									serde_json::from_str::<NetworkSockIn>(&in_buffer)
-								{
-									match request {
-										NetworkSockIn::Info => {
-											// send back server info to the connection
-											writer
-												.write_all(
-													serde_json::to_string(
-														&NetworkSockOut::GotInfo {
-															server_name: "oof",
-															server_owner: "michael",
-														},
-													)
-													.unwrap()
-													.as_bytes(),
-												)
-												.unwrap();
-											writer.write_all(b"\n").unwrap();
-											writer.flush().unwrap();
-										}
-										NetworkSockIn::Connect {
-											uuid,
-											username,
-											address,
-										} => {
-											// create client and send to server
-											let new_client = Client::new(
-												uuid,
-												username,
-												address,
-												stream.try_clone().unwrap(),
-												server_channel.clone(),
-											);
-											server_channel
-												.send(ServerMessage::ClientConnected {
-													client: new_client,
-												})
-												.unwrap_or_default();
-										}
-									}
-								}
-							});
+								let _ = server_channel
+									.send(ServerMessage::ClientConnected {
+										client: new_client,
+									}).await;
+							}
+						}
 					}
-					Err(e) => {
-						println!("[Network manager]: error getting stream: {:?}", e);
-						continue;
-					}
-				}
+				});
 			}
-		});
+		});	
 	}
 }
