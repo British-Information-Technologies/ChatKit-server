@@ -8,7 +8,6 @@ use zeroize::Zeroize;
 
 use futures::lock::Mutex;
 
-use tokio::task;
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::sync::mpsc::{Sender, Receiver, channel};
 use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
@@ -121,23 +120,27 @@ impl Client {
 								from: client.details.uuid,
 								to,
 								content,
-							});
+							}).await;
 						}
 						Ok(ClientStreamIn::Update) => {
+							println!("[Client {:?}]: update received", &client.details.uuid);
 							let lock = client.server_channel.lock().await;
-							let _ = lock.send(ServerMessage::ClientUpdate { to: client.details.uuid });
+							let _ = lock.send(ServerMessage::ClientUpdate { to: client.details.uuid }).await;
 						}
-						_ => println!("[Client {:?}]: command not found", &client.details.uuid),
+						_ => {
+							println!("[Client {:?}]: command not found", &client.details.uuid);
+							let lock = client.server_channel.lock().await;
+							let _ = lock.send(ServerMessage::ClientError { to: client.details.uuid }).await;
+						}
 					}
 					buffer.zeroize();
 				}
-				println!("[Client {:?}] exited thread 1", &client.details.uuid);
 			}
 		});
 
 		// client channel read thread
 		tokio::spawn(async move {
-			use ClientMessage::{Disconnect, Message, SendClients};
+			use ClientMessage::{Disconnect, Message, SendClients, Error};
 
 			let client = t2_client;
 
@@ -161,7 +164,7 @@ impl Client {
 
 						let mut stream = client.stream_tx.lock().await;
 
-						let _ = stream.write_all(&buffer.as_bytes());
+						let _ = stream.write_all(&buffer.as_bytes()).await;
 						let _ = stream.flush().await;
 
 						drop(stream);
@@ -181,8 +184,15 @@ impl Client {
 
 						let mut stream = client.stream_tx.lock().await;
 
+						let _ = stream.write_all(&buffer.as_bytes()).await;
+						let _ = stream.flush().await;
+					},
+					Error => {
+						let _ = writeln!(buffer, "{}", serde_json::to_string(&ClientStreamOut::Error).unwrap());
 
-						let _ = stream.write_all(&buffer.as_bytes());
+						let mut stream = client.stream_tx.lock().await;
+
+						let _ = stream.write_all(&buffer.as_bytes()).await;
 						let _ = stream.flush().await;
 					}
 				}

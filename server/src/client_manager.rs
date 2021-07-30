@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::task;
 use futures::lock::Mutex;
 
 use crate::client::Client;
@@ -43,7 +42,7 @@ impl ClientManager {
 
 		tokio::spawn(async move {
 
-			use ClientMgrMessage::{Add, Remove, SendClients, SendMessage};
+			use ClientMgrMessage::{Add, Remove, SendClients, SendMessage, SendError};
 
 			loop {
 				let mut receiver = client_manager.rx.lock().await;
@@ -79,7 +78,13 @@ impl ClientManager {
 								clients: clients_vec,
 							}).await
 						}
-					}
+					},
+					SendError { to } => {
+						let lock = client_manager.clients.lock().await;
+						if let Some(client) = lock.get(&to) {
+							client.send_message(ClientMessage::Error).await
+						}
+					},
 					#[allow(unreachable_patterns)]
 					_ => println!("[Client manager]: not implemented"),
 				}

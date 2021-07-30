@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 // use crossbeam_channel::{unbounded, Receiver};
 use uuid::Uuid;
-use tokio::task;
 use tokio::sync::mpsc::{channel, Receiver};
 use futures::lock::Mutex;
 
@@ -78,6 +77,9 @@ impl Server {
 					ServerMessage::ClientUpdate { to } => server
 						.client_manager.clone()
 						.send_message(ClientMgrMessage::SendClients { to }).await,
+					ServerMessage::ClientError { to } => server
+						.client_manager.clone()
+						.send_message(ClientMgrMessage::SendError {to}).await,
 				}
 			}
 		}
