@@ -30,4 +30,6 @@ pub enum ClientStreamOut {
 	ConnectedClients { clients: Vec<ClientDetails> },
 
 	Disconnected,
+
+	Error,
 }

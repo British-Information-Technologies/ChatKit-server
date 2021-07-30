@@ -10,6 +10,8 @@ pub enum ClientMessage {
 	SendClients { clients: Vec<Arc<Client>> },
 
 	Disconnect,
+
+	Error,
 }
 
 #[derive(Debug)]
@@ -24,6 +26,9 @@ pub enum ClientMgrMessage {
 		to: Uuid,
 		content: String,
 	},
+	SendError {
+		to: Uuid,
+	}
 }
 
 #[derive(Debug)]
@@ -42,4 +47,7 @@ pub enum ServerMessage {
 	ClientUpdate {
 		to: Uuid,
 	},
+	ClientError {
+		to: Uuid
+	}
 }
