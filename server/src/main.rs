@@ -4,12 +4,14 @@ pub mod messages;
 pub mod network_manager;
 pub mod server;
 
+use std::io;
+
 use clap::{App, Arg};
 
-use foundation::prelude::IPreemptive;
 use server::Server;
 
-fn main() {
+#[tokio::main]
+async fn main() -> io::Result<()> {
 	let _args = App::new("--rust chat server--")
 		.version("0.1.5")
 		.author("Mitchel Hardie <mitch161>, Michael Bailey <michael-bailey>")
@@ -26,7 +28,8 @@ fn main() {
 		)
 		.get_matches();
 
-	let server = Server::new();
+	let server = Server::new().unwrap();
 
-	Server::run(&server);
+	server.start().await;
+ 	Ok(())
 }

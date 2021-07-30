@@ -1,10 +1,9 @@
+pub mod encryption;
 pub mod messages;
 pub mod prelude;
-pub mod encryption;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
 
 /**
  * #ClientDetails.
@@ -21,5 +20,3 @@ pub struct ClientDetails {
 	pub address: String,
 	pub public_key: Option<Vec<u8>>,
 }
-
-
