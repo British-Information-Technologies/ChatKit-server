@@ -3,6 +3,7 @@ pub mod client_manager;
 pub mod messages;
 pub mod network_manager;
 pub mod server;
+pub mod encryption;
 
 use std::io;
 
