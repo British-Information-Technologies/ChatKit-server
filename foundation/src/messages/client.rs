@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// This enum defined the message that a client can receive from the server
 /// This uses the serde library to transform to and from json.
 ///
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ClientStreamIn {
 	Connected,
@@ -19,7 +19,7 @@ pub enum ClientStreamIn {
 	Disconnect,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ClientStreamOut {
 	Connected,
