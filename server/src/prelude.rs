@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use serde::{Serialize,Deserialize};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 
 #[async_trait]
-trait Sender<'de, TMessage: Deserialize<'de> + Serialize>  {
-	async fn send(self: &Arc<Self>, message: TMessage) -> Result<(), std::io::Error>;
-	async fn recv(self: &Arc<Self>) -> Result<TMessage, std::io::Error>;
+pub trait StreamMessageSender {
+	async fn send<TOutMessage: Serialize + Send>(self: &Arc<Self>, message: TOutMessage) -> Result<(), std::io::Error>;
+	async fn recv<'de, TInMessage: DeserializeOwned + Send>(self: &Arc<Self>) -> Result<TInMessage, std::io::Error>;
 }

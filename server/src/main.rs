@@ -2,8 +2,10 @@ pub mod client;
 pub mod client_manager;
 pub mod messages;
 pub mod network_manager;
+pub mod network;
 pub mod server;
 pub mod encryption;
+pub mod prelude;
 
 use std::io;
 
