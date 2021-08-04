@@ -1,13 +1,12 @@
 use std::sync::Arc;
-use std::io::Write;
 
-use tokio::task;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::Sender;
-use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::client::Client;
+use crate::network::SocketSender;
 use crate::messages::ServerMessage;
+use crate::prelude::StreamMessageSender;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 
 pub struct NetworkManager {
@@ -32,49 +31,26 @@ impl NetworkManager {
 
 			loop {
 				let (connection, _) = listener.accept().await.unwrap();
-				let (rd, mut wd) = io::split(connection);
-				
-				let mut reader = BufReader::new(rd);
+				let stream_sender = SocketSender::new(connection);
 				let server_channel = network_manager.server_channel.clone();
 
-				task::spawn(async move {
-					let mut out_buffer: Vec<u8> = Vec::new();
-					let mut in_buffer: String = String::new();
+				tokio::spawn(async move {
 
-					// write request
-					let a = serde_json::to_string(&NetworkSockOut::Request).unwrap();
-					println!("{:?}", &a);
-					let _ = writeln!(
-						out_buffer,
-						"{}",
-						a
-					);
+					stream_sender.send::<NetworkSockOut>(NetworkSockOut::Request)
+						.await.expect("failed to send message");
 
-					let _ = wd.write_all(&out_buffer).await;
-					let _ = wd.flush().await;
-
-					// get response
-					let _ = reader.read_line(&mut in_buffer).await.unwrap();
-
-					//match the response
-					if let Ok(request) =
-						serde_json::from_str::<NetworkSockIn>(&in_buffer) 
+					if let Ok(request) = 
+						stream_sender.recv::<NetworkSockIn>().await 
 					{
+
 						match request {
 							NetworkSockIn::Info => {
-								// send back server info to the connection
-								let _ = wd.write_all(
-									serde_json::to_string(
-										&NetworkSockOut::GotInfo {
-											server_name: "oof",
-											server_owner: "michael",
-										},
-									)
-									.unwrap()
-									.as_bytes(),
-								).await;
-								let _ = wd.write_all(b"\n").await;
-								let _ = wd.flush().await;
+								stream_sender.send(
+									NetworkSockOut::GotInfo {
+										server_name: "oof",
+										server_owner: "michael",
+									}
+								).await.expect("failed to send got info");
 							}
 							NetworkSockIn::Connect {
 								uuid,
@@ -86,8 +62,7 @@ impl NetworkManager {
 									uuid,
 									username,
 									address,
-									reader,
-									wd,
+									stream_sender,
 									server_channel.clone(),
 								);
 								let _ = server_channel

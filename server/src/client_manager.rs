@@ -94,7 +94,7 @@ impl ClientManager {
 
 	async fn send_to_client(self: &Arc<ClientManager>, id: &Uuid, msg: ClientMessage) {
 		let lock = self.clients.lock().await;
-		if let Some(client) = lock.get(&id) {
+		if let Some(client) = lock.get(id) {
 			client.clone().send_message(msg).await;
 		}
 	}
