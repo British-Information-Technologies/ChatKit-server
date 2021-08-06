@@ -47,9 +47,9 @@ mod test {
 		Mode
 	};
 
-	#[test]
-	pub fn test_aes() {
+	use super::create_encryption_transformers;
 
+	fn create_shared() -> Vec<u8> {
 		let ec_group1 = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
 		let ec_group2 = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
 
@@ -71,29 +71,46 @@ mod test {
 		deriver1.set_peer(pub2.as_ref()).unwrap();
 		deriver2.set_peer(pub1.as_ref()).unwrap();
 
-		let shared1 = deriver1.derive_to_vec().unwrap();
-		let shared2 = deriver2.derive_to_vec().unwrap();
+		deriver1.derive_to_vec().unwrap()
+	}
 
-		println!("shared1: {:?}", &shared1);
-		println!("shared2: {:?}", &shared2);
+	#[test]
+	pub fn test_transformer_functions() {
+		let shared = create_shared();
 
-		assert_eq!(shared1, shared2);
+		let (en, de) = create_encryption_transformers(shared, b"12345678901234561234561234567765");
+
+		let message = b"Hello world";
+
+		let cipher_text = (*en)(message);
+		let decrypted_text = (*de)(&cipher_text);
+
+		assert_eq!(&decrypted_text[0..message.len()], message);
+	}
+
+	#[test]
+	pub fn test_aes() {
+
+		let shared = create_shared();
 		
 		let plaintext = b"This is a message";
-		let key = sha256(&shared1);
+		let key = sha256(&shared);
 		let iv = b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 		let encrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Encrypt, &key, Some(iv));
 		let mut ciphertext = vec![0u8; 1024];
-		let cipherlen = encrypter.unwrap().update(plaintext, ciphertext.as_mut_slice()).unwrap();
+		let cipherlen = encrypter.unwrap().update(plaintext, &mut ciphertext).unwrap();
 
 		let decrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Decrypt, &key, Some(iv));
 		let mut decrypted = vec![0u8; 1024];
-		decrypter.unwrap().update(&ciphertext[..cipherlen], decrypted.as_mut_slice()).unwrap();
+		decrypter.unwrap().update(&ciphertext[..cipherlen], &mut decrypted).unwrap();
 
 		println!("plaintext: {:?}", plaintext);
 		println!("ciphertext: {:?}", &ciphertext[0..plaintext.len()]);
 		println!("decryptedtext: {:?}", &decrypted[0..plaintext.len()]);
-	}
 
+		let test: &[u8] = &decrypted;
+
+		assert_eq!(&test[0..plaintext.len()], plaintext);
+	}
 }
