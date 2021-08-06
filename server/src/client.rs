@@ -5,7 +5,7 @@ use uuid::Uuid;
 use futures::lock::Mutex;
 use tokio::sync::mpsc::{Sender, Receiver, channel};
 
-use crate::network::SocketSender;
+use crate::network::SocketHandler;
 use crate::messages::ClientMessage;
 use crate::messages::ServerMessage;
 use crate::prelude::StreamMessageSender;
@@ -34,7 +34,7 @@ pub struct Client {
 	tx: Sender<ClientMessage>,
 	rx: Mutex<Receiver<ClientMessage>>,
 
-	socket_sender: Arc<SocketSender>,
+	socket_sender: Arc<SocketHandler>,
 }
 
 // client funciton implmentations
@@ -43,7 +43,7 @@ impl Client {
 		uuid: String,
 		username: String,
 		address: String,
-		socket_sender: Arc<SocketSender>,
+		socket_sender: Arc<SocketHandler>,
 		server_channel: Sender<ServerMessage>,
 	) -> Arc<Client> {
 		let (sender, receiver) = channel(1024);

@@ -4,7 +4,7 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc::Sender;
 
 use crate::client::Client;
-use crate::network::SocketSender;
+use crate::network::SocketHandler;
 use crate::messages::ServerMessage;
 use crate::prelude::StreamMessageSender;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
@@ -31,7 +31,7 @@ impl NetworkManager {
 
 			loop {
 				let (connection, _) = listener.accept().await.unwrap();
-				let stream_sender = SocketSender::new(connection);
+				let stream_sender = SocketHandler::new(connection);
 				let server_channel = network_manager.server_channel.clone();
 
 				tokio::spawn(async move {

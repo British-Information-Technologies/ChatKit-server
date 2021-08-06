@@ -19,7 +19,7 @@ use crate::prelude::StreamMessageSender;
 
 type TransformerVec = Vec<fn(&[u8]) -> &[u8]>;
 
-pub struct SocketSender {
+pub struct SocketHandler {
 	stream_tx: Mutex<WriteHalf<tokio::net::TcpStream>>,
 	stream_rx: Mutex<BufReader<ReadHalf<tokio::net::TcpStream>>>,
 
@@ -27,12 +27,12 @@ pub struct SocketSender {
 	recv_transformer: Mutex<TransformerVec>,
 }
 
-impl SocketSender {
+impl SocketHandler {
 	pub fn new(connection: TcpStream) -> Arc<Self> {
 		let (rd, wd) = split(connection);
 		let reader = BufReader::new(rd);
 
-		Arc::new(SocketSender {
+		Arc::new(SocketHandler {
 			stream_tx: Mutex::new(wd),
 			stream_rx: Mutex::new(reader),
 
@@ -67,7 +67,7 @@ impl SocketSender {
 }
 
 #[async_trait]
-impl StreamMessageSender for SocketSender {
+impl StreamMessageSender for SocketHandler {
 	async fn send<TOutMessage: Serialize + Send>
 		(self: &Arc<Self>, message: TOutMessage) -> Result<(), Error>
 	{ 
@@ -93,7 +93,7 @@ impl StreamMessageSender for SocketSender {
 	}
 }
 
-impl Debug for SocketSender {
+impl Debug for SocketHandler {
 	
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>)
 		-> std::result::Result<(), std::fmt::Error> {
