@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::io::Write;
 use std::io::Error;
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use serde::Serialize;
@@ -16,7 +17,7 @@ use tokio::io::AsyncBufReadExt;
 
 use crate::prelude::StreamMessageSender;
 
-#[derive(Debug)]
+
 pub struct SocketSender {
 	stream_tx: Mutex<WriteHalf<tokio::net::TcpStream>>,
 	stream_rx: Mutex<BufReader<ReadHalf<tokio::net::TcpStream>>>,
@@ -58,5 +59,13 @@ impl StreamMessageSender for SocketSender {
 			.expect("[StreamMessageSender:recv] deserialisation failed");
 
 		Ok(message)
+	}
+}
+
+impl Debug for SocketSender {
+	
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>)
+		-> std::result::Result<(), std::fmt::Error> {
+			write!(f, "[SocketSender]")
 	}
 }
