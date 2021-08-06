@@ -1,4 +1,3 @@
-pub mod encryption;
 pub mod messages;
 pub mod prelude;
 
