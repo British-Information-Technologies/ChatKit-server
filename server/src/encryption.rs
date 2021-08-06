@@ -1,5 +1,37 @@
+use openssl::symm::{
+	Cipher,
+	Crypter,
+	Mode
+};
 
+type TransformerFn = dyn Fn(&[u8]) -> Vec<u8>;
 
+#[allow(clippy::clone_on_copy)]
+pub fn create_encryption_transformers(key: Vec<u8>, iv: &[u8; 32])
+	-> (Box<TransformerFn>,Box<TransformerFn>)
+{
+	// clone vecs
+	let key1 = key.clone();
+	let key2 = key.clone();
+
+	let iv1 = iv.clone();
+	let iv2 = iv.clone();
+
+	(
+		Box::new(move |plain_text| {
+			let encrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Encrypt, &key1, Some(&iv1));
+			let mut ciphertext = vec![0u8; 1024];
+			let _cipherlen = encrypter.unwrap().update(plain_text, &mut ciphertext).unwrap();
+			ciphertext
+		}),
+		Box::new(move |cipher_text| {
+			let decrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Decrypt, &key2, Some(&iv2));
+			let mut plain_text = vec![0u8; 1024];
+			decrypter.unwrap().update(cipher_text, &mut plain_text).unwrap();
+			plain_text
+		})
+	)
+}
 
 #[cfg(test)]
 mod test {
