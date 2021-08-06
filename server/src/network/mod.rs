@@ -17,10 +17,14 @@ use tokio::io::AsyncBufReadExt;
 
 use crate::prelude::StreamMessageSender;
 
+type TransformerVec = Vec<fn(&[u8]) -> &[u8]>;
 
 pub struct SocketSender {
 	stream_tx: Mutex<WriteHalf<tokio::net::TcpStream>>,
 	stream_rx: Mutex<BufReader<ReadHalf<tokio::net::TcpStream>>>,
+
+	send_transformer: Mutex<TransformerVec>,
+	recv_transformer: Mutex<TransformerVec>,
 }
 
 impl SocketSender {
@@ -31,7 +35,34 @@ impl SocketSender {
 		Arc::new(SocketSender {
 			stream_tx: Mutex::new(wd),
 			stream_rx: Mutex::new(reader),
+
+			send_transformer: Mutex::new(Vec::new()),
+			recv_transformer: Mutex::new(Vec::new()),
 		})
+	}
+
+	pub async fn push_layer(
+		self: &Arc<Self>,
+		send_func: fn(&[u8]) -> &[u8],
+		recv_func: fn(&[u8]) -> &[u8],
+	) {
+		let mut send_lock = self.send_transformer.lock().await;
+		let mut recv_lock = self.recv_transformer.lock().await;
+		send_lock.push(send_func);
+		recv_lock.reverse();
+		recv_lock.push(recv_func);
+		recv_lock.reverse();
+	}
+
+	pub async fn pop_layer(self: &Arc<Self>,) {
+		let mut send_lock = self.send_transformer.lock().await;
+		let mut recv_lock = self.recv_transformer.lock().await;
+
+		let _ = send_lock.pop();
+
+		recv_lock.reverse();
+		let _ = recv_lock.pop();
+		recv_lock.reverse();
 	}
 }
 
