@@ -100,3 +100,58 @@ impl Debug for SocketHandler {
 			write!(f, "[SocketSender]")
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use std::time::Duration;
+	
+	use tokio::net::TcpStream;
+	use tokio::net::TcpListener;
+	use tokio::time::sleep;
+	use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+	use super::SocketHandler;
+	use crate::prelude::StreamMessageSender;
+
+	async fn start_server() {
+		let listener = TcpListener::bind("127.0.0.1:5600").await.expect("failed to create listener");
+		let mut buf = [0; 1024];
+
+		loop {
+			let (mut socket, _) = listener.accept().await.expect("failed to accept connection");
+
+			tokio::spawn(async move {
+				let n = match socket.read(&mut buf).await {
+					// socket closed
+					Ok(n) if n == 0 => return,
+					Ok(n) => n,
+					Err(e) => {
+						println!("failed to read from socket; err = {:?}", e);
+						return;
+					}
+				};
+
+				// Write the data back
+				if let Err(e) = socket.write_all(&buf[0..n]).await {
+					println!("failed to write to socket; err = {:?}", e);
+					return;
+				}
+			});
+		}
+	}
+
+	#[tokio::test]
+	async fn test_socket_sender() { 
+		tokio::spawn(start_server());
+
+		let socket = TcpStream::connect("localhost:5600").await.expect("failed to connect");
+
+		sleep(Duration::from_secs(1)).await;
+		
+		let handle = SocketHandler::new(socket);
+		let _ = handle.send::<bool>(true).await;
+		let message = handle.recv::<bool>().await.unwrap();
+
+		assert!(message);
+	}
+}
