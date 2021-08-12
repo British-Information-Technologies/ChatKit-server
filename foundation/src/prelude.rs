@@ -1,15 +1,19 @@
 use std::sync::Arc;
 
-pub trait IMessagable<TMessage, TSender> {
-	fn send_message(&self, msg: TMessage);
-	fn set_sender(&self, sender: TSender);
-}
+use async_trait::async_trait;
 
-pub trait ICooperative {
-	fn tick(&self);
-}
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-pub trait IPreemptive {
-	fn run(arc: &Arc<Self>);
-	fn start(arc: &Arc<Self>);
+pub type TransformerFn = Box<dyn Fn(&[u8]) -> Vec<u8> + Send + Sync>;
+
+#[async_trait]
+pub trait StreamMessageSender {
+	async fn send<TOutMessage: Serialize + Send>(
+		self: &Arc<Self>,
+		message: TOutMessage,
+	) -> Result<(), std::io::Error>;
+	async fn recv<'de, TInMessage: DeserializeOwned + Send>(
+		self: &Arc<Self>,
+	) -> Result<TInMessage, std::io::Error>;
 }
