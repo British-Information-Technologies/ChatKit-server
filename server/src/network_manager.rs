@@ -3,11 +3,12 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::Sender;
 
-use crate::client::Client;
-use crate::network::SocketHandler;
-use crate::messages::ServerMessage;
-use crate::prelude::StreamMessageSender;
+use foundation::prelude::StreamMessageSender;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
+use foundation::network::SocketHandler;
+
+use crate::client::Client;
+use crate::messages::ServerMessage;
 
 pub struct NetworkManager {
 	address: String,
@@ -23,11 +24,12 @@ impl NetworkManager {
 	}
 
 	pub fn start(self: &Arc<NetworkManager>) {
-
 		let network_manager = self.clone();
 
 		tokio::spawn(async move {
-			let listener = TcpListener::bind(network_manager.address.clone()).await.unwrap();
+			let listener = TcpListener::bind(network_manager.address.clone())
+				.await
+				.unwrap();
 
 			loop {
 				let (connection, _) = listener.accept().await.unwrap();
@@ -35,22 +37,21 @@ impl NetworkManager {
 				let server_channel = network_manager.server_channel.clone();
 
 				tokio::spawn(async move {
+					stream_sender
+						.send::<NetworkSockOut>(NetworkSockOut::Request)
+						.await
+						.expect("failed to send message");
 
-					stream_sender.send::<NetworkSockOut>(NetworkSockOut::Request)
-						.await.expect("failed to send message");
-
-					if let Ok(request) = 
-						stream_sender.recv::<NetworkSockIn>().await 
-					{
-
+					if let Ok(request) = stream_sender.recv::<NetworkSockIn>().await {
 						match request {
 							NetworkSockIn::Info => {
-								stream_sender.send(
-									NetworkSockOut::GotInfo {
+								stream_sender
+									.send(NetworkSockOut::GotInfo {
 										server_name: "oof",
 										server_owner: "michael",
-									}
-								).await.expect("failed to send got info");
+									})
+									.await
+									.expect("failed to send got info");
 							}
 							NetworkSockIn::Connect {
 								uuid,
@@ -66,14 +67,13 @@ impl NetworkManager {
 									server_channel.clone(),
 								);
 								let _ = server_channel
-									.send(ServerMessage::ClientConnected {
-										client: new_client,
-									}).await;
+									.send(ServerMessage::ClientConnected { client: new_client })
+									.await;
 							}
 						}
 					}
 				});
 			}
-		});	
+		});
 	}
 }

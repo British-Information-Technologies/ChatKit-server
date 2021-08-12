@@ -1,17 +1,19 @@
-use std::sync::Arc;
+use tokio::net::TcpStream;
 use std::cmp::Ordering;
+use std::sync::Arc;
 
 use uuid::Uuid;
 use futures::lock::Mutex;
-use tokio::sync::mpsc::{Sender, Receiver, channel};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::network::SocketHandler;
-use crate::messages::ClientMessage;
-use crate::messages::ServerMessage;
-use crate::prelude::StreamMessageSender;
 
 use foundation::ClientDetails;
+use foundation::network::SocketHandler;
+use foundation::prelude::StreamMessageSender;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
+
+use crate::messages::ClientMessage;
+use crate::messages::ServerMessage;
 
 /// # Client
 /// This struct represents a connected user.
@@ -34,7 +36,7 @@ pub struct Client {
 	tx: Sender<ClientMessage>,
 	rx: Mutex<Receiver<ClientMessage>>,
 
-	socket_sender: Arc<SocketHandler>,
+	socket_sender: Arc<SocketHandler<TcpStream>>,
 }
 
 // client funciton implmentations
@@ -43,7 +45,7 @@ impl Client {
 		uuid: String,
 		username: String,
 		address: String,
-		socket_sender: Arc<SocketHandler>,
+		socket_sender: Arc<SocketHandler<TcpStream>>,
 		server_channel: Sender<ServerMessage>,
 	) -> Arc<Client> {
 		let (sender, receiver) = channel(1024);
@@ -53,7 +55,7 @@ impl Client {
 				uuid: Uuid::parse_str(&uuid).expect("invalid id"),
 				username,
 				address,
-        public_key: None
+				public_key: None,
 			},
 
 			server_channel: Mutex::new(server_channel),
@@ -61,12 +63,10 @@ impl Client {
 
 			tx: sender,
 			rx: Mutex::new(receiver),
-
 		})
 	}
 
 	pub fn start(self: &Arc<Client>) {
-
 		let t1_client = self.clone();
 		let t2_client = self.clone();
 
@@ -76,7 +76,11 @@ impl Client {
 
 			let client = t1_client;
 
-			client.socket_sender.send::<ClientStreamOut>(ClientStreamOut::Connected).await.expect("error");
+			client
+				.socket_sender
+				.send::<ClientStreamOut>(ClientStreamOut::Connected)
+				.await
+				.expect("error");
 
 			loop {
 				let command = client.socket_sender.recv::<ClientStreamIn>().await;
@@ -87,23 +91,36 @@ impl Client {
 						return;
 					}
 					Ok(ClientStreamIn::SendMessage { to, content }) => {
-						println!("[Client {:?}]: send message to: {:?}", &client.details.uuid, &to);
+						println!(
+							"[Client {:?}]: send message to: {:?}",
+							&client.details.uuid, &to
+						);
 						let lock = client.server_channel.lock().await;
-						let _ = lock.send(ServerMessage::ClientSendMessage {
-							from: client.details.uuid,
-							to,
-							content,
-						}).await;
+						let _ = lock
+							.send(ServerMessage::ClientSendMessage {
+								from: client.details.uuid,
+								to,
+								content,
+							})
+							.await;
 					}
 					Ok(ClientStreamIn::Update) => {
 						println!("[Client {:?}]: update received", &client.details.uuid);
 						let lock = client.server_channel.lock().await;
-						let _ = lock.send(ServerMessage::ClientUpdate { to: client.details.uuid }).await;
+						let _ = lock
+							.send(ServerMessage::ClientUpdate {
+								to: client.details.uuid,
+							})
+							.await;
 					}
 					_ => {
 						println!("[Client {:?}]: command not found", &client.details.uuid);
 						let lock = client.server_channel.lock().await;
-						let _ = lock.send(ServerMessage::ClientError { to: client.details.uuid }).await;
+						let _ = lock
+							.send(ServerMessage::ClientError {
+								to: client.details.uuid,
+							})
+							.await;
 					}
 				}
 			}
@@ -111,7 +128,7 @@ impl Client {
 
 		// client channel read thread
 		tokio::spawn(async move {
-			use ClientMessage::{Disconnect, Message, SendClients, Error};
+			use ClientMessage::{Disconnect, Error, Message, SendClients};
 
 			let client = t2_client;
 
@@ -125,32 +142,42 @@ impl Client {
 				match message {
 					Disconnect => {
 						let lock = client.server_channel.lock().await;
-						let _ = lock.send(ServerMessage::ClientDisconnected { id: client.details.uuid }).await;
-						return
+						let _ = lock
+							.send(ServerMessage::ClientDisconnected {
+								id: client.details.uuid,
+							})
+							.await;
+						return;
 					}
-					Message { from, content } => 
-						client.socket_sender.send::<ClientStreamOut>(
-							ClientStreamOut::UserMessage { from, content }
-						).await.expect("error sending message"),
-					
-					SendClients { clients } => {
-						let client_details_vec: Vec<ClientDetails> = 
-							clients.iter().map(|client| &client.details)
-							.cloned().collect();
+					Message { from, content } => client
+						.socket_sender
+						.send::<ClientStreamOut>(ClientStreamOut::UserMessage { from, content })
+						.await
+						.expect("error sending message"),
 
-						client.socket_sender.send::<ClientStreamOut>(
-							ClientStreamOut::ConnectedClients {
+					SendClients { clients } => {
+						let client_details_vec: Vec<ClientDetails> = clients
+							.iter()
+							.map(|client| &client.details)
+							.cloned()
+							.collect();
+
+						client
+							.socket_sender
+							.send::<ClientStreamOut>(ClientStreamOut::ConnectedClients {
 								clients: client_details_vec,
-							}
-						).await.expect("error sending message");
-					},
-					Error => 
-						client.socket_sender.send::<ClientStreamOut>(
-							ClientStreamOut::Error
-						).await.expect("error sending message"),
+							})
+							.await
+							.expect("error sending message");
+					}
+					Error => client
+						.socket_sender
+						.send::<ClientStreamOut>(ClientStreamOut::Error)
+						.await
+						.expect("error sending message"),
 				}
 			}
-		});		
+		});
 	}
 
 	pub async fn send_message(self: &Arc<Client>, msg: ClientMessage) {

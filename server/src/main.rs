@@ -1,11 +1,9 @@
 pub mod client;
 pub mod client_manager;
-pub mod messages;
 pub mod network_manager;
-pub mod network;
-pub mod server;
-pub mod encryption;
 pub mod prelude;
+pub mod server;
+pub mod messages;
 
 use std::io;
 
@@ -34,5 +32,5 @@ async fn main() -> io::Result<()> {
 	let server = Server::new().unwrap();
 
 	server.start().await;
- 	Ok(())
+	Ok(())
 }

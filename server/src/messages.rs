@@ -28,7 +28,7 @@ pub enum ClientMgrMessage {
 	},
 	SendError {
 		to: Uuid,
-	}
+	},
 }
 
 #[derive(Debug)]
@@ -48,6 +48,6 @@ pub enum ServerMessage {
 		to: Uuid,
 	},
 	ClientError {
-		to: Uuid
-	}
+		to: Uuid,
+	},
 }
