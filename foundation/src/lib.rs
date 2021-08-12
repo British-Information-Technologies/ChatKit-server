@@ -1,5 +1,8 @@
+pub mod encryption;
 pub mod messages;
 pub mod prelude;
+pub mod network;
+pub mod helpers;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
