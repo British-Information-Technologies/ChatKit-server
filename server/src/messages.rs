@@ -1,11 +1,13 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use uuid::Uuid;
 
+use crate::chat_manager::Message;
 use crate::client::Client;
 
 #[derive(Debug)]
 pub enum ClientMessage {
 	Message { from: Uuid, content: String },
+	GlobalBroadcastMessage {from: Uuid, content:String},
 
 	SendClients { clients: Vec<Arc<Client>> },
 
@@ -26,9 +28,10 @@ pub enum ClientMgrMessage {
 		to: Uuid,
 		content: String,
 	},
+	BroadcastGlobalMessage {sender: Uuid, content: String},
 	SendError {
 		to: Uuid,
-	}
+	},
 }
 
 #[derive(Debug)]
@@ -48,6 +51,8 @@ pub enum ServerMessage {
 		to: Uuid,
 	},
 	ClientError {
-		to: Uuid
-	}
+		to: Uuid,
+	},
+	
+	BroadcastGlobalMessage {sender: Uuid, content: String}
 }

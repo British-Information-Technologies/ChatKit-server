@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use std::io::Write;
+use std::sync::Arc;
 
-use tokio::task;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc::Sender;
-use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::task;
 
 use crate::client::Client;
 use crate::messages::ServerMessage;
@@ -16,7 +16,10 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
-	pub fn new(_port: String, server_channel: Sender<ServerMessage>) -> Arc<NetworkManager> {
+	pub fn new(
+		_port: String,
+		server_channel: Sender<ServerMessage>,
+	) -> Arc<NetworkManager> {
 		Arc::new(NetworkManager {
 			address: "0.0.0.0:5600".to_string(),
 			server_channel,
@@ -24,16 +27,17 @@ impl NetworkManager {
 	}
 
 	pub fn start(self: &Arc<NetworkManager>) {
-
 		let network_manager = self.clone();
 
 		tokio::spawn(async move {
-			let listener = TcpListener::bind(network_manager.address.clone()).await.unwrap();
+			let listener = TcpListener::bind(network_manager.address.clone())
+				.await
+				.unwrap();
 
 			loop {
 				let (connection, _) = listener.accept().await.unwrap();
 				let (rd, mut wd) = io::split(connection);
-				
+
 				let mut reader = BufReader::new(rd);
 				let server_channel = network_manager.server_channel.clone();
 
@@ -44,11 +48,7 @@ impl NetworkManager {
 					// write request
 					let a = serde_json::to_string(&NetworkSockOut::Request).unwrap();
 					println!("{:?}", &a);
-					let _ = writeln!(
-						out_buffer,
-						"{}",
-						a
-					);
+					let _ = writeln!(out_buffer, "{}", a);
 
 					let _ = wd.write_all(&out_buffer).await;
 					let _ = wd.flush().await;
@@ -57,22 +57,21 @@ impl NetworkManager {
 					let _ = reader.read_line(&mut in_buffer).await.unwrap();
 
 					//match the response
-					if let Ok(request) =
-						serde_json::from_str::<NetworkSockIn>(&in_buffer) 
+					if let Ok(request) = serde_json::from_str::<NetworkSockIn>(&in_buffer)
 					{
 						match request {
 							NetworkSockIn::Info => {
 								// send back server info to the connection
-								let _ = wd.write_all(
-									serde_json::to_string(
-										&NetworkSockOut::GotInfo {
+								let _ = wd
+									.write_all(
+										serde_json::to_string(&NetworkSockOut::GotInfo {
 											server_name: "oof",
 											server_owner: "michael",
-										},
+										})
+										.unwrap()
+										.as_bytes(),
 									)
-									.unwrap()
-									.as_bytes(),
-								).await;
+									.await;
 								let _ = wd.write_all(b"\n").await;
 								let _ = wd.flush().await;
 							}
@@ -93,12 +92,13 @@ impl NetworkManager {
 								let _ = server_channel
 									.send(ServerMessage::ClientConnected {
 										client: new_client,
-									}).await;
+									})
+									.await;
 							}
 						}
 					}
 				});
 			}
-		});	
+		});
 	}
 }

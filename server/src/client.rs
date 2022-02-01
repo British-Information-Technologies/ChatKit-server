@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use std::cmp::Ordering;
 use std::fmt::Write;
+use std::sync::Arc;
 
 use uuid::Uuid;
 
@@ -8,15 +8,15 @@ use zeroize::Zeroize;
 
 use futures::lock::Mutex;
 
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::io::{ReadHalf, WriteHalf};
-use tokio::sync::mpsc::{Sender, Receiver, channel};
-use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::messages::ClientMessage;
 use crate::messages::ServerMessage;
 
-use foundation::ClientDetails;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
+use foundation::ClientDetails;
 
 /// # Client
 /// This struct represents a connected user.
@@ -60,7 +60,7 @@ impl Client {
 				uuid: Uuid::parse_str(&uuid).expect("invalid id"),
 				username,
 				address,
-        public_key: None
+				public_key: None,
 			},
 
 			server_channel: Mutex::new(server_channel),
@@ -74,13 +74,11 @@ impl Client {
 	}
 
 	pub fn start(self: &Arc<Client>) {
-
 		let t1_client = self.clone();
 		let t2_client = self.clone();
 
 		// client stream read task
 		tokio::spawn(async move {
-
 			use ClientMessage::Disconnect;
 
 			let client = t1_client;
@@ -89,7 +87,9 @@ impl Client {
 			let mut buffer = String::new();
 
 			// tell client that is is now connected
-			let _ = writeln!(buffer, "{}",
+			let _ = writeln!(
+				buffer,
+				"{}",
 				serde_json::to_string(&ClientStreamOut::Connected).unwrap()
 			);
 
@@ -103,34 +103,65 @@ impl Client {
 				let mut buffer = String::new();
 
 				if let Ok(_size) = stream_reader.read_line(&mut buffer).await {
-
 					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
 					println!("[Client {:?}]: recieved {}", client.details.uuid, &buffer);
 
 					match command {
 						Ok(ClientStreamIn::Disconnect) => {
-							println!("[Client {:?}]: Disconnect recieved", &client.details.uuid);
+							println!(
+								"[Client {:?}]: Disconnect recieved",
+								&client.details.uuid
+							);
 							client.send_message(Disconnect).await;
 							return;
 						}
 						Ok(ClientStreamIn::SendMessage { to, content }) => {
-							println!("[Client {:?}]: send message to: {:?}", &client.details.uuid, &to);
+							println!(
+								"[Client {:?}]: send message to: {:?}",
+								&client.details.uuid, &to
+							);
 							let lock = client.server_channel.lock().await;
-							let _ = lock.send(ServerMessage::ClientSendMessage {
-								from: client.details.uuid,
-								to,
-								content,
-							}).await;
+							let _ = lock
+								.send(ServerMessage::ClientSendMessage {
+									from: client.details.uuid,
+									to,
+									content,
+								})
+								.await;
 						}
 						Ok(ClientStreamIn::Update) => {
-							println!("[Client {:?}]: update received", &client.details.uuid);
+							println!(
+								"[Client {:?}]: update received",
+								&client.details.uuid
+							);
 							let lock = client.server_channel.lock().await;
-							let _ = lock.send(ServerMessage::ClientUpdate { to: client.details.uuid }).await;
+							let _ = lock
+								.send(ServerMessage::ClientUpdate {
+									to: client.details.uuid,
+								})
+								.await;
+						}
+						Ok(ClientStreamIn::SendGlobalMessage {content}) => {
+							println!(
+								"[Client {:?}]: send global message received",
+								&client.details.uuid
+							);
+							let lock = client.server_channel.lock().await;
+							let _ = lock
+								.send(ServerMessage::BroadcastGlobalMessage { content, sender: *&client.details.uuid.clone() })
+								.await;
 						}
 						_ => {
-							println!("[Client {:?}]: command not found", &client.details.uuid);
+							println!(
+								"[Client {:?}]: command not found",
+								&client.details.uuid
+							);
 							let lock = client.server_channel.lock().await;
-							let _ = lock.send(ServerMessage::ClientError { to: client.details.uuid }).await;
+							let _ = lock
+								.send(ServerMessage::ClientError {
+									to: client.details.uuid,
+								})
+								.await;
 						}
 					}
 					buffer.zeroize();
@@ -140,7 +171,7 @@ impl Client {
 
 		// client channel read thread
 		tokio::spawn(async move {
-			use ClientMessage::{Disconnect, Message, SendClients, Error};
+			use ClientMessage::{Disconnect, Error, Message, SendClients};
 
 			let client = t2_client;
 
@@ -155,12 +186,17 @@ impl Client {
 				match message {
 					Disconnect => {
 						let lock = client.server_channel.lock().await;
-						let _ = lock.send(ServerMessage::ClientDisconnected { id: client.details.uuid }).await;
-						return
+						let _ = lock
+							.send(ServerMessage::ClientDisconnected {
+								id: client.details.uuid,
+							})
+							.await;
+						return;
 					}
 					Message { from, content } => {
 						let msg = ClientStreamOut::UserMessage { from, content };
-						let _ = writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
+						let _ =
+							writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
 
 						let mut stream = client.stream_tx.lock().await;
 
@@ -180,24 +216,41 @@ impl Client {
 							clients: client_details_vec,
 						};
 
-						let _ = writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
-
-						let mut stream = client.stream_tx.lock().await;
-
-						let _ = stream.write_all(&buffer.as_bytes()).await;
-						let _ = stream.flush().await;
-					},
-					Error => {
-						let _ = writeln!(buffer, "{}", serde_json::to_string(&ClientStreamOut::Error).unwrap());
+						let _ =
+							writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
 
 						let mut stream = client.stream_tx.lock().await;
 
 						let _ = stream.write_all(&buffer.as_bytes()).await;
 						let _ = stream.flush().await;
 					}
+					Error => {
+						let _ = writeln!(
+							buffer,
+							"{}",
+							serde_json::to_string(&ClientStreamOut::Error).unwrap()
+						);
+
+						let mut stream = client.stream_tx.lock().await;
+
+						let _ = stream.write_all(&buffer.as_bytes()).await;
+						let _ = stream.flush().await;
+					}
+					ClientMessage::GlobalBroadcastMessage { from,content } => {
+						let _ = writeln!(
+							buffer,
+							"{}",
+							serde_json::to_string(&ClientStreamOut::GlobalMessage {from, content}).unwrap()
+						);
+						
+						let mut stream = client.stream_tx.lock().await;
+						
+						let _ = stream.write_all(&buffer.as_bytes()).await;
+						let _ = stream.flush().await;
+					}
 				}
 			}
-		});		
+		});
 	}
 
 	pub async fn send_message(self: &Arc<Client>, msg: ClientMessage) {

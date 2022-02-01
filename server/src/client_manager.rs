@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
+use futures::future::join_all;
 
-use uuid::Uuid;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 use futures::lock::Mutex;
+use tokio::join;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use uuid::Uuid;
 
 use crate::client::Client;
 use crate::messages::ClientMessage;
@@ -37,19 +40,17 @@ impl ClientManager {
 	}
 
 	pub fn start(self: &Arc<ClientManager>) {
-
 		let client_manager = self.clone();
 
 		tokio::spawn(async move {
-
-			use ClientMgrMessage::{Add, Remove, SendClients, SendMessage, SendError};
+			use ClientMgrMessage::{Add, Remove, SendClients, SendError, SendMessage};
 
 			loop {
 				let mut receiver = client_manager.rx.lock().await;
 				let message = receiver.recv().await.unwrap();
 
 				println!("[Client manager]: recieved message: {:?}", message);
-				
+
 				match message {
 					Add(client) => {
 						println!("[Client Manager]: adding new client");
@@ -61,12 +62,16 @@ impl ClientManager {
 					}
 					Remove(uuid) => {
 						println!("[Client Manager]: removing client: {:?}", &uuid);
-						if let Some(client) = client_manager.clients.lock().await.remove(&uuid) {
+						if let Some(client) =
+							client_manager.clients.lock().await.remove(&uuid)
+						{
 							client.send_message(ClientMessage::Disconnect).await;
 						}
 					}
 					SendMessage { to, from, content } => {
-						client_manager.send_to_client(&to, ClientMessage::Message { from, content }).await;
+						client_manager
+							.send_to_client(&to, ClientMessage::Message { from, content })
+							.await;
 					}
 					SendClients { to } => {
 						let lock = client_manager.clients.lock().await;
@@ -74,17 +79,29 @@ impl ClientManager {
 							let clients_vec: Vec<Arc<Client>> =
 								lock.values().cloned().collect();
 
-							client.send_message(ClientMessage::SendClients {
-								clients: clients_vec,
-							}).await
+							client
+								.send_message(ClientMessage::SendClients {
+									clients: clients_vec,
+								})
+								.await
 						}
-					},
+					}
+					ClientMgrMessage::BroadcastGlobalMessage {sender, content} => {
+						use futures::stream::TryStreamExt;
+						let lock = client_manager.clients.lock().await;
+						let futures = lock.iter()
+							.map(|i| i.1.send_message(
+								ClientMessage::GlobalBroadcastMessage {from: sender, content: content.clone()}
+							));
+						
+						join_all(futures).await;
+					}
 					SendError { to } => {
 						let lock = client_manager.clients.lock().await;
 						if let Some(client) = lock.get(&to) {
 							client.send_message(ClientMessage::Error).await
 						}
-					},
+					}
 					#[allow(unreachable_patterns)]
 					_ => println!("[Client manager]: not implemented"),
 				}
@@ -99,10 +116,7 @@ impl ClientManager {
 		}
 	}
 
-	pub async fn send_message(
-		self: Arc<ClientManager>,
-		message: ClientMgrMessage) 
-	{
+	pub async fn send_message(self: Arc<ClientManager>, message: ClientMgrMessage) {
 		let _ = self.tx.send(message).await;
 	}
 }

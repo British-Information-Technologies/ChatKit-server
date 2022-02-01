@@ -12,14 +12,16 @@ mod test {
 		let key = sha256(b"This is a key");
 		let IV = b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-		let encrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Encrypt, &key, Some(IV));
+		let encrypter =
+			Crypter::new(Cipher::aes_256_gcm(), Mode::Encrypt, &key, Some(IV));
 		let mut ciphertext = vec![0u8; 1024];
 		let cipherlen = encrypter
 			.unwrap()
 			.update(plaintext, ciphertext.as_mut_slice())
 			.unwrap();
 
-		let decrypter = Crypter::new(Cipher::aes_256_gcm(), Mode::Decrypt, &key, Some(IV));
+		let decrypter =
+			Crypter::new(Cipher::aes_256_gcm(), Mode::Decrypt, &key, Some(IV));
 		let mut decrypted = vec![0u8; 1024];
 		decrypter
 			.unwrap()

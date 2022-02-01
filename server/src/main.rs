@@ -1,3 +1,4 @@
+pub mod chat_manager;
 pub mod client;
 pub mod client_manager;
 pub mod messages;
@@ -31,5 +32,5 @@ async fn main() -> io::Result<()> {
 	let server = Server::new().unwrap();
 
 	server.start().await;
- 	Ok(())
+	Ok(())
 }
