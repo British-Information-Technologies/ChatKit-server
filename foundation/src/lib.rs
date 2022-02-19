@@ -1,6 +1,9 @@
+extern crate core;
+
 pub mod encryption;
 pub mod messages;
 pub mod prelude;
+pub mod connection;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

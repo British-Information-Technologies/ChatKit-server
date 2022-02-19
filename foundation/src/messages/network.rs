@@ -11,14 +11,16 @@ pub enum NetworkSockIn {
 	},
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
-pub enum NetworkSockOut<'a> {
+pub enum NetworkSockOut {
 	Request,
 
 	GotInfo {
-		server_name: &'a str,
-		server_owner: &'a str,
+		server_name: String,
+		server_owner: String,
 	},
 	Connecting,
+	
+	Error
 }

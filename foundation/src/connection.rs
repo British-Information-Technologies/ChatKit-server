@@ -1,10 +1,12 @@
-use std::io::Error;
+use std::borrow::BorrowMut;
+use std::io::{Error, ErrorKind};
 use std::io::Write;
+use std::mem;
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use tokio::io;
 use tokio::io::{AsyncWriteExt, BufReader, AsyncBufReadExt, ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::Mutex;
 use crate::messages::client::ClientStreamOut;
 use crate::messages::network::NetworkSockIn;
@@ -22,34 +24,55 @@ impl Connection {
 		}
 	}
 	
-	pub async fn connect(&self, host: String) -> Result<(), Error> {
+	pub async fn connect<T: ToSocketAddrs>(&self, host: T) -> Result<(), Error> {
 		let connection = TcpStream::connect(host).await?;
 		let (rd, mut wd) = io::split(connection);
-		*self.stream_tx.lock().await = Some(wd);
-		*self.stream_rx.lock().await = Some(BufReader::new(rd));
+		
+		let mut writer_lock = self.stream_tx.lock().await;
+		let mut reader_lock = self.stream_rx.lock().await;
+		
+		mem::replace(&mut *writer_lock, Some(wd));
+		mem::replace(&mut *reader_lock, Some(BufReader::new(rd)));
+		
 		Ok(())
 	}
 	
 	pub async fn write<T>(&self, message: T) -> Result<(), Error>
 		where T: Serialize {
 		let mut out_buffer = Vec::new();
+
+
 		let out = serde_json::to_string(&message).unwrap();
-		writeln!(out_buffer, "{}", out)?;
+
+		writeln!(&mut out_buffer, "{}", out)?;
+
 		let mut writer_lock = self.stream_tx.lock().await;
-		let writer = writer_lock.as_mut().unwrap();
-		let _ = writer.write_all(&out_buffer).await;
-		let _ = writer.flush().await;
-		Ok(())
+
+		let old = mem::replace(&mut *writer_lock, None);
+
+		return if let Some(mut writer) = old {
+			writer.write_all(&out_buffer).await?;
+			writer.flush().await?;
+			let _ = mem::replace(&mut *writer_lock, Some(writer));
+			Ok(())
+		} else {
+			Err(Error::new(ErrorKind::Interrupted, "Writer does not exist"))
+		}
 	}
 	
 	pub async fn read<T>(&self) -> Result<T,Error>
 		where T: DeserializeOwned {
 		let mut buffer = String::new();
 		let mut reader_lock = self.stream_rx.lock().await;
-		let reader = reader_lock.as_mut().unwrap();
-		reader.read_line(&mut buffer).await?;
-		let a: T = serde_json::from_str(&buffer).unwrap();
-		Ok(a)
+		let old = mem::replace(&mut *reader_lock, None);
+
+		if let Some(mut reader) = old {
+			let _ = reader.read_line(&mut buffer).await?;
+			let _ = mem::replace(&mut *reader_lock, Some(reader));
+			Ok(serde_json::from_str(&buffer).unwrap())
+		} else {
+			Err(Error::new(ErrorKind::Interrupted, "Reader does not exist"))
+		}
 	}
 }
 
