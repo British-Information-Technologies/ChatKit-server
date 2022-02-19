@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -11,19 +12,23 @@ use crate::messages::ServerMessage;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 
 pub struct NetworkManager {
-	address: String,
+	address: SocketAddr,
 	server_channel: Sender<ServerMessage>,
 }
 
 impl NetworkManager {
 	pub fn new(
-		_port: String,
+		port: u16,
 		server_channel: Sender<ServerMessage>,
 	) -> Arc<NetworkManager> {
 		Arc::new(NetworkManager {
-			address: "0.0.0.0:5600".to_string(),
+			address: format!("0.0.0.0:{}", port).parse().unwrap(),
 			server_channel,
 		})
+	}
+	
+	pub fn port(&self) -> u16 {
+		self.address.port()
 	}
 
 	pub fn start(self: &Arc<NetworkManager>) {
@@ -65,8 +70,8 @@ impl NetworkManager {
 								let _ = wd
 									.write_all(
 										serde_json::to_string(&NetworkSockOut::GotInfo {
-											server_name: "oof",
-											server_owner: "michael",
+											server_name: "oof".to_string(),
+											server_owner: "michael".to_string(),
 										})
 										.unwrap()
 										.as_bytes(),

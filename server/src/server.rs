@@ -31,11 +31,15 @@ impl Server {
 
 		Ok(Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
-			network_manager: NetworkManager::new("5600".to_string(), sender),
+			network_manager: NetworkManager::new("5600".parse().unwrap(), sender),
 			receiver: Mutex::new(receiver),
 		}))
 	}
 
+	pub fn port(self: &Arc<Server>) -> u16 {
+		self.network_manager.port()
+	}
+	
 	pub async fn start(self: &Arc<Server>) {
 		// start client manager and network manager
 		self.network_manager.clone().start();
