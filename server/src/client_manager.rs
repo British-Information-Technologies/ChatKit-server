@@ -150,3 +150,14 @@ impl IManager for ClientManager {
 	}
 }
 
+
+#[cfg(test)]
+mod test {
+	use std::io::Error;
+	use crate::client_manager::ClientManager;
+
+	async fn create_new_client_manager() -> Result<(), Error> {
+		let client_manager = ClientManager::new()
+	}
+}
+
