@@ -1,12 +1,15 @@
 use std::collections::HashMap;
-use std::future::Future;
 use std::sync::Arc;
-use futures::future::join_all;
 
+use futures::future::join_all;
 use futures::lock::Mutex;
-use tokio::join;
+
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+
 use uuid::Uuid;
+
+use foundation::prelude::IManager;
+use foundation::ClientDetails;
 
 use crate::client::Client;
 use crate::messages::ClientMessage;
@@ -17,7 +20,7 @@ use crate::messages::ServerMessage;
 /// This struct manages all connected users
 #[derive(Debug)]
 pub struct ClientManager {
-	clients: Mutex<HashMap<Uuid, Arc<Client>>>,
+	clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
 
 	server_channel: Mutex<Sender<ServerMessage>>,
 
@@ -39,6 +42,8 @@ impl ClientManager {
 		})
 	}
 
+	pub async fn add_client(self: &Arc<ClientManager>) {}
+
 	pub fn start(self: &Arc<ClientManager>) {
 		let client_manager = self.clone();
 
@@ -49,15 +54,15 @@ impl ClientManager {
 				let mut receiver = client_manager.rx.lock().await;
 				let message = receiver.recv().await.unwrap();
 
-				println!("[Client manager]: recieved message: {:?}", message);
+				println!("[Client manager]: received message: {:?}", message);
 
 				match message {
 					Add(client) => {
 						println!("[Client Manager]: adding new client");
-						client.start();
 						let mut lock = client_manager.clients.lock().await;
+						client.start();
 						if lock.insert(client.details.uuid, client).is_none() {
-							println!("value is new");
+							println!("client added");
 						}
 					}
 					Remove(uuid) => {
@@ -76,8 +81,8 @@ impl ClientManager {
 					SendClients { to } => {
 						let lock = client_manager.clients.lock().await;
 						if let Some(client) = lock.get(&to) {
-							let clients_vec: Vec<Arc<Client>> =
-								lock.values().cloned().collect();
+							let clients_vec: Vec<ClientDetails> =
+								lock.values().cloned().map(|i| i.details.clone()).collect();
 
 							client
 								.send_message(ClientMessage::SendClients {
@@ -87,7 +92,6 @@ impl ClientManager {
 						}
 					}
 					ClientMgrMessage::BroadcastGlobalMessage {sender, content} => {
-						use futures::stream::TryStreamExt;
 						let lock = client_manager.clients.lock().await;
 						let futures = lock.iter()
 							.map(|i| i.1.send_message(

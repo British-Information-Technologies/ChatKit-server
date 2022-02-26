@@ -1,11 +1,12 @@
 use std::io::{Error};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::join;
 use tokio::net::{TcpStream,TcpListener};
 use crate::connection::Connection;
 
 pub async fn create_connection_pair()
-	-> Result<(Connection, (Connection, SocketAddr )), Error> {
+	-> Result<(Arc<Connection>, (Arc<Connection>, SocketAddr )), Error> {
 	let listener: TcpListener = TcpListener::bind("localhost:0000").await?;
 
 	let port = listener.local_addr()?.port();
@@ -16,7 +17,7 @@ pub async fn create_connection_pair()
 	);
 
 	let (client,addr) = client_res?;
-	let server = Connection::from(server_res?);
-	let client = Connection::from(client);
+	let server = Arc::new(Connection::from(server_res?));
+	let client = Arc::new(Connection::from(client));
 	Ok((server,(client,addr)))
 }

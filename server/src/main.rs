@@ -1,4 +1,4 @@
-pub mod chat_manager;
+// pub mod chat_manager;
 pub mod client;
 pub mod client_manager;
 pub mod messages;
@@ -29,7 +29,7 @@ async fn main() -> io::Result<()> {
 		)
 		.get_matches();
 
-	let server = Server::new().unwrap();
+	let server = Server::new().await.unwrap();
 
 	server.start().await;
 	Ok(())

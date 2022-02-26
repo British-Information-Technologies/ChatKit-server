@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum NetworkSockIn {
 	Info,
 	Connect {
-		uuid: String,
+		uuid: Uuid,
 		username: String,
 		address: String,
 	},
@@ -23,4 +24,17 @@ pub enum NetworkSockOut {
 	Connecting,
 	
 	Error
+}
+
+impl PartialEq for NetworkSockOut {
+	fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+			(NetworkSockOut::Request, NetworkSockOut::Request) => true,
+			(NetworkSockOut::GotInfo {server_name,server_owner},
+				NetworkSockOut::GotInfo {server_owner: owner_other,server_name: name_other})
+					=> server_name == name_other && server_owner == owner_other,
+			(NetworkSockOut::Connecting, NetworkSockOut::Connecting) => true,
+			_ => false
+		}
+	}
 }

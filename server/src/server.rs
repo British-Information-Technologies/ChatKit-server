@@ -1,14 +1,22 @@
+use std::io::Error;
 use std::sync::Arc;
 
 // use crossbeam_channel::{unbounded, Receiver};
 use futures::lock::Mutex;
 use tokio::sync::mpsc::{channel, Receiver};
-use uuid::Uuid;
+use foundation::prelude::IManager;
 
 use crate::client_manager::ClientManager;
-use crate::messages::ClientMgrMessage;
+use crate::messages::{ClientMessage, ClientMgrMessage};
 use crate::messages::ServerMessage;
-use crate::network_manager::NetworkManager;
+use crate::network_manager::{NetworkManager, NetworkManagerMessage};
+
+impl From<NetworkManagerMessage> for ServerMessage {
+	fn from(_: NetworkManagerMessage) -> Self {
+		ServerMessage::Some
+	}
+}
+
 
 /// # Server
 /// authors: @michael-bailey, @Mitch161
@@ -17,13 +25,13 @@ use crate::network_manager::NetworkManager;
 ///
 pub struct Server {
 	client_manager: Arc<ClientManager>,
-	network_manager: Arc<NetworkManager>,
+	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 }
 
 impl Server {
 	/// Create a new server object
-	pub fn new() -> Result<Arc<Server>, Box<dyn std::error::Error>> {
+	pub async fn new() -> Result<Arc<Server>, Error> {
 		let (
 			sender,
 			receiver
@@ -31,13 +39,13 @@ impl Server {
 
 		Ok(Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
-			network_manager: NetworkManager::new("5600".parse().unwrap(), sender),
+			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
 			receiver: Mutex::new(receiver),
 		}))
 	}
 
-	pub fn port(self: &Arc<Server>) -> u16 {
-		self.network_manager.port()
+	pub async fn port(self: &Arc<Server>) -> u16 {
+		self.network_manager.port().await
 	}
 	
 	pub async fn start(self: &Arc<Server>) {
@@ -58,11 +66,11 @@ impl Server {
 				match message {
 					ServerMessage::ClientConnected { client } => {
 						server
-							.client_manager
-							.clone()
-							.send_message(Add(client))
+							.client_manager.add_client()
+
+							// .send_message(Add(client))
 							.await
-					}
+					},
 					ServerMessage::ClientDisconnected { id } => {
 						println!("disconnecting client {:?}", id);
 						server.client_manager.clone().send_message(Remove(id)).await;
@@ -96,6 +104,7 @@ impl Server {
 								ClientMgrMessage::BroadcastGlobalMessage {sender, content}
 							).await
 					}
+					_ => {unimplemented!()}
 				}
 			}
 		}

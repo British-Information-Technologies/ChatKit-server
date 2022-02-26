@@ -1,38 +1,37 @@
-use std::borrow::BorrowMut;
 use std::io::{Error, ErrorKind};
 use std::io::Write;
 use std::mem;
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::io;
 use tokio::io::{AsyncWriteExt, BufReader, AsyncBufReadExt, ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::Mutex;
-use crate::messages::client::ClientStreamOut;
-use crate::messages::network::NetworkSockIn;
 
+#[derive(Debug)]
 pub struct Connection {
 	stream_rx: Mutex<Option<BufReader<ReadHalf<tokio::net::TcpStream>>>>,
 	stream_tx: Mutex<Option<WriteHalf<tokio::net::TcpStream>>>,
 }
 
 impl Connection {
-	pub fn new() -> Self {
-		Connection {
+	pub fn new() -> Arc<Self> {
+		Arc::new(Connection {
 			stream_rx: Mutex::new(None),
 			stream_tx: Mutex::new(None),
-		}
+		})
 	}
 	
 	pub async fn connect<T: ToSocketAddrs>(&self, host: T) -> Result<(), Error> {
 		let connection = TcpStream::connect(host).await?;
-		let (rd, mut wd) = io::split(connection);
+		let (rd, wd) = io::split(connection);
 		
 		let mut writer_lock = self.stream_tx.lock().await;
 		let mut reader_lock = self.stream_rx.lock().await;
 		
-		mem::replace(&mut *writer_lock, Some(wd));
-		mem::replace(&mut *reader_lock, Some(BufReader::new(rd)));
+		let _ = mem::replace(&mut *writer_lock, Some(wd));
+		let _ = mem::replace(&mut *reader_lock, Some(BufReader::new(rd)));
 		
 		Ok(())
 	}
@@ -78,7 +77,7 @@ impl Connection {
 
 impl From<TcpStream> for Connection {
 	fn from(stream: TcpStream) -> Self {
-		let (rd, mut wd) = io::split(stream);
+		let (rd, wd) = io::split(stream);
 		Connection {
 			stream_tx: Mutex::new(Some(wd)),
 			stream_rx: Mutex::new(Some(BufReader::new(rd))),
@@ -94,7 +93,7 @@ mod test {
 	use tokio::net::TcpListener;
 	use serde::{Serialize,Deserialize};
 	use crate::connection::Connection;
-	
+
 	#[derive(Serialize, Deserialize, Debug, PartialEq)]
 	enum TestMessages {
 		Ping,
@@ -122,8 +121,8 @@ mod test {
 		where T: FnOnce(u16) -> F + panic::UnwindSafe,
 					F: Future
 	{
-		let mut server = TcpListener::bind("localhost:0").await?;
-		let mut addr = server.local_addr()?;
+		let server = TcpListener::bind("localhost:0").await?;
+		let addr = server.local_addr()?;
 		
 		// create tokio server execution
 		tokio::spawn(async move {

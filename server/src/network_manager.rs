@@ -22,7 +22,7 @@ pub enum NetworkManagerMessage {
 		address: String,
 		username: String,
 
-		connection: Connection
+		connection: Arc<Connection>
 	},
 }
 
@@ -85,7 +85,7 @@ impl<Out> NetworkManager<Out>
 		self.listener.lock().await.local_addr().unwrap().ip().to_string()
 	}
 
-	async fn handle_connection(&self, connection: Connection) -> Result<(), Error>{
+	async fn handle_connection(&self, connection: Arc<Connection>) -> Result<(), Error>{
 		use NetworkSockIn::{Info, Connect};
 		use NetworkSockOut::{GotInfo, Request, Connecting};
 
@@ -125,27 +125,10 @@ impl<Out: 'static> IManager for NetworkManager<Out>
 		select! {
 			val = lock.accept() => {
 				if let Ok((stream, addr)) = val {
-					let _ = self.handle_connection(stream.into()).await;
+					let _ = self.handle_connection(Arc::new(stream.into())).await;
 				}
 			}
 		}
-	}
-
-	fn start(self: &Arc<Self>) {
-
-		let weak_self = Arc::downgrade(self);
-		let network = Mutex::new(weak_self.clone());
-
-		// this looks horrid but works
-		tokio::spawn(async move {
-			loop {
-				if let Some(network_manager) =
-					Weak::upgrade(&*network.lock().await)
-				{
-					network_manager.run().await
-				} else { () }
-			}
-		});
 	}
 }
 

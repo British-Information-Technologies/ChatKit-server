@@ -1,7 +1,7 @@
-mod Network;
+mod network;
 
-#[path = "NetworkManagerMessage.rs"]
-mod Message;
+#[path = "message.rs"]
+mod message;
 
-pub use Network::NetworkManager;
-pub use Message::NetworkManagerMessage;
+pub use network::NetworkManager;
+pub use message::NetworkManagerMessage;

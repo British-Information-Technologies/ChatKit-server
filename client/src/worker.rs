@@ -1,21 +1,17 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
 use std::thread::spawn;
 use std::time::Duration;
 
 use crossbeam_channel::Sender as CrossSender;
-use cursive::backends::curses::n::ncurses::LcCategory::numeric;
 use tokio::runtime::Runtime;
-use tokio::select;
 use tokio::sync::mpsc::{channel, Sender as TokioSender};
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 use foundation::ClientDetails;
 use crate::{Cursive, TextView};
-use crate::managers::{NetworkManager, NetworkManagerMessage};
-use crate::WorkerMessage::WorkerMessage;
+use crate::managers::{NetworkManager};
+use crate::worker_message::WorkerMessage;
 
 pub type CursiveSender = CrossSender<Box<dyn FnOnce(&mut Cursive) + Send>>;
 
@@ -27,12 +23,14 @@ pub struct Worker
 	network_manager: Arc<NetworkManager<WorkerMessage>>,
 	
 	number: Arc<Mutex<usize>>,
-	
+
+	#[allow(unused)]
 	user_details: Mutex<Option<ClientDetails>>,
 }
 
 impl Worker {
 	pub fn new(sender: CursiveSender) -> Worker {
+		#[allow(unused)]
 		let (tx,rx) = channel::<WorkerMessage>(16);
 		
 		
@@ -45,12 +43,14 @@ impl Worker {
 	}
 	
 	pub fn start(self) -> TokioSender<WorkerMessage> {
+		#[allow(unused)]
 		let (tx,rx) = channel::<WorkerMessage>(16);
 		spawn(move || {
 			
 			let sender = self.cursive_sender.clone();
 			let rt  = Runtime::new().unwrap();
 			let tmp_num = self.number.clone();
+			#[allow(unused)]
 			let network_manager = self.network_manager.clone();
 			rt.block_on(async move {
 				let a = &tmp_num;
@@ -68,10 +68,5 @@ impl Worker {
 			})
 		});
 		tx
-	}
-	
-	
-	pub async fn sendLoginInfo(&self) {
-	
 	}
 }

@@ -1,22 +1,31 @@
 use std::cmp::Ordering;
-use std::fmt::Write;
+use std::io::Error;
 use std::sync::Arc;
+use futures::executor::block_on;
+
+use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
-use zeroize::Zeroize;
+use async_trait::async_trait;
 
-use futures::lock::Mutex;
-
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::io::{ReadHalf, WriteHalf};
+use tokio::{select, task};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-
-use crate::messages::ClientMessage;
-use crate::messages::ServerMessage;
+use tokio::sync::{Mutex};
 
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::ClientDetails;
+use foundation::connection::Connection;
+use foundation::messages::client::ClientStreamOut::{Connected, Disconnected};
+use foundation::prelude::IManager;
+
+use crate::messages::{ClientMessage};
+
+#[derive(Serialize, Deserialize)]
+enum ClientOutMessage {
+	MessageTo,
+	UpdateRequest,
+}
 
 /// # Client
 /// This struct represents a connected user.
@@ -29,258 +38,220 @@ use foundation::ClientDetails;
 /// - stream_writer: the buffered writer used to send messages
 /// - owner: An optional reference to the owning object.
 #[derive(Debug)]
-pub struct Client {
+pub struct Client<Out: 'static>
+	where
+		Out: From<ClientMessage> + Send{
 	pub details: ClientDetails,
 
 	// server send channel
-	server_channel: Mutex<Sender<ServerMessage>>,
+	out_channel: Sender<Out>,
 
 	// object channels
 	tx: Sender<ClientMessage>,
 	rx: Mutex<Receiver<ClientMessage>>,
 
-	stream_rx: Mutex<BufReader<ReadHalf<tokio::net::TcpStream>>>,
-	stream_tx: Mutex<WriteHalf<tokio::net::TcpStream>>,
+	connection: Arc<Connection>,
 }
 
-// client funciton implmentations
-impl Client {
+// client function implementations
+impl<Out> Client<Out>
+	where
+		Out: From<ClientMessage> + Send {
 	pub fn new(
-		uuid: String,
+		uuid: Uuid,
 		username: String,
 		address: String,
-		stream_rx: BufReader<ReadHalf<tokio::net::TcpStream>>,
-		stream_tx: WriteHalf<tokio::net::TcpStream>,
-		server_channel: Sender<ServerMessage>,
-	) -> Arc<Client> {
+		out_channel: Sender<Out>,
+		connection: Arc<Connection>
+	) -> Arc<Client<Out>> {
 		let (sender, receiver) = channel(1024);
 
 		Arc::new(Client {
 			details: ClientDetails {
-				uuid: Uuid::parse_str(&uuid).expect("invalid id"),
+				uuid,
 				username,
-				address,
+				address: address.to_string(),
 				public_key: None,
 			},
-
-			server_channel: Mutex::new(server_channel),
 
 			tx: sender,
 			rx: Mutex::new(receiver),
 
-			stream_rx: Mutex::new(stream_rx),
-			stream_tx: Mutex::new(stream_tx),
+			connection: connection,
+			out_channel,
 		})
 	}
 
-	pub fn start(self: &Arc<Client>) {
-		let t1_client = self.clone();
-		let t2_client = self.clone();
-
-		// client stream read task
-		tokio::spawn(async move {
-			use ClientMessage::Disconnect;
-
-			let client = t1_client;
-
-			let mut lock = client.stream_tx.lock().await;
-			let mut buffer = String::new();
-
-			// tell client that is is now connected
-			let _ = writeln!(
-				buffer,
-				"{}",
-				serde_json::to_string(&ClientStreamOut::Connected).unwrap()
-			);
-
-			let _ = lock.write_all(&buffer.as_bytes());
-			let _ = lock.flush().await;
-
-			drop(lock);
-
-			loop {
-				let mut stream_reader = client.stream_rx.lock().await;
-				let mut buffer = String::new();
-
-				if let Ok(_size) = stream_reader.read_line(&mut buffer).await {
-					let command = serde_json::from_str::<ClientStreamIn>(buffer.as_str());
-					println!("[Client {:?}]: recieved {}", client.details.uuid, &buffer);
-
-					match command {
-						Ok(ClientStreamIn::Disconnect) => {
-							println!(
-								"[Client {:?}]: Disconnect recieved",
-								&client.details.uuid
-							);
-							client.send_message(Disconnect).await;
-							return;
-						}
-						Ok(ClientStreamIn::SendMessage { to, content }) => {
-							println!(
-								"[Client {:?}]: send message to: {:?}",
-								&client.details.uuid, &to
-							);
-							let lock = client.server_channel.lock().await;
-							let _ = lock
-								.send(ServerMessage::ClientSendMessage {
-									from: client.details.uuid,
-									to,
-									content,
-								})
-								.await;
-						}
-						Ok(ClientStreamIn::Update) => {
-							println!(
-								"[Client {:?}]: update received",
-								&client.details.uuid
-							);
-							let lock = client.server_channel.lock().await;
-							let _ = lock
-								.send(ServerMessage::ClientUpdate {
-									to: client.details.uuid,
-								})
-								.await;
-						}
-						Ok(ClientStreamIn::SendGlobalMessage {content}) => {
-							println!(
-								"[Client {:?}]: send global message received",
-								&client.details.uuid
-							);
-							let lock = client.server_channel.lock().await;
-							let _ = lock
-								.send(ServerMessage::BroadcastGlobalMessage { content, sender: *&client.details.uuid.clone() })
-								.await;
-						}
-						_ => {
-							println!(
-								"[Client {:?}]: command not found",
-								&client.details.uuid
-							);
-							let lock = client.server_channel.lock().await;
-							let _ = lock
-								.send(ServerMessage::ClientError {
-									to: client.details.uuid,
-								})
-								.await;
-						}
-					}
-					buffer.zeroize();
-				}
+	async fn handle_connection(&self, value: Result<ClientStreamIn, Error>) {
+		match value {
+			Ok(ClientStreamIn::Disconnect) => {
+				println!(
+					"[Client {:?}]: Disconnect received",
+					self.details.uuid
+				);
+				self.disconnect();
+				return;
 			}
-		});
-
-		// client channel read thread
-		tokio::spawn(async move {
-			use ClientMessage::{Disconnect, Error, Message, SendClients};
-
-			let client = t2_client;
-
-			loop {
-				let mut channel = client.rx.lock().await;
-				let mut buffer = String::new();
-
-				let message = channel.recv().await.unwrap();
-				drop(channel);
-
-				println!("[Client {:?}]: {:?}", &client.details.uuid, message);
-				match message {
-					Disconnect => {
-						let lock = client.server_channel.lock().await;
-						let _ = lock
-							.send(ServerMessage::ClientDisconnected {
-								id: client.details.uuid,
-							})
-							.await;
-						return;
-					}
-					Message { from, content } => {
-						let msg = ClientStreamOut::UserMessage { from, content };
-						let _ =
-							writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
-
-						let mut stream = client.stream_tx.lock().await;
-
-						let _ = stream.write_all(&buffer.as_bytes()).await;
-						let _ = stream.flush().await;
-
-						drop(stream);
-					}
-					SendClients { clients } => {
-						let client_details_vec: Vec<ClientDetails> = clients
-							.iter()
-							.map(|client| &client.details)
-							.cloned()
-							.collect();
-
-						let msg = ClientStreamOut::ConnectedClients {
-							clients: client_details_vec,
-						};
-
-						let _ =
-							writeln!(buffer, "{}", serde_json::to_string(&msg).unwrap());
-
-						let mut stream = client.stream_tx.lock().await;
-
-						let _ = stream.write_all(&buffer.as_bytes()).await;
-						let _ = stream.flush().await;
-					}
-					Error => {
-						let _ = writeln!(
-							buffer,
-							"{}",
-							serde_json::to_string(&ClientStreamOut::Error).unwrap()
-						);
-
-						let mut stream = client.stream_tx.lock().await;
-
-						let _ = stream.write_all(&buffer.as_bytes()).await;
-						let _ = stream.flush().await;
-					}
-					ClientMessage::GlobalBroadcastMessage { from,content } => {
-						let _ = writeln!(
-							buffer,
-							"{}",
-							serde_json::to_string(&ClientStreamOut::GlobalMessage {from, content}).unwrap()
-						);
-						
-						let mut stream = client.stream_tx.lock().await;
-						
-						let _ = stream.write_all(&buffer.as_bytes()).await;
-						let _ = stream.flush().await;
-					}
-				}
+			_ => {
+				println!(
+					"[Client {:?}]: command not found",
+					self.details.uuid
+				);
+				let _ = self.out_channel
+					.send(ClientMessage::Error.into())
+					.await;
 			}
-		});
+		}
 	}
 
-	pub async fn send_message(self: &Arc<Client>, msg: ClientMessage) {
+
+	async fn handle_channel(&self, value: Option<ClientMessage>) {
+		unimplemented!();
+	}
+
+	async fn disconnect(&self) {
+		let _ = self.out_channel
+			.send(ClientMessage::NewDisconnect {
+				id: self.details.uuid,
+				connection: self.connection.clone()}.into()
+			);
+	}
+
+	#[deprecated]
+	pub async fn send_message(self: &Arc<Client<Out>>, msg: ClientMessage) {
 		let _ = self.tx.send(msg).await;
 	}
 }
 
+#[async_trait]
+impl<Out> IManager for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
+	async fn init(self: &Arc<Self>)
+		where
+			Self: Send + Sync + 'static
+	{
+		self.connection.write(Connected).await;
+	}
+
+	async fn run(self: &Arc<Self>) {
+
+		let mut channel_lock = self.rx.lock().await;
+
+		select! {
+			val = self.connection.read::<ClientStreamIn>() => {
+				self.handle_connection(val).await;
+			}
+
+			val = channel_lock.recv() => {
+				self.handle_channel(val).await;
+			}
+		}
+	}
+}
+
+// MARK: - use to handle disconnecting
+impl<Out> Drop for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
+	fn drop(&mut self) {
+		let connection = self.connection.clone();
+		let out = self.out_channel.clone();
+		let id = self.details.uuid.clone();
+
+		tokio::spawn(async move {
+			let _ = connection.write(Disconnected).await;
+			let _ = out.send(
+				ClientMessage::NewDisconnect {
+					id,
+					connection
+				}.into()).await;
+		});
+	}
+}
+
 // MARK: - used for sorting.
-impl PartialEq for Client {
+impl<Out> PartialEq for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
 	fn eq(&self, other: &Self) -> bool {
 		self.details.uuid == other.details.uuid
 	}
 }
 
-impl Eq for Client {}
+impl<Out> Eq for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{}
 
-impl PartialOrd for Client {
+impl<Out> PartialOrd for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
 }
 
-impl Ord for Client {
+impl<Out> Ord for Client<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.details.uuid.cmp(&other.details.uuid)
 	}
 }
 
-impl Drop for Client {
-	fn drop(&mut self) {
-		println!("[Client] dropped!");
+#[cfg(test)]
+mod test {
+	use std::io::Error;
+	use tokio::sync::mpsc::channel;
+	use uuid::Uuid;
+	use foundation::connection::Connection;
+	use foundation::messages::client::ClientStreamOut;
+	use foundation::messages::client::ClientStreamOut::{Connected, Disconnected};
+	use foundation::prelude::IManager;
+	use foundation::test::create_connection_pair;
+	use crate::client::{Client};
+	use crate::messages::ClientMessage;
+	use crate::messages::ClientMessage::NewDisconnect;
+
+	#[tokio::test]
+	async fn create_client_and_drop() -> Result<(), Error> {
+		let (sender, mut receiver) =
+			channel::<ClientMessage>(1024);
+		let (server, (client_conn, addr)) =
+			create_connection_pair().await?;
+
+		// client details
+		let uuid = Uuid::new_v4();
+		let username = "TestUser".to_string();
+
+		let client = Client::new(
+			uuid,
+			username,
+			addr.to_string(),
+			sender.clone(),
+			server
+		);
+
+		client.start();
+
+		let res = client_conn.read::<ClientStreamOut>().await?;
+		assert_eq!(res, Connected);
+
+		drop(client);
+
+		let res = client_conn.read::<ClientStreamOut>().await?;
+		assert_eq!(res, Disconnected);
+
+		// fetch from out_channel
+		let disconnect_msg = receiver.recv().await.unwrap();
+		assert_eq!(disconnect_msg, NewDisconnect {id: uuid, connection: Connection::new()});
+
+		Ok(())
 	}
 }

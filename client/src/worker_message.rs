@@ -5,12 +5,15 @@ pub enum WorkerMessage {
 		server_name: String,
 		server_owner: String,
 	},
-	Error(&'static str),
+	#[allow(unused)]
+	Error(String),
 }
 
 impl From<NetworkManagerMessage> for WorkerMessage {
 	fn from(other: NetworkManagerMessage) -> Self {
+		#[allow(unused)]
 		use WorkerMessage::{Info as NewInfo, Error as NewError};
+		#[allow(unused)]
 		use NetworkManagerMessage::{Info as OldInfo, Error};
 		match other {
 			OldInfo {server_name, server_owner}

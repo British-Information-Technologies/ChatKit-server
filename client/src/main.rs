@@ -1,6 +1,6 @@
 mod worker;
 mod managers;
-mod WorkerMessage;
+mod worker_message;
 
 use worker::Worker;
 use cursive::{Cursive, CursiveExt};
@@ -10,12 +10,12 @@ use cursive::views::{Dialog, TextView};
 
 fn main() {
 	let mut app = Cursive::default();
-	let workerStream =
+	let worker_stream =
 		Worker::new(app.cb_sink().clone()).start();
 	
 	
 	
-	app.set_user_data(workerStream);
+	app.set_user_data(worker_stream);
 	app.add_layer(Dialog::new()
 		.content(TextView::new("Hello world").with_name("TextView"))
 		.button("close", |s| s.quit()));

@@ -3,6 +3,7 @@ use foundation::messages::network::NetworkSockOut;
 
 #[derive(Debug)]
 pub enum NetworkManagerMessage {
+	#[allow(unused)]
 	Users(Vec<ClientDetails>),
 	Info {
 		server_name: String,
