@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures::future::join_all;
+use futures::future::{join_all, select};
 use futures::lock::Mutex;
+use tokio::select;
 
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use uuid::Uuid;
+
+use async_trait::async_trait;
 
 use foundation::prelude::IManager;
 use foundation::ClientDetails;
@@ -40,6 +43,10 @@ impl ClientManager {
 			tx,
 			rx: Mutex::new(rx),
 		})
+	}
+
+	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
+		println!("Handling channel")
 	}
 
 	pub async fn add_client(self: &Arc<ClientManager>) {}
@@ -124,3 +131,22 @@ impl ClientManager {
 		let _ = self.tx.send(message).await;
 	}
 }
+
+#[async_trait]
+impl IManager for ClientManager {
+
+
+	async fn run(self: &Arc<Self>) {
+		loop {
+
+			let mut receiver = self.rx.lock().await;
+
+			select! {
+				val = receiver.recv() => {
+					self.handle_channel(val).await;
+				}
+			}
+		}
+	}
+}
+
