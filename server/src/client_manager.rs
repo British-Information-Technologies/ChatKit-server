@@ -51,6 +51,10 @@ impl<Out> ClientManager<Out>
 		})
 	}
 
+	pub async fn get_count(&self) -> usize {
+		self.clients.lock().await.len()
+	}
+
 	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
 		use ClientMgrMessage::{Add, Remove, SendClients, BroadcastGlobalMessage, SendError};
 		println!("Handling channel");
