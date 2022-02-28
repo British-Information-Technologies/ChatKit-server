@@ -10,9 +10,11 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 use async_trait::async_trait;
+use tokio::net::ToSocketAddrs;
 
 use foundation::prelude::IManager;
 use foundation::ClientDetails;
+use foundation::connection::Connection;
 
 use crate::client::Client;
 use crate::messages::ClientMessage;
@@ -53,6 +55,30 @@ impl<Out> ClientManager<Out>
 
 	pub async fn get_count(&self) -> usize {
 		self.clients.lock().await.len()
+	}
+
+	pub async fn add_client(
+		&self,
+		id: Uuid,
+		username: String,
+		address: String,
+		connection: Arc<Connection>
+	) {
+		let client = Client::new(
+			id,
+			username,
+			address,
+			self.tx.clone(),
+			connection
+		);
+		client.start();
+		let mut lock = self.clients.lock().await;
+		lock.insert(client.details.uuid, client);
+	}
+
+	pub async fn remove_client(&self, id: Uuid) {
+		let mut lock = self.clients.lock().await;
+		lock.remove(&id);
 	}
 
 	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
@@ -216,10 +242,35 @@ impl<Out> IManager for ClientManager<Out>
 #[cfg(test)]
 mod test {
 	use std::io::Error;
+	use tokio::sync::mpsc::channel;
+	use uuid::Uuid;
+	use foundation::messages::client::ClientStreamOut;
+	use foundation::test::create_connection_pair;
 	use crate::client_manager::ClientManager;
+	use crate::messages::ClientMgrMessage;
 
-	async fn create_new_client_manager() -> Result<(), Error> {
-		let client_manager = ClientManager::new()
+	#[tokio::test]
+	async fn add_new_client_to_manager() -> Result<(), Error> {
+		let (sender, mut receiver) =
+			channel::<ClientMgrMessage>(1024);
+		let (server, (client, addr)) = create_connection_pair().await?;
+
+		let client_manager = ClientManager::new(sender);
+
+		let id = Uuid::new_v4();
+		let username = "TestUser".to_string();
+
+		client_manager.add_client(
+			id,
+			username.clone(),
+			addr.to_string(),
+			server
+		).await;
+
+		assert_eq!(client_manager.get_count().await, 1);
+		let msg = client.read::<ClientStreamOut>().await?;
+		assert_eq!(msg, ClientStreamOut::Connected);
+
+		Ok(())
 	}
 }
-
