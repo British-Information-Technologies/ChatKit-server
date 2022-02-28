@@ -22,23 +22,29 @@ use crate::messages::ServerMessage;
 /// # ClientManager
 /// This struct manages all connected users
 #[derive(Debug)]
-pub struct ClientManager {
+pub struct ClientManager<Out>
+	where
+		Out: From<ClientMgrMessage>
+{
 	clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
 
-	server_channel: Mutex<Sender<ServerMessage>>,
+	server_channel: Mutex<Sender<Out>>,
 
 	tx: Sender<ClientMgrMessage>,
 	rx: Mutex<Receiver<ClientMgrMessage>>,
 }
 
-impl ClientManager {
-	pub fn new(server_channel: Sender<ServerMessage>) -> Arc<Self> {
+impl<Out> ClientManager<Out>
+	where
+		Out: From<ClientMgrMessage>
+{
+	pub fn new(out_channel: Sender<Out>) -> Arc<Self> {
 		let (tx, rx) = channel(1024);
 
 		Arc::new(ClientManager {
 			clients: Mutex::default(),
 
-			server_channel: Mutex::new(server_channel),
+			server_channel: Mutex::new(out_channel),
 
 			tx,
 			rx: Mutex::new(rx),
@@ -49,9 +55,8 @@ impl ClientManager {
 		println!("Handling channel")
 	}
 
-	pub async fn add_client(self: &Arc<ClientManager>) {}
-
-	pub fn start(self: &Arc<ClientManager>) {
+	#[deprecated]
+	pub fn start(self: &Arc<ClientManager<Out>>) {
 		let client_manager = self.clone();
 
 		tokio::spawn(async move {
@@ -120,22 +125,23 @@ impl ClientManager {
 		});
 	}
 
-	async fn send_to_client(self: &Arc<ClientManager>, id: &Uuid, msg: ClientMessage) {
+	async fn send_to_client(self: &Arc<ClientManager<Out>>, id: &Uuid, msg: ClientMessage) {
 		let lock = self.clients.lock().await;
 		if let Some(client) = lock.get(&id) {
 			client.clone().send_message(msg).await;
 		}
 	}
 
-	pub async fn send_message(self: Arc<ClientManager>, message: ClientMgrMessage) {
+	pub async fn send_message(self: Arc<ClientManager<Out>>, message: ClientMgrMessage) {
 		let _ = self.tx.send(message).await;
 	}
 }
 
 #[async_trait]
-impl IManager for ClientManager {
-
-
+impl<Out> IManager for ClientManager<Out>
+	where
+		Out: From<ClientMgrMessage>
+{
 	async fn run(self: &Arc<Self>) {
 		loop {
 
