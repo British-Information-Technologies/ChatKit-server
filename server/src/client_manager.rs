@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::future::{join_all, select};
-use futures::lock::Mutex;
+use tokio::sync::Mutex;
 use tokio::select;
 
 use tokio::sync::mpsc::{channel, Receiver, Sender};
