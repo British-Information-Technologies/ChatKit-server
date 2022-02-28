@@ -22,9 +22,9 @@ use crate::messages::ServerMessage;
 /// # ClientManager
 /// This struct manages all connected users
 #[derive(Debug)]
-pub struct ClientManager<Out>
+pub struct ClientManager<Out: 'static>
 	where
-		Out: From<ClientMgrMessage>
+		Out: From<ClientMgrMessage> + Send
 {
 	clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
 
@@ -36,7 +36,7 @@ pub struct ClientManager<Out>
 
 impl<Out> ClientManager<Out>
 	where
-		Out: From<ClientMgrMessage>
+		Out: From<ClientMgrMessage> + Send
 {
 	pub fn new(out_channel: Sender<Out>) -> Arc<Self> {
 		let (tx, rx) = channel(1024);
@@ -192,7 +192,7 @@ impl<Out> ClientManager<Out>
 #[async_trait]
 impl<Out> IManager for ClientManager<Out>
 	where
-		Out: From<ClientMgrMessage>
+		Out: From<ClientMgrMessage> + Send
 {
 	async fn run(self: &Arc<Self>) {
 		loop {
