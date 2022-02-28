@@ -65,44 +65,44 @@ impl Server {
 
 				match message {
 					ServerMessage::ClientConnected { client } => {
-						server
-							.client_manager.add_client()
-
-							// .send_message(Add(client))
-							.await
+						// server
+						// 	.client_manager.add_client()
+						//
+						// 	// .send_message(Add(client))
+						// 	.await
 					},
 					ServerMessage::ClientDisconnected { id } => {
-						println!("disconnecting client {:?}", id);
-						server.client_manager.clone().send_message(Remove(id)).await;
+						// println!("disconnecting client {:?}", id);
+						// server.client_manager.clone().send_message(Remove(id)).await;
 					}
 					ServerMessage::ClientSendMessage { from, to, content } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(SendMessage { from, to, content })
-							.await
+						// server
+						// 	.client_manager
+						// 	.clone()
+						// 	.send_message(SendMessage { from, to, content })
+						// 	.await
 					}
 					ServerMessage::ClientUpdate { to } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(ClientMgrMessage::SendClients { to })
-							.await
+						// server
+						// 	.client_manager
+						// 	.clone()
+						// 	.send_message(ClientMgrMessage::SendClients { to })
+						// 	.await
 					}
 					ServerMessage::ClientError { to } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(ClientMgrMessage::SendError { to })
-							.await
+						// server
+						// 	.client_manager
+						// 	.clone()
+						// 	.send_message(ClientMgrMessage::SendError { to })
+						// 	.await
 					}
 					ServerMessage::BroadcastGlobalMessage {sender,content} => {
-						server
-							.client_manager
-							.clone()
-							.send_message(
-								ClientMgrMessage::BroadcastGlobalMessage {sender, content}
-							).await
+						// server
+						// 	.client_manager
+						// 	.clone()
+						// 	.send_message(
+						// 		ClientMgrMessage::BroadcastGlobalMessage {sender, content}
+						// 	).await
 					}
 					_ => {unimplemented!()}
 				}
