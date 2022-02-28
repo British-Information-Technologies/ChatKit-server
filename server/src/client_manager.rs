@@ -52,7 +52,58 @@ impl<Out> ClientManager<Out>
 	}
 
 	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
-		println!("Handling channel")
+		use ClientMgrMessage::{Add, Remove, SendClients, BroadcastGlobalMessage, SendError};
+		println!("Handling channel");
+		match message {
+			Some(Add(client)) => {
+				let mut lock = self.clients.lock().await;
+				lock.insert(client.details.uuid, client);
+			},
+			Some(Remove(uuid)) => {
+				println!("[Client Manager]: removing client: {:?}", &uuid);
+				let mut lock = self.clients.lock().await;
+				lock.remove(&uuid);
+			},
+			Some(SendClients { to }) => {
+				let lock = self.clients.lock().await;
+				if let Some(client) = lock.get(&to) {
+					let clients_vec: Vec<ClientDetails> =
+						lock.values()
+							.cloned()
+							.map(|i| i.details.clone())
+							.collect();
+
+					// todo: add method to send clients
+					// client
+					// 	.send_message(ClientMessage::SendClients {
+					// 		clients: clients_vec,
+					// 	})
+					// 	.await
+				}
+			},
+			Some(BroadcastGlobalMessage {sender, content}) => {
+				let lock = self.clients.lock().await;
+				let futures = lock.iter().map(|(_,_)| async {
+					println!("Send message to Client")
+				});
+				// todo: Implement this instead of prints
+				// .map(|i| i.1.send_message(
+				// 	ClientMessage::GlobalBroadcastMessage {from: sender, content: content.clone()}
+				// ));
+
+				join_all(futures).await;
+			},
+			Some(SendError { to }) => {
+				let lock = self.clients.lock().await;
+				if let Some(client) = lock.get(&to) {
+					// todo! implement a error message passing function
+					// client.send_message(ClientMessage::Error).await
+				}
+			}
+			_ => {
+				unimplemented!()
+			}
+		}
 	}
 
 	#[deprecated]
@@ -85,6 +136,7 @@ impl<Out> ClientManager<Out>
 							client.send_message(ClientMessage::Disconnect).await;
 						}
 					}
+					// todo: - need to rethink this one
 					SendMessage { to, from, content } => {
 						client_manager
 							.send_to_client(&to, ClientMessage::Message { from, content })
