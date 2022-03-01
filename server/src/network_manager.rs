@@ -126,10 +126,14 @@ impl<Out: 'static> IManager for NetworkManager<Out>
 {
 	async fn run(self: &Arc<Self>) {
 		let lock = self.listener.lock().await;
+
 		select! {
 			val = lock.accept() => {
 				if let Ok((stream, _addr)) = val {
-					let _ = self.handle_connection(Arc::new(stream.into())).await;
+					let conn = self.clone();
+					tokio::spawn(async move {
+						let _ = conn.handle_connection(Arc::new(stream.into())).await;
+					});
 				}
 			}
 		}
