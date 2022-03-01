@@ -20,24 +20,7 @@ pub enum ServerMessage {
 		username: String,
 		connection: Arc<Connection>
 	},
-	ClientSendMessage {
-		from: Uuid,
-		to: Uuid,
-		content: String,
-	},
-	ClientDisconnected {
-		id: Uuid,
-	},
-	ClientUpdate {
-		to: Uuid,
-	},
-	ClientError {
-		to: Uuid,
-	},
-
-	BroadcastGlobalMessage {sender: Uuid, content: String},
-	Error,
-	Some
+	BroadcastGlobalMessage {from: Uuid, content: String},
 }
 
 impl From<NetworkManagerMessage> for ServerMessage {
@@ -56,7 +39,7 @@ impl From<NetworkManagerMessage> for ServerMessage {
 				username,
 				connection
 			},
-			_ => ServerMessage::Error
+			_ => unimplemented!()
 		}
 	}
 }
@@ -67,13 +50,13 @@ impl From<ClientMgrMessage> for ServerMessage {
 
 		match msg {
 			BroadcastGlobalMessage {
-				sender,
+				from,
 				content,
 			} => ServerMessage::BroadcastGlobalMessage {
-				sender,
+				from,
 				content
 			},
-			_ => ServerMessage::Error,
+			_ => unimplemented!()
 		}
 	}
 }
@@ -137,7 +120,10 @@ impl Server {
 								connection
 							).await
 					},
-					ServerMessage::BroadcastGlobalMessage {sender,content} => {
+					ServerMessage::BroadcastGlobalMessage {
+						from,
+						content
+					} => {
 						// server
 						// 	.client_manager
 						// 	.clone()
