@@ -4,16 +4,46 @@ use std::sync::Arc;
 // use crossbeam_channel::{unbounded, Receiver};
 use futures::lock::Mutex;
 use tokio::sync::mpsc::{channel, Receiver};
+use uuid::Uuid;
+use foundation::connection::Connection;
 use foundation::prelude::IManager;
 
-use crate::client_manager::ClientManager;
-use crate::messages::{ClientMessage, ClientMgrMessage};
-use crate::messages::ServerMessage;
+use crate::client_manager::{ClientManager, ClientMgrMessage};
+use crate::messages::{ClientMessage};
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
+
+#[derive(Debug)]
+pub enum ServerMessage {
+	ClientConnected {
+		uuid: Uuid,
+		address: String,
+		username: String,
+		connection: Arc<Connection>
+	},
+	ClientSendMessage {
+		from: Uuid,
+		to: Uuid,
+		content: String,
+	},
+	ClientDisconnected {
+		id: Uuid,
+	},
+	ClientUpdate {
+		to: Uuid,
+	},
+	ClientError {
+		to: Uuid,
+	},
+
+	BroadcastGlobalMessage {sender: Uuid, content: String},
+	Error,
+	Some
+}
 
 impl From<NetworkManagerMessage> for ServerMessage {
 	fn from(msg: NetworkManagerMessage) -> Self {
 		use NetworkManagerMessage::{ClientConnecting};
+
 		match msg {
 			ClientConnecting {
 				uuid,
@@ -32,8 +62,19 @@ impl From<NetworkManagerMessage> for ServerMessage {
 }
 
 impl From<ClientMgrMessage> for ServerMessage {
-	fn from(_: ClientMgrMessage) -> Self {
-		ServerMessage::Some
+	fn from(msg: ClientMgrMessage) -> Self {
+		use ClientMgrMessage::{BroadcastGlobalMessage,};
+
+		match msg {
+			BroadcastGlobalMessage {
+				sender,
+				content,
+			} => ServerMessage::BroadcastGlobalMessage {
+				sender,
+				content
+			},
+			_ => ServerMessage::Error,
+		}
 	}
 }
 
@@ -75,8 +116,6 @@ impl Server {
 
 		// clone block items
 		let server = self.clone();
-
-		use ClientMgrMessage::{Add, Remove, SendMessage};
 
 		loop {
 			let mut lock = server.receiver.lock().await;

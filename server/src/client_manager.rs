@@ -18,8 +18,30 @@ use foundation::connection::Connection;
 
 use crate::client::Client;
 use crate::messages::ClientMessage;
-use crate::messages::ClientMgrMessage;
-use crate::messages::ServerMessage;
+
+#[derive(Debug)]
+pub enum ClientMgrMessage {
+	Remove(Uuid),
+	Add(Arc<Client<Self>>),
+	SendClients {
+		to: Uuid,
+	},
+	SendMessage {
+		from: Uuid,
+		to: Uuid,
+		content: String,
+	},
+	BroadcastGlobalMessage {sender: Uuid, content: String},
+	SendError {
+		to: Uuid,
+	},
+}
+
+impl From<ClientMessage> for ClientMgrMessage {
+	fn from(_: ClientMessage) -> Self {
+		todo!()
+	}
+}
 
 /// # ClientManager
 /// This struct manages all connected users
@@ -136,77 +158,6 @@ impl<Out> ClientManager<Out>
 		}
 	}
 
-	#[deprecated]
-	pub fn start(self: &Arc<ClientManager<Out>>) {
-		let client_manager = self.clone();
-
-		tokio::spawn(async move {
-			use ClientMgrMessage::{Add, Remove, SendClients, SendError, SendMessage};
-
-			loop {
-				let mut receiver = client_manager.rx.lock().await;
-				let message = receiver.recv().await.unwrap();
-
-				println!("[Client manager]: received message: {:?}", message);
-
-				match message {
-					Add(client) => {
-						println!("[Client Manager]: adding new client");
-						let mut lock = client_manager.clients.lock().await;
-						client.start();
-						if lock.insert(client.details.uuid, client).is_none() {
-							println!("client added");
-						}
-					}
-					Remove(uuid) => {
-						println!("[Client Manager]: removing client: {:?}", &uuid);
-						if let Some(client) =
-							client_manager.clients.lock().await.remove(&uuid)
-						{
-							client.send_message(ClientMessage::Disconnect).await;
-						}
-					}
-					// todo: - need to rethink this one
-					SendMessage { to, from, content } => {
-						client_manager
-							.send_to_client(&to, ClientMessage::Message { from, content })
-							.await;
-					}
-					SendClients { to } => {
-						let lock = client_manager.clients.lock().await;
-						if let Some(client) = lock.get(&to) {
-							let clients_vec: Vec<ClientDetails> =
-								lock.values().cloned().map(|i| i.details.clone()).collect();
-
-							client
-								.send_message(ClientMessage::SendClients {
-									clients: clients_vec,
-								})
-								.await
-						}
-					}
-					ClientMgrMessage::BroadcastGlobalMessage {sender, content} => {
-						let lock = client_manager.clients.lock().await;
-						let futures = lock.iter()
-							.map(|i| i.1.send_message(
-								ClientMessage::GlobalBroadcastMessage {from: sender, content: content.clone()}
-							));
-						
-						join_all(futures).await;
-					}
-					SendError { to } => {
-						let lock = client_manager.clients.lock().await;
-						if let Some(client) = lock.get(&to) {
-							client.send_message(ClientMessage::Error).await
-						}
-					}
-					#[allow(unreachable_patterns)]
-					_ => println!("[Client manager]: not implemented"),
-				}
-			}
-		});
-	}
-
 	async fn send_to_client(self: &Arc<ClientManager<Out>>, id: &Uuid, msg: ClientMessage) {
 		let lock = self.clients.lock().await;
 		if let Some(client) = lock.get(&id) {
@@ -245,9 +196,9 @@ mod test {
 	use tokio::sync::mpsc::channel;
 	use uuid::Uuid;
 	use foundation::messages::client::ClientStreamOut;
+	use foundation::prelude::IManager;
 	use foundation::test::create_connection_pair;
-	use crate::client_manager::ClientManager;
-	use crate::messages::ClientMgrMessage;
+	use crate::client_manager::{ClientManager, ClientMgrMessage};
 
 	#[tokio::test]
 	async fn add_new_client_to_manager() -> Result<(), Error> {
@@ -256,6 +207,7 @@ mod test {
 		let (server, (client, addr)) = create_connection_pair().await?;
 
 		let client_manager = ClientManager::new(sender);
+		client_manager.start();
 
 		let id = Uuid::new_v4();
 		let username = "TestUser".to_string();
