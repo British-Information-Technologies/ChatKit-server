@@ -49,7 +49,6 @@ pub struct Client<Out: 'static>
 	connection: Arc<Connection>,
 }
 
-// client function implementations
 impl<Out> Client<Out>
 	where
 		Out: From<ClientMessage> + Send {
@@ -82,14 +81,13 @@ impl<Out> Client<Out>
 				self.disconnect().await;
 				return;
 			}
+			Ok(ClientStreamIn::SendGlobalMessage { content }) => {
+				let _ = self.out_channel.send(
+					ClientMessage::IncomingGlobalMessage {from: self.details.uuid, content}.into()
+				).await;
+			}
 			_ => {
-				println!(
-					"[Client {:?}]: command not found",
-					self.details.uuid
-				);
-				let _ = self.out_channel
-					.send(ClientMessage::Error.into())
-					.await;
+				self.error("Command not found").await;
 			}
 		}
 	}
@@ -106,6 +104,11 @@ impl<Out> Client<Out>
 				connection: self.connection.clone()}.into()
 			);
 	}
+
+	async fn error(&self, msg: &str) {
+		let _ = self.connection.write(ClientStreamOut::Error).await;
+	}
+
 }
 
 #[async_trait]
