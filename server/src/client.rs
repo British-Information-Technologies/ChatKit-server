@@ -81,6 +81,11 @@ impl<Out> Client<Out>
 				self.disconnect().await;
 				return;
 			}
+			Ok(ClientStreamIn::SendMessage { to, content }) => {
+				let _ = self.out_channel.send(
+					ClientMessage::IncomingMessage {from: self.details.uuid, to, content}.into()
+				).await;
+			}
 			Ok(ClientStreamIn::SendGlobalMessage { content }) => {
 				let _ = self.out_channel.send(
 					ClientMessage::IncomingGlobalMessage {from: self.details.uuid, content}.into()
@@ -94,6 +99,11 @@ impl<Out> Client<Out>
 
 	pub async fn broadcast_message(&self, from: Uuid, content: String) -> Result<(), Error> {
 		self.connection.write(ClientStreamOut::GlobalMessage { from, content }).await?;
+		Ok(())
+	}
+
+	pub async fn user_message(&self, from: Uuid, content: String) -> Result<(), Error> {
+		self.connection.write(ClientStreamOut::UserMessage { from, content }).await?;
 		Ok(())
 	}
 

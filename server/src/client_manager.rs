@@ -132,7 +132,7 @@ impl<Out> ClientManager<Out>
 	}
 
 	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
-		use ClientMgrMessage::{Remove, SendClients, BroadcastGlobalMessage};
+		use ClientMgrMessage::{Remove, SendClients, BroadcastGlobalMessage, SendMessage};
 		println!("Handling channel");
 		match message {
 			Some(Remove {id}) => {
@@ -155,6 +155,11 @@ impl<Out> ClientManager<Out>
 						c.broadcast_message(from, s).await.unwrap();
 					});
 				join_all(futures).await;
+			},
+			Some(SendMessage { from, to, content }) => {
+				let lock = self.clients.lock().await;
+				let client = lock.get(&to).unwrap();
+				let _ = client.user_message(from, content).await;
 			},
 			Some(Remove {id}) => {
 				self.clients.lock().await.remove(&id);
