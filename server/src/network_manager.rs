@@ -1,12 +1,12 @@
 use std::io::{Error, ErrorKind};
-use std::sync::{Arc,Weak};
+use std::sync::Arc;
 
 use uuid::Uuid;
 
 use async_trait::async_trait;
 
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::Sender;
 use tokio::{select};
 use tokio::sync::Mutex;
 
@@ -37,6 +37,8 @@ impl PartialEq for NetworkManagerMessage {
 					address: other_address,
 					username: other_username, ..
 				}) => uuid == other_uuid && address == other_address && username == other_username,
+
+			#[allow(unreachable_patterns)]
 			_ => false
 		}
 	}
@@ -81,6 +83,7 @@ impl<Out> NetworkManager<Out>
 	}
 
 	/// This fetches the IP address from the NetworkManager
+	#[allow(dead_code)]
 	pub async fn address(&self) -> String {
 		self.listener.lock().await.local_addr().unwrap().ip().to_string()
 	}
@@ -107,6 +110,7 @@ impl<Out> NetworkManager<Out>
 					connection,
 				}.into()).await;
 			}
+			#[allow(unreachable_patterns)]
 			_ => {
 				return Err(Error::new(ErrorKind::InvalidData, "Did not receive valid message"));
 			}
@@ -124,7 +128,7 @@ impl<Out: 'static> IManager for NetworkManager<Out>
 		let lock = self.listener.lock().await;
 		select! {
 			val = lock.accept() => {
-				if let Ok((stream, addr)) = val {
+				if let Ok((stream, _addr)) = val {
 					let _ = self.handle_connection(Arc::new(stream.into())).await;
 				}
 			}

@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::io::Error;
 use std::sync::Arc;
-use futures::executor::block_on;
 
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +8,7 @@ use uuid::Uuid;
 
 use async_trait::async_trait;
 
-use tokio::{select, task};
+use tokio::select;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{Mutex};
 
@@ -50,8 +49,11 @@ pub struct Client<Out: 'static>
 	// server send channel
 	out_channel: Sender<Out>,
 
+	// todo: - remove these
 	// object channels
+	#[allow(dead_code)]
 	tx: Sender<ClientMessage>,
+	#[allow(dead_code)]
 	rx: Mutex<Receiver<ClientMessage>>,
 
 	connection: Arc<Connection>,
@@ -93,7 +95,7 @@ impl<Out> Client<Out>
 					"[Client {:?}]: Disconnect received",
 					self.details.uuid
 				);
-				self.disconnect();
+				self.disconnect().await;
 				return;
 			}
 			_ => {
@@ -108,10 +110,6 @@ impl<Out> Client<Out>
 		}
 	}
 
-	async fn handle_channel(&self, value: Option<ClientMessage>) {
-		unimplemented!();
-	}
-
 	pub async fn broadcast_message(&self, from: Uuid, content: String) -> Result<(), Error> {
 		self.connection.write(ClientStreamOut::GlobalMessage { from, content }).await?;
 		Ok(())
@@ -119,15 +117,10 @@ impl<Out> Client<Out>
 
 	async fn disconnect(&self) {
 		let _ = self.out_channel
-			.send(ClientMessage::NewDisconnect {
+			.send(ClientMessage::Disconnect {
 				id: self.details.uuid,
 				connection: self.connection.clone()}.into()
 			);
-	}
-
-	#[deprecated]
-	pub async fn send_message(self: &Arc<Client<Out>>, msg: ClientMessage) {
-		let _ = self.tx.send(msg).await;
 	}
 }
 
@@ -140,20 +133,13 @@ impl<Out> IManager for Client<Out>
 		where
 			Self: Send + Sync + 'static
 	{
-		self.connection.write(Connected).await;
+		let _ = self.connection.write(Connected).await;
 	}
 
 	async fn run(self: &Arc<Self>) {
-
-		let mut channel_lock = self.rx.lock().await;
-
 		select! {
 			val = self.connection.read::<ClientStreamIn>() => {
 				self.handle_connection(val).await;
-			}
-
-			val = channel_lock.recv() => {
-				self.handle_channel(val).await;
 			}
 		}
 	}
@@ -172,7 +158,7 @@ impl<Out> Drop for Client<Out>
 		tokio::spawn(async move {
 			let _ = connection.write(Disconnected).await;
 			let _ = out.send(
-				ClientMessage::NewDisconnect {
+				ClientMessage::Disconnect {
 					id,
 					connection
 				}.into()).await;
@@ -225,7 +211,7 @@ mod test {
 	use foundation::test::create_connection_pair;
 	use crate::client::{Client};
 	use crate::messages::ClientMessage;
-	use crate::messages::ClientMessage::NewDisconnect;
+	use crate::messages::ClientMessage::Disconnect;
 
 	#[tokio::test]
 	async fn create_client_and_drop() -> Result<(), Error> {
@@ -258,7 +244,7 @@ mod test {
 
 		// fetch from out_channel
 		let disconnect_msg = receiver.recv().await.unwrap();
-		assert_eq!(disconnect_msg, NewDisconnect {id: uuid, connection: Connection::new()});
+		assert_eq!(disconnect_msg, Disconnect {id: uuid, connection: Connection::new()});
 
 		Ok(())
 	}

@@ -1,9 +1,7 @@
 use std::sync::{Arc};
 use uuid::Uuid;
-use foundation::ClientDetails;
-use foundation::connection::Connection;
 
-use crate::client::Client;
+use foundation::connection::Connection;
 
 /// # ClientMessage
 ///
@@ -18,39 +16,30 @@ use crate::client::Client;
 #[derive(Debug)]
 pub enum ClientMessage {
 
+	#[allow(dead_code)]
 	Connected,
 
+	#[allow(dead_code)]
 	IncomingMessage { from: Uuid, to: Uuid, content: String },
+	#[allow(dead_code)]
 	IncomingGlobalMessage { from: Uuid, content: String },
-
+	#[allow(dead_code)]
 	RequestedUpdate { from: Uuid },
 
-	NewDisconnect { id: Uuid, connection: Arc<Connection> },
+	Disconnect { id: Uuid, connection: Arc<Connection> },
 
 	Error,
-
-	#[deprecated]
-	Message { from: Uuid, content: String },
-
-	#[deprecated]
-	GlobalBroadcastMessage {from: Uuid, content:String},
-
-	#[deprecated]
-	SendClients { clients: Vec<ClientDetails> },
-
-	#[deprecated]
-	Disconnect,
 }
 
 impl PartialEq for ClientMessage {
 	fn eq(&self, other: &Self) -> bool {
-		use ClientMessage::{NewDisconnect, Connected, Error};
+		use ClientMessage::{Disconnect, Connected, Error};
 
 
 		match (self,other) {
 			(Connected, Connected) => true,
 			(Error, Error) => true,
-			(NewDisconnect {id, .. }, NewDisconnect {id: other_id, .. }) => id == other_id,
+			(Disconnect {id, .. }, Disconnect {id: other_id, .. }) => id == other_id,
 			_ => {
 				false
 			}

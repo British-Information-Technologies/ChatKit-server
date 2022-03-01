@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::ops::Range;
 use std::sync::Arc;
 
-use futures::future::{join_all, select};
+use futures::future::join_all;
 use tokio::sync::Mutex;
 use tokio::select;
 
@@ -13,7 +12,6 @@ use uuid::Uuid;
 use async_trait::async_trait;
 
 use foundation::prelude::IManager;
-use foundation::ClientDetails;
 use foundation::connection::Connection;
 
 use crate::client::Client;
@@ -21,9 +19,11 @@ use crate::messages::ClientMessage;
 
 #[derive(Debug)]
 pub enum ClientMgrMessage {
+	#[allow(dead_code)]
 	Remove {
 		id: Uuid
 	},
+	#[allow(dead_code)]
 	SendClients {
 		to: Uuid
 	},
@@ -37,7 +37,7 @@ pub enum ClientMgrMessage {
 
 impl From<ClientMessage> for ClientMgrMessage {
 	fn from(msg: ClientMessage) -> Self {
-		use ClientMessage::{IncomingMessage,IncomingGlobalMessage,NewDisconnect,RequestedUpdate};
+		use ClientMessage::{IncomingMessage,IncomingGlobalMessage};
 
 		match msg {
 			IncomingMessage {
@@ -70,13 +70,13 @@ impl From<ClientMessage> for ClientMgrMessage {
 /// - server_channel: a channel to the parent that manages this object.
 /// - tx: the sender that clients will send their messages to.
 /// - rx: the receiver where messages are sent to.
-#[derive(Debug)]
 pub struct ClientManager<Out: 'static>
 	where
 		Out: From<ClientMgrMessage> + Send
 {
 	clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
 
+	#[allow(dead_code)]
 	server_channel: Mutex<Sender<Out>>,
 
 	tx: Sender<ClientMgrMessage>,
@@ -100,6 +100,7 @@ impl<Out> ClientManager<Out>
 		})
 	}
 
+	#[allow(dead_code)]
 	pub async fn get_count(&self) -> usize {
 		self.clients.lock().await.len()
 	}
@@ -123,6 +124,7 @@ impl<Out> ClientManager<Out>
 		lock.insert(client.details.uuid, client);
 	}
 
+	#[allow(dead_code)]
 	pub async fn remove_client(&self, id: Uuid) {
 		let mut lock = self.clients.lock().await;
 		lock.remove(&id);
@@ -137,7 +139,7 @@ impl<Out> ClientManager<Out>
 				let mut lock = self.clients.lock().await;
 				lock.remove(&id);
 			},
-			Some(SendClients {to }) => {
+			Some(SendClients {to: _ }) => {
 				let lock = self.clients.lock().await;
 				let futures = lock.iter().map(|(_,_)| async {
 					println!("Send message to Client")
@@ -157,19 +159,6 @@ impl<Out> ClientManager<Out>
 				unimplemented!()
 			}
 		}
-	}
-
-
-
-	async fn send_to_client(self: &Arc<ClientManager<Out>>, id: &Uuid, msg: ClientMessage) {
-		let lock = self.clients.lock().await;
-		if let Some(client) = lock.get(&id) {
-			client.clone().send_message(msg).await;
-		}
-	}
-
-	pub async fn send_message(self: Arc<ClientManager<Out>>, message: ClientMgrMessage) {
-		let _ = self.tx.send(message).await;
 	}
 }
 

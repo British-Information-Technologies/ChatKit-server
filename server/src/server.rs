@@ -1,7 +1,6 @@
 use std::io::Error;
 use std::sync::Arc;
 
-// use crossbeam_channel::{unbounded, Receiver};
 use futures::lock::Mutex;
 use tokio::sync::mpsc::{channel, Receiver};
 use uuid::Uuid;
@@ -9,7 +8,6 @@ use foundation::connection::Connection;
 use foundation::prelude::IManager;
 
 use crate::client_manager::{ClientManager, ClientMgrMessage};
-use crate::messages::{ClientMessage};
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
 
 #[derive(Debug)]
@@ -39,6 +37,7 @@ impl From<NetworkManagerMessage> for ServerMessage {
 				username,
 				connection
 			},
+			#[allow(unreachable_patterns)]
 			_ => unimplemented!()
 		}
 	}
@@ -121,8 +120,8 @@ impl Server {
 							).await
 					},
 					ServerMessage::BroadcastGlobalMessage {
-						from,
-						content
+						from: _,
+						content: _,
 					} => {
 						// server
 						// 	.client_manager
@@ -131,6 +130,7 @@ impl Server {
 						// 		ClientMgrMessage::BroadcastGlobalMessage {sender, content}
 						// 	).await
 					}
+					#[allow(unreachable_patterns)]
 					_ => {unimplemented!()}
 				}
 			}
