@@ -37,7 +37,7 @@ pub enum ClientMgrMessage {
 
 impl From<ClientMessage> for ClientMgrMessage {
 	fn from(msg: ClientMessage) -> Self {
-		use ClientMessage::{IncomingMessage,IncomingGlobalMessage};
+		use ClientMessage::{IncomingMessage,IncomingGlobalMessage,Disconnect};
 
 		match msg {
 			IncomingMessage {
@@ -56,6 +56,7 @@ impl From<ClientMessage> for ClientMgrMessage {
 				from,
 				content
 			},
+			Disconnect {id} => ClientMgrMessage::Remove {id},
 			_ => unimplemented!()
 		}
 
@@ -155,6 +156,9 @@ impl<Out> ClientManager<Out>
 					});
 				join_all(futures).await;
 			},
+			Some(Remove {id}) => {
+				self.clients.lock().await.remove(&id);
+			}
 			_ => {
 				unimplemented!()
 			}

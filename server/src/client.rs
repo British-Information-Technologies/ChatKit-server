@@ -101,8 +101,7 @@ impl<Out> Client<Out>
 		let _ = self.out_channel
 			.send(ClientMessage::Disconnect {
 				id: self.details.uuid,
-				connection: self.connection.clone()}.into()
-			);
+			}.into()).await;
 	}
 
 	async fn error(&self, msg: &str) {
@@ -139,16 +138,11 @@ impl<Out> Drop for Client<Out>
 {
 	fn drop(&mut self) {
 		let connection = self.connection.clone();
-		let out = self.out_channel.clone();
+
 		let id = self.details.uuid.clone();
 
 		tokio::spawn(async move {
 			let _ = connection.write(Disconnected).await;
-			let _ = out.send(
-				ClientMessage::Disconnect {
-					id,
-					connection
-				}.into()).await;
 		});
 	}
 }

@@ -26,7 +26,7 @@ pub enum ClientMessage {
 	#[allow(dead_code)]
 	RequestedUpdate { from: Uuid },
 
-	Disconnect { id: Uuid, connection: Arc<Connection> },
+	Disconnect { id: Uuid },
 
 	Error,
 }
