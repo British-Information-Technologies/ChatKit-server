@@ -58,14 +58,6 @@ impl PartialEq for ClientMessage {
 	}
 }
 
-
-
-
-
-
-
-
-
 #[derive(Debug)]
 pub enum ClientMgrMessage {
 	Remove(Uuid),
@@ -93,7 +85,10 @@ impl From<ClientMessage> for ClientMgrMessage {
 #[derive(Debug)]
 pub enum ServerMessage {
 	ClientConnected {
-		client: Arc<Client<Self>>,
+		uuid: Uuid,
+		address: String,
+		username: String,
+		connection: Arc<Connection>
 	},
 	ClientSendMessage {
 		from: Uuid,
@@ -111,12 +106,6 @@ pub enum ServerMessage {
 	},
 	
 	BroadcastGlobalMessage {sender: Uuid, content: String},
-
+	Error,
 	Some
-}
-
-impl From<ClientMessage> for ServerMessage {
-	fn from(_: ClientMessage) -> Self {
-		todo!()
-	}
 }
