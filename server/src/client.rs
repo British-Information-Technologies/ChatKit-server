@@ -133,9 +133,12 @@ impl<Out> IManager for Client<Out>
 	}
 
 	async fn run(self: &Arc<Self>) {
+		let client = self.clone();
 		select! {
 			val = self.connection.read::<ClientStreamIn>() => {
-				self.handle_connection(val).await;
+				tokio::spawn(async move {
+					client.handle_connection(val).await;
+				});
 			}
 		}
 	}
