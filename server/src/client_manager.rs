@@ -10,7 +10,6 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 use async_trait::async_trait;
-use tokio::net::ToSocketAddrs;
 
 use foundation::prelude::IManager;
 use foundation::ClientDetails;
@@ -21,30 +20,55 @@ use crate::messages::ClientMessage;
 
 #[derive(Debug)]
 pub enum ClientMgrMessage {
-	Remove(Uuid),
-	Add(Arc<Client<Self>>),
+	Remove {
+		id: Uuid
+	},
 	SendClients {
-		to: Uuid,
+		to: Uuid
 	},
 	SendMessage {
 		from: Uuid,
 		to: Uuid,
 		content: String,
 	},
-	BroadcastGlobalMessage {sender: Uuid, content: String},
-	SendError {
-		to: Uuid,
-	},
+	BroadcastGlobalMessage {from: Uuid, content: String},
 }
 
 impl From<ClientMessage> for ClientMgrMessage {
-	fn from(_: ClientMessage) -> Self {
-		todo!()
+	fn from(msg: ClientMessage) -> Self {
+		use ClientMessage::{IncomingMessage,IncomingGlobalMessage,NewDisconnect,RequestedUpdate};
+
+		match msg {
+			IncomingMessage {
+				from,
+				to,
+				content
+			} => ClientMgrMessage::SendMessage {
+				from,
+				to,
+				content
+			},
+			IncomingGlobalMessage{
+				from,
+				content
+			} => ClientMgrMessage::BroadcastGlobalMessage {
+				from,
+				content
+			},
+			_ => unimplemented!()
+		}
+
 	}
 }
 
 /// # ClientManager
-/// This struct manages all connected users
+/// This struct manages all users connected to the server.
+///
+/// ## Attributes
+/// - clients: a vector of all clients being managed.
+/// - server_channel: a channel to the parent that manages this object.
+/// - tx: the sender that clients will send their messages to.
+/// - rx: the receiver where messages are sent to.
 #[derive(Debug)]
 pub struct ClientManager<Out: 'static>
 	where
@@ -104,39 +128,30 @@ impl<Out> ClientManager<Out>
 	}
 
 	pub async fn handle_channel(&self, message: Option<ClientMgrMessage>) {
-		use ClientMgrMessage::{Add, Remove, SendClients, BroadcastGlobalMessage, SendError};
+		use ClientMgrMessage::{Remove, SendClients, BroadcastGlobalMessage};
 		println!("Handling channel");
 		match message {
-			Some(Add(client)) => {
-				let mut lock = self.clients.lock().await;
-				lock.insert(client.details.uuid, client);
-			},
-			Some(Remove(uuid)) => {
+			Some(Remove {id}) => {
 				println!("[Client Manager]: removing client: {:?}", &uuid);
 				let mut lock = self.clients.lock().await;
-				lock.remove(&uuid);
+				lock.remove(&id);
 			},
-			Some(SendClients { to }) => {
+			Some(SendClients {to }) => {
 				let lock = self.clients.lock().await;
-				if let Some(client) = lock.get(&to) {
-					let clients_vec: Vec<ClientDetails> =
-						lock.values()
-							.cloned()
-							.map(|i| i.details.clone())
-							.collect();
 
-					// todo: add method to send clients
-					// client
-					// 	.send_message(ClientMessage::SendClients {
-					// 		clients: clients_vec,
-					// 	})
-					// 	.await
-				}
-			},
-			Some(BroadcastGlobalMessage {sender, content}) => {
-				let lock = self.clients.lock().await;
+				let
+
+
+
 				let futures = lock.iter().map(|(_,_)| async {
 					println!("Send message to Client")
+				});
+				join_all(futures).await;
+			}
+			Some(BroadcastGlobalMessage {from, content}) => {
+				let lock = self.clients.lock().await;
+				let futures = lock.iter().map(|(_,c)| async {
+					// c.broadcast_message()
 				});
 				// todo: Implement this instead of prints
 				// .map(|i| i.1.send_message(
@@ -145,18 +160,13 @@ impl<Out> ClientManager<Out>
 
 				join_all(futures).await;
 			},
-			Some(SendError { to }) => {
-				let lock = self.clients.lock().await;
-				if let Some(client) = lock.get(&to) {
-					// todo! implement a error message passing function
-					// client.send_message(ClientMessage::Error).await
-				}
-			}
 			_ => {
 				unimplemented!()
 			}
 		}
 	}
+
+
 
 	async fn send_to_client(self: &Arc<ClientManager<Out>>, id: &Uuid, msg: ClientMessage) {
 		let lock = self.clients.lock().await;
