@@ -108,9 +108,13 @@ impl<Out> Client<Out>
 		}
 	}
 
-
 	async fn handle_channel(&self, value: Option<ClientMessage>) {
 		unimplemented!();
+	}
+
+	pub async fn broadcast_message(&self, from: Uuid, content: String) -> Result<(), Error> {
+		self.connection.write(ClientStreamOut::GlobalMessage { from, content }).await?;
+		Ok(())
 	}
 
 	async fn disconnect(&self) {
@@ -120,8 +124,6 @@ impl<Out> Client<Out>
 				connection: self.connection.clone()}.into()
 			);
 	}
-
-
 
 	#[deprecated]
 	pub async fn send_message(self: &Arc<Client<Out>>, msg: ClientMessage) {

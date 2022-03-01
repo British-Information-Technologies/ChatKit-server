@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use futures::future::{join_all, select};
@@ -132,17 +133,12 @@ impl<Out> ClientManager<Out>
 		println!("Handling channel");
 		match message {
 			Some(Remove {id}) => {
-				println!("[Client Manager]: removing client: {:?}", &uuid);
+				println!("[Client Manager]: removing client: {:?}", &id);
 				let mut lock = self.clients.lock().await;
 				lock.remove(&id);
 			},
 			Some(SendClients {to }) => {
 				let lock = self.clients.lock().await;
-
-				let
-
-
-
 				let futures = lock.iter().map(|(_,_)| async {
 					println!("Send message to Client")
 				});
@@ -150,14 +146,11 @@ impl<Out> ClientManager<Out>
 			}
 			Some(BroadcastGlobalMessage {from, content}) => {
 				let lock = self.clients.lock().await;
-				let futures = lock.iter().map(|(_,c)| async {
-					// c.broadcast_message()
-				});
-				// todo: Implement this instead of prints
-				// .map(|i| i.1.send_message(
-				// 	ClientMessage::GlobalBroadcastMessage {from: sender, content: content.clone()}
-				// ));
-
+				let futures = lock.iter()
+					.map(|(_,c)| (c.clone(),content.clone()))
+					.map(|(c,s)| async move {
+						c.broadcast_message(from, s).await.unwrap();
+					});
 				join_all(futures).await;
 			},
 			_ => {
