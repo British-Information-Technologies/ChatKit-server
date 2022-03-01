@@ -10,7 +10,6 @@ use async_trait::async_trait;
 
 use tokio::select;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::{Mutex};
 
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::ClientDetails;
@@ -20,7 +19,8 @@ use foundation::prelude::IManager;
 
 use crate::messages::{ClientMessage};
 
-/// #
+/// # ClientInMessage
+///
 /// Messages that are sent internally
 /// when functions are called on the client
 #[derive(Serialize, Deserialize)]
@@ -45,17 +45,7 @@ pub struct Client<Out: 'static>
 		Out: From<ClientMessage> + Send
 {
 	pub details: ClientDetails,
-
-	// server send channel
 	out_channel: Sender<Out>,
-
-	// todo: - remove these
-	// object channels
-	#[allow(dead_code)]
-	tx: Sender<ClientMessage>,
-	#[allow(dead_code)]
-	rx: Mutex<Receiver<ClientMessage>>,
-
 	connection: Arc<Connection>,
 }
 
@@ -70,8 +60,6 @@ impl<Out> Client<Out>
 		out_channel: Sender<Out>,
 		connection: Arc<Connection>
 	) -> Arc<Client<Out>> {
-		let (sender, receiver) = channel(1024);
-
 		Arc::new(Client {
 			details: ClientDetails {
 				uuid,
@@ -79,11 +67,7 @@ impl<Out> Client<Out>
 				address: address.to_string(),
 				public_key: None,
 			},
-
-			tx: sender,
-			rx: Mutex::new(receiver),
-
-			connection: connection,
+			connection,
 			out_channel,
 		})
 	}
