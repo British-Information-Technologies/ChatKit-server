@@ -12,7 +12,27 @@ use crate::messages::ServerMessage;
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
 
 impl From<NetworkManagerMessage> for ServerMessage {
-	fn from(_: NetworkManagerMessage) -> Self {
+	fn from(msg: NetworkManagerMessage) -> Self {
+		use NetworkManagerMessage::{ClientConnecting};
+		match msg {
+			ClientConnecting {
+				uuid,
+				address,
+				username,
+				connection
+			} => ServerMessage::ClientConnected {
+				uuid,
+				address,
+				username,
+				connection
+			},
+			_ => ServerMessage::Error
+		}
+	}
+}
+
+impl From<ClientMgrMessage> for ServerMessage {
+	fn from(_: ClientMgrMessage) -> Self {
 		ServerMessage::Some
 	}
 }
@@ -24,7 +44,7 @@ impl From<NetworkManagerMessage> for ServerMessage {
 /// it is componsed of a client manager and a network manager
 ///
 pub struct Server {
-	client_manager: Arc<ClientManager>,
+	client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 }
@@ -64,38 +84,20 @@ impl Server {
 				println!("[server]: received message {:?}", &message);
 
 				match message {
-					ServerMessage::ClientConnected { client } => {
-						// server
-						// 	.client_manager.add_client()
-						//
-						// 	// .send_message(Add(client))
-						// 	.await
+					ServerMessage::ClientConnected {
+						uuid,
+						address,
+						username,
+						connection
+					} => {
+						server.client_manager
+							.add_client(
+								uuid,
+								username,
+								address,
+								connection
+							).await
 					},
-					ServerMessage::ClientDisconnected { id } => {
-						// println!("disconnecting client {:?}", id);
-						// server.client_manager.clone().send_message(Remove(id)).await;
-					}
-					ServerMessage::ClientSendMessage { from, to, content } => {
-						// server
-						// 	.client_manager
-						// 	.clone()
-						// 	.send_message(SendMessage { from, to, content })
-						// 	.await
-					}
-					ServerMessage::ClientUpdate { to } => {
-						// server
-						// 	.client_manager
-						// 	.clone()
-						// 	.send_message(ClientMgrMessage::SendClients { to })
-						// 	.await
-					}
-					ServerMessage::ClientError { to } => {
-						// server
-						// 	.client_manager
-						// 	.clone()
-						// 	.send_message(ClientMgrMessage::SendError { to })
-						// 	.await
-					}
 					ServerMessage::BroadcastGlobalMessage {sender,content} => {
 						// server
 						// 	.client_manager
