@@ -21,8 +21,11 @@ use foundation::prelude::IManager;
 
 use crate::messages::{ClientMessage};
 
+/// #
+/// Messages that are sent internally
+/// when functions are called on the client
 #[derive(Serialize, Deserialize)]
-enum ClientOutMessage {
+enum ClientInMessage {
 	MessageTo,
 	UpdateRequest,
 }
@@ -40,7 +43,8 @@ enum ClientOutMessage {
 #[derive(Debug)]
 pub struct Client<Out: 'static>
 	where
-		Out: From<ClientMessage> + Send{
+		Out: From<ClientMessage> + Send
+{
 	pub details: ClientDetails,
 
 	// server send channel
@@ -116,6 +120,8 @@ impl<Out> Client<Out>
 				connection: self.connection.clone()}.into()
 			);
 	}
+
+
 
 	#[deprecated]
 	pub async fn send_message(self: &Arc<Client<Out>>, msg: ClientMessage) {
