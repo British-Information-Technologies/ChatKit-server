@@ -1,11 +1,16 @@
 use std::io::Error;
 use std::sync::Arc;
 
-use futures::lock::Mutex;
+use uuid::Uuid;
+
+use tokio::sync::{Mutex, mpsc::{channel, Receiver}};
+use tokio::fs::{create_dir, DirBuilder, File, read_dir};
+
 use mlua::{Lua, UserDataFields, UserDataMethods};
 use mlua::prelude::LuaUserData;
-use tokio::sync::mpsc::{channel, Receiver};
-use uuid::Uuid;
+use tokio::io::AsyncReadExt;
+use tokio::join;
+
 use foundation::connection::Connection;
 use foundation::prelude::IManager;
 
@@ -78,7 +83,7 @@ pub struct Server {
 	client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
-	lua: Lua,
+	lua: Arc<Mutex<Lua>>,
 }
 
 impl Server {
@@ -93,10 +98,12 @@ impl Server {
 			client_manager: ClientManager::new(sender.clone()),
 			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
 			receiver: Mutex::new(receiver),
-			lua: Lua::new(),
+			lua: Arc::new(Mutex::new(Lua::new())),
 		});
 
-		server.lua.globals().set("Server", ServerLua(server.clone())).unwrap();
+		server.lua.lock().await.globals().set("Server", ServerLua(server.clone())).unwrap();
+
+		server.load_scripts().await?;
 
 		Ok(server)
 	}
@@ -149,6 +156,27 @@ impl Server {
 				}
 			}
 		}
+	}
+
+	pub async fn load_scripts(self: &Arc<Server>) -> Result<(), Error>{
+		if let Ok( mut scripts) = read_dir("./scripts").await {
+			while let Some(child) = scripts.next_entry().await? {
+				let metadata = child.metadata().await?;
+
+				if metadata.is_file() && child.path().extension().unwrap() == "lua" {
+					let mut file = File::open(child.path()).await.unwrap();
+					let mut data = String::new();
+					file.read_to_string(&mut data).await.unwrap();
+					let server = self.clone();
+					println!("---| loaded script |---\n{}", data);
+					println!("---| script output |---");
+					let _ = server.clone().lua.lock().await.load(&data).exec();
+				}
+			}
+		} else {
+			create_dir("./scripts").await?;
+		}
+		Ok(())
 	}
 }
 
