@@ -19,7 +19,7 @@ pub enum ClientStreamIn {
 	Disconnect,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientStreamOut {
 	Connected,
@@ -32,4 +32,15 @@ pub enum ClientStreamOut {
 	Disconnected,
 
 	Error,
+}
+
+impl PartialEq for ClientStreamOut {
+	fn eq(&self, other: &Self) -> bool {
+		use ClientStreamOut::{Connected, Disconnected};
+		match (self, other) {
+			(Connected, Connected) => true,
+			(Disconnected, Disconnected) => true,
+			_ => false
+		}
+	}
 }

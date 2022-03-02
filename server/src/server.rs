@@ -1,14 +1,65 @@
+use std::io::Error;
 use std::sync::Arc;
 
-// use crossbeam_channel::{unbounded, Receiver};
 use futures::lock::Mutex;
 use tokio::sync::mpsc::{channel, Receiver};
 use uuid::Uuid;
+use foundation::connection::Connection;
+use foundation::prelude::IManager;
 
-use crate::client_manager::ClientManager;
-use crate::messages::ClientMgrMessage;
-use crate::messages::ServerMessage;
-use crate::network_manager::NetworkManager;
+use crate::client_manager::{ClientManager, ClientMgrMessage};
+use crate::network_manager::{NetworkManager, NetworkManagerMessage};
+
+#[derive(Debug)]
+pub enum ServerMessage {
+	ClientConnected {
+		uuid: Uuid,
+		address: String,
+		username: String,
+		connection: Arc<Connection>
+	},
+	BroadcastGlobalMessage {from: Uuid, content: String},
+}
+
+impl From<NetworkManagerMessage> for ServerMessage {
+	fn from(msg: NetworkManagerMessage) -> Self {
+		use NetworkManagerMessage::{ClientConnecting};
+
+		match msg {
+			ClientConnecting {
+				uuid,
+				address,
+				username,
+				connection
+			} => ServerMessage::ClientConnected {
+				uuid,
+				address,
+				username,
+				connection
+			},
+			#[allow(unreachable_patterns)]
+			_ => unimplemented!()
+		}
+	}
+}
+
+impl From<ClientMgrMessage> for ServerMessage {
+	fn from(msg: ClientMgrMessage) -> Self {
+		use ClientMgrMessage::{BroadcastGlobalMessage,};
+
+		match msg {
+			BroadcastGlobalMessage {
+				from,
+				content,
+			} => ServerMessage::BroadcastGlobalMessage {
+				from,
+				content
+			},
+			_ => unimplemented!()
+		}
+	}
+}
+
 
 /// # Server
 /// authors: @michael-bailey, @Mitch161
@@ -16,14 +67,14 @@ use crate::network_manager::NetworkManager;
 /// it is componsed of a client manager and a network manager
 ///
 pub struct Server {
-	client_manager: Arc<ClientManager>,
-	network_manager: Arc<NetworkManager>,
+	client_manager: Arc<ClientManager<ServerMessage>>,
+	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 }
 
 impl Server {
 	/// Create a new server object
-	pub fn new() -> Result<Arc<Server>, Box<dyn std::error::Error>> {
+	pub async fn new() -> Result<Arc<Server>, Error> {
 		let (
 			sender,
 			receiver
@@ -31,11 +82,15 @@ impl Server {
 
 		Ok(Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
-			network_manager: NetworkManager::new("5600".to_string(), sender),
+			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
 			receiver: Mutex::new(receiver),
 		}))
 	}
 
+	pub async fn port(self: &Arc<Server>) -> u16 {
+		self.network_manager.port().await
+	}
+	
 	pub async fn start(self: &Arc<Server>) {
 		// start client manager and network manager
 		self.network_manager.clone().start();
@@ -44,54 +99,39 @@ impl Server {
 		// clone block items
 		let server = self.clone();
 
-		use ClientMgrMessage::{Add, Remove, SendMessage};
-
 		loop {
 			let mut lock = server.receiver.lock().await;
 			if let Some(message) = lock.recv().await {
 				println!("[server]: received message {:?}", &message);
 
 				match message {
-					ServerMessage::ClientConnected { client } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(Add(client))
-							.await
-					}
-					ServerMessage::ClientDisconnected { id } => {
-						println!("disconnecting client {:?}", id);
-						server.client_manager.clone().send_message(Remove(id)).await;
-					}
-					ServerMessage::ClientSendMessage { from, to, content } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(SendMessage { from, to, content })
-							.await
-					}
-					ServerMessage::ClientUpdate { to } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(ClientMgrMessage::SendClients { to })
-							.await
-					}
-					ServerMessage::ClientError { to } => {
-						server
-							.client_manager
-							.clone()
-							.send_message(ClientMgrMessage::SendError { to })
-							.await
-					}
-					ServerMessage::BroadcastGlobalMessage {sender,content} => {
-						server
-							.client_manager
-							.clone()
-							.send_message(
-								ClientMgrMessage::BroadcastGlobalMessage {sender, content}
+					ServerMessage::ClientConnected {
+						uuid,
+						address,
+						username,
+						connection
+					} => {
+						server.client_manager
+							.add_client(
+								uuid,
+								username,
+								address,
+								connection
 							).await
+					},
+					ServerMessage::BroadcastGlobalMessage {
+						from: _,
+						content: _,
+					} => {
+						// server
+						// 	.client_manager
+						// 	.clone()
+						// 	.send_message(
+						// 		ClientMgrMessage::BroadcastGlobalMessage {sender, content}
+						// 	).await
 					}
+					#[allow(unreachable_patterns)]
+					_ => {unimplemented!()}
 				}
 			}
 		}
