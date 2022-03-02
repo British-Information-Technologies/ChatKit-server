@@ -238,7 +238,7 @@ mod test {
 
 		// fetch from out_channel
 		let disconnect_msg = receiver.recv().await.unwrap();
-		assert_eq!(disconnect_msg, Disconnect {id: uuid, connection: Connection::new()});
+		assert_eq!(disconnect_msg, Disconnect {id: uuid});
 
 		Ok(())
 	}
