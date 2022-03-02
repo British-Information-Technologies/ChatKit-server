@@ -2,6 +2,8 @@ use std::io::Error;
 use std::sync::Arc;
 
 use futures::lock::Mutex;
+use mlua::{Lua, UserDataFields, UserDataMethods};
+use mlua::prelude::LuaUserData;
 use tokio::sync::mpsc::{channel, Receiver};
 use uuid::Uuid;
 use foundation::connection::Connection;
@@ -64,12 +66,19 @@ impl From<ClientMgrMessage> for ServerMessage {
 /// # Server
 /// authors: @michael-bailey, @Mitch161
 /// This Represents a server instance.
-/// it is componsed of a client manager and a network manager
+/// It is composed of a client manager and a network manager.
+///
+/// # Attributes
+/// - client_manager: The servers client manager.
+/// - network_manager: The servers network manager.
+/// - receiver: The servers channel for communication by managers.
+/// - lua: The servers lua context, used for running lua scripts.
 ///
 pub struct Server {
 	client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
+	lua: Lua,
 }
 
 impl Server {
@@ -80,11 +89,16 @@ impl Server {
 			receiver
 		) = channel(1024);
 
-		Ok(Arc::new(Server {
+		let server = Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
 			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
 			receiver: Mutex::new(receiver),
-		}))
+			lua: Lua::new(),
+		});
+
+		server.lua.globals().set("Server", ServerLua(server.clone())).unwrap();
+
+		Ok(server)
 	}
 
 	pub async fn port(self: &Arc<Server>) -> u16 {
@@ -135,5 +149,27 @@ impl Server {
 				}
 			}
 		}
+	}
+}
+
+/// # ServerLua
+/// A wrapper struct for making the Server lua scriptable.
+///
+/// # Attributes
+/// - 1: A reference to the server.
+struct ServerLua(Arc<Server>);
+
+impl LuaUserData for ServerLua {
+	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
+		fields.add_field_method_get("ClientManager", |lua,server| {
+			Ok("unimplemented")
+		});
+		fields.add_field_method_get("NetworkManager", |lua,server| {
+			Ok("unimplemented")
+		});
+	}
+
+	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(_methods: &mut M) {
+
 	}
 }
