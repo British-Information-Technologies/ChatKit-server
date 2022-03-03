@@ -10,11 +10,13 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 use async_trait::async_trait;
+use mlua::prelude::LuaUserData;
+use mlua::{UserDataFields, UserDataMethods};
 
 use foundation::prelude::IManager;
 use foundation::connection::Connection;
 
-use crate::client::Client;
+use crate::client::{Client, ClientLua};
 use crate::messages::ClientMessage;
 
 #[derive(Debug)]
@@ -190,6 +192,39 @@ impl<Out> IManager for ClientManager<Out>
 	}
 }
 
+#[derive(Clone)]
+pub struct ClientManagerLua<Out: 'static>(pub Arc<ClientManager<Out>>)
+	where
+		Out: From<ClientMgrMessage> + Send;
+
+impl<Out: 'static> LuaUserData for ClientManagerLua<Out>
+	where
+		Out: From<ClientMgrMessage> + Clone + Send
+{
+	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
+
+	}
+
+	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+		methods.add_async_method("getCount", |_lua,this,()| {
+			let this = this.0.clone();
+			async move {
+				Ok(this.clients.lock().await.len())
+			}
+		});
+
+		methods.add_async_method("getClientList", |_lua,this,()| {
+			let this = this.0.clone();
+			async move {
+				let clients = this.clients.lock().await;
+				let clients: Vec<ClientLua<ClientMgrMessage>> = clients.iter()
+					.map(|(_id,c)| ClientLua(c.clone()))
+					.collect();
+				Ok(clients)
+			}
+		})
+	}
+}
 
 #[cfg(test)]
 mod test {
