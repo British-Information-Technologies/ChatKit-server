@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use async_trait::async_trait;
+use mlua::prelude::LuaUserData;
+use mlua::{UserDataFields, UserDataMethods};
 
 use tokio::select;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -184,12 +186,39 @@ impl<Out> PartialOrd for Client<Out>
 	}
 }
 
-impl<Out> Ord for Client<Out>
+impl<Out: 'static> Ord for Client<Out>
 	where
 		Out: From<ClientMessage> + Send
 {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.details.uuid.cmp(&other.details.uuid)
+	}
+}
+
+pub struct ClientLua<Out: 'static>(pub Arc<Client<Out>>)
+	where
+		Out: From<ClientMessage> + Send;
+
+impl<Out: 'static> LuaUserData for ClientLua<Out>
+	where
+		Out: From<ClientMessage> + Send
+{
+	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
+		fields.add_field_method_get("uuid", |_lua, this| {
+			Ok(this.0.details.uuid.to_string())
+		});
+
+		fields.add_field_method_get("username", |_lua, this| {
+			Ok(this.0.details.username.to_string())
+		});
+
+		fields.add_field_method_get("address", |_lua, this| {
+			Ok(this.0.details.address.to_string())
+		});
+	}
+
+	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(_methods: &mut M) {
+
 	}
 }
 
