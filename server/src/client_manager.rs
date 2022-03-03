@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::join_all;
@@ -11,7 +12,8 @@ use uuid::Uuid;
 
 use async_trait::async_trait;
 use mlua::prelude::LuaUserData;
-use mlua::{UserDataFields, UserDataMethods};
+use mlua::{MetaMethod, Nil, ToLua, UserDataFields, UserDataMethods};
+use mlua::Value::UserData;
 
 use foundation::prelude::IManager;
 use foundation::connection::Connection;
@@ -222,7 +224,20 @@ impl<Out: 'static> LuaUserData for ClientManagerLua<Out>
 					.collect();
 				Ok(clients)
 			}
-		})
+		});
+
+		methods.add_async_meta_method(MetaMethod::Index, |lua, this, (index): (String)| {
+			let manager = this.0.clone();
+			async move {
+				if let Ok(id) = Uuid::from_str(&index) {
+					let map = manager.clients.lock().await;
+					if let Some(found) = map.get(&id) {
+						return Ok(ClientLua(found.clone()).to_lua(lua)?);
+					}
+				}
+				return Ok(Nil);
+			}
+		});
 	}
 }
 
