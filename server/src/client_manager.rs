@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future::join_all;
@@ -11,14 +10,12 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 use async_trait::async_trait;
-use mlua::prelude::LuaUserData;
-use mlua::{Function, MetaMethod, Nil, ToLua, UserDataFields, UserDataMethods};
-use mlua::Value::UserData;
+use mlua::{MetaMethod, Nil, ToLua, UserDataFields, UserDataMethods};
 
 use foundation::prelude::IManager;
 use foundation::connection::Connection;
 
-use crate::client::{Client, ClientLua};
+use crate::client::Client;
 use crate::messages::ClientMessage;
 
 #[derive(Debug)]
@@ -79,7 +76,7 @@ pub struct ClientManager<Out: 'static>
 	where
 		Out: From<ClientMgrMessage> + Send
 {
-	clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
+	pub clients: Mutex<HashMap<Uuid, Arc<Client<ClientMgrMessage>>>>,
 
 	#[allow(dead_code)]
 	server_channel: Mutex<Sender<Out>>,
@@ -191,53 +188,6 @@ impl<Out> IManager for ClientManager<Out>
 				}
 			}
 		}
-	}
-}
-
-#[derive(Clone)]
-pub struct ClientManagerLua<'lua, Out: 'static>(pub Arc<ClientManager<Out>>, pub Vec<Function<'lua>>)
-	where
-		Out: From<ClientMgrMessage> + Send;
-
-impl<Out: 'static> LuaUserData for ClientManagerLua<'_, Out>
-	where
-		Out: From<ClientMgrMessage> + Clone + Send
-{
-	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-
-	}
-
-	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
-		methods.add_async_method("getCount", |_lua,this,()| {
-			let this = this.0.clone();
-			async move {
-				Ok(this.clients.lock().await.len())
-			}
-		});
-
-		methods.add_async_method("getClientList", |_lua,this,()| {
-			let this = this.0.clone();
-			async move {
-				let clients = this.clients.lock().await;
-				let clients: Vec<ClientLua<ClientMgrMessage>> = clients.iter()
-					.map(|(_id,c)| ClientLua(c.clone()))
-					.collect();
-				Ok(clients)
-			}
-		});
-
-		methods.add_async_meta_method(MetaMethod::Index, |lua, this, (index): (String)| {
-			let manager = this.0.clone();
-			async move {
-				if let Ok(id) = Uuid::from_str(&index) {
-					let map = manager.clients.lock().await;
-					if let Some(found) = map.get(&id) {
-						return Ok(ClientLua(found.clone()).to_lua(lua)?);
-					}
-				}
-				return Ok(Nil);
-			}
-		});
 	}
 }
 

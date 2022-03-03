@@ -4,5 +4,6 @@ mod client_manager;
 mod messages;
 mod network_manager;
 mod server;
+mod lua;
 
 pub use server::Server;

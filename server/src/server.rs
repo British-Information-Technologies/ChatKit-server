@@ -14,7 +14,8 @@ use tokio::join;
 use foundation::connection::Connection;
 use foundation::prelude::IManager;
 
-use crate::client_manager::{ClientManager, ClientManagerLua, ClientMgrMessage};
+use crate::client_manager::{ClientManager, ClientMgrMessage};
+use crate::lua::ServerLua;
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
 
 #[derive(Debug,Clone)]
@@ -80,7 +81,7 @@ impl From<ClientMgrMessage> for ServerMessage {
 /// - lua: The servers lua context, used for running lua scripts.
 ///
 pub struct Server {
-	client_manager: Arc<ClientManager<ServerMessage>>,
+	pub client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 	lua: Arc<Mutex<Lua>>,
@@ -101,7 +102,7 @@ impl Server {
 			lua: Arc::new(Mutex::new(Lua::new())),
 		});
 
-		server.lua.lock().await.globals().set("Server", ServerLua(server.clone())).unwrap();
+		server.lua.lock().await.globals().set("Server", ServerLua::new(server.clone())).unwrap();
 
 		server.load_scripts().await?;
 
@@ -177,32 +178,5 @@ impl Server {
 			create_dir("./scripts").await?;
 		}
 		Ok(())
-	}
-}
-
-/// # ServerLua
-/// A wrapper struct for making the Server lua scriptable.
-///
-/// # Attributes
-/// - 1: A reference to the server.
-#[derive(Clone)]
-struct ServerLua(Arc<Server>);
-
-impl LuaUserData for ServerLua {
-	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-		fields.add_field_method_get("ClientManager", |lua,this| {
-			println!("Getting count");
-			Ok(ClientManagerLua(this.0.client_manager.clone(), vec![]))
-		});
-		fields.add_field_method_get("NetworkManager", |lua,this| {
-			Ok("unimplemented")
-		});
-		fields.add_field_method_get("address", |lua,this| {
-			Ok("unimplemented")
-		});
-	}
-
-	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(_methods: &mut M) {
-
 	}
 }
