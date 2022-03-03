@@ -1,2 +1,5 @@
 print("Test Script")
-print("fetched server field: " .. Server.ClientManager)
+
+print(Server.ClientManager:getCount())
+
+print("Test Script")
