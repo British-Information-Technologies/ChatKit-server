@@ -14,10 +14,10 @@ use tokio::join;
 use foundation::connection::Connection;
 use foundation::prelude::IManager;
 
-use crate::client_manager::{ClientManager, ClientMgrMessage};
+use crate::client_manager::{ClientManager, ClientManagerLua, ClientMgrMessage};
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum ServerMessage {
 	ClientConnected {
 		uuid: Uuid,
@@ -170,7 +170,7 @@ impl Server {
 					let server = self.clone();
 					println!("---| loaded script |---\n{}", data);
 					println!("---| script output |---");
-					let _ = server.clone().lua.lock().await.load(&data).exec();
+					server.clone().lua.lock().await.load(&data).exec().unwrap();
 				}
 			}
 		} else {
@@ -185,14 +185,19 @@ impl Server {
 ///
 /// # Attributes
 /// - 1: A reference to the server.
+#[derive(Clone)]
 struct ServerLua(Arc<Server>);
 
 impl LuaUserData for ServerLua {
 	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-		fields.add_field_method_get("ClientManager", |lua,server| {
+		fields.add_field_method_get("ClientManager", |lua,this| {
+			println!("Getting count");
+			Ok(ClientManagerLua(this.0.client_manager.clone()))
+		});
+		fields.add_field_method_get("NetworkManager", |lua,this| {
 			Ok("unimplemented")
 		});
-		fields.add_field_method_get("NetworkManager", |lua,server| {
+		fields.add_field_method_get("address", |lua,this| {
 			Ok("unimplemented")
 		});
 	}
