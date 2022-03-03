@@ -192,7 +192,7 @@ impl LuaUserData for ServerLua {
 	fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
 		fields.add_field_method_get("ClientManager", |lua,this| {
 			println!("Getting count");
-			Ok(ClientManagerLua(this.0.client_manager.clone()))
+			Ok(ClientManagerLua(this.0.client_manager.clone(), vec![]))
 		});
 		fields.add_field_method_get("NetworkManager", |lua,this| {
 			Ok("unimplemented")

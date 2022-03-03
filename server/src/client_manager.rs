@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use async_trait::async_trait;
 use mlua::prelude::LuaUserData;
-use mlua::{MetaMethod, Nil, ToLua, UserDataFields, UserDataMethods};
+use mlua::{Function, MetaMethod, Nil, ToLua, UserDataFields, UserDataMethods};
 use mlua::Value::UserData;
 
 use foundation::prelude::IManager;
@@ -195,11 +195,11 @@ impl<Out> IManager for ClientManager<Out>
 }
 
 #[derive(Clone)]
-pub struct ClientManagerLua<Out: 'static>(pub Arc<ClientManager<Out>>)
+pub struct ClientManagerLua<'lua, Out: 'static>(pub Arc<ClientManager<Out>>, pub Vec<Function<'lua>>)
 	where
 		Out: From<ClientMgrMessage> + Send;
 
-impl<Out: 'static> LuaUserData for ClientManagerLua<Out>
+impl<Out: 'static> LuaUserData for ClientManagerLua<'_, Out>
 	where
 		Out: From<ClientMgrMessage> + Clone + Send
 {
