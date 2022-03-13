@@ -16,3 +16,4 @@ Cargo.lock
 *.cer
 *.pem
 .vscode/settings.json
+*.dylib
