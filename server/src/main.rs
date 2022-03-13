@@ -6,6 +6,8 @@ pub mod client_manager;
 pub mod messages;
 pub mod network_manager;
 pub mod server;
+mod plugin_manager;
+mod plugin;
 mod lua;
 
 use std::io;

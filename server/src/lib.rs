@@ -7,5 +7,7 @@ mod messages;
 mod network_manager;
 mod server;
 mod lua;
+mod plugin_manager;
+mod plugin;
 
 pub use server::Server;
