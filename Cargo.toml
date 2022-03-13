@@ -3,5 +3,6 @@ members = [
   'foundation',
   'server',
   'client',
-  'serverctl'
+  'serverctl',
+  'example_plugin'
 ]
