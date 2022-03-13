@@ -1,1 +1,2 @@
-pub mod Plugin;
+pub mod plugin;
+pub mod plugin_details;

@@ -8,6 +8,6 @@ mod network_manager;
 mod server;
 mod lua;
 mod plugin_manager;
-mod plugin;
+pub mod plugin;
 
 pub use server::Server;
