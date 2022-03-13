@@ -1,3 +1,5 @@
+#![feature(arbitrary_self_types)]
+
 // pub mod chat_manager;
 pub mod client;
 pub mod client_manager;
