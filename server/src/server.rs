@@ -120,6 +120,7 @@ impl Server {
 		// start client manager and network manager
 		self.network_manager.clone().start();
 		self.client_manager.clone().start();
+		let _ = self.plugin_manager.clone().load().await;
 
 		// clone block items
 		let server = self.clone();
