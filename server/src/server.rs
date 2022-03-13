@@ -17,6 +17,7 @@ use foundation::prelude::IManager;
 use crate::client_manager::{ClientManager, ClientMgrMessage};
 use crate::lua::ServerLua;
 use crate::network_manager::{NetworkManager, NetworkManagerMessage};
+use crate::plugin_manager::PluginManager;
 
 #[derive(Debug,Clone)]
 pub enum ServerMessage {
@@ -83,6 +84,7 @@ impl From<ClientMgrMessage> for ServerMessage {
 pub struct Server {
 	pub client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
+	plugin_manager: Arc<PluginManager>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 	lua: Arc<Mutex<Lua>>,
 }
@@ -98,6 +100,7 @@ impl Server {
 		let server = Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
 			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
+			plugin_manager: PluginManager::new(),
 			receiver: Mutex::new(receiver),
 			lua: Arc::new(Mutex::new(Lua::new())),
 		});
