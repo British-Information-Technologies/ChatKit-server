@@ -1,25 +1,25 @@
+use async_trait::async_trait;
 use std::io::{Error, ErrorKind};
 use std::mem;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
-use async_trait::async_trait;
+use std::sync::Arc;
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use crate::managers::NetworkManagerMessage;
 use foundation::connection::Connection;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 use foundation::prelude::IManager;
-use crate::managers::NetworkManagerMessage;
 
 pub struct NetworkManager<M>
-	where M: From<NetworkManagerMessage> {
+where
+	M: From<NetworkManagerMessage>,
+{
 	#[allow(unused)]
-	server_connection: Mutex<Option<Connection>>,
+	server_connection: Mutex<Option<Arc<Connection>>>,
 
 	#[allow(unused)]
 	cursive: Sender<M>,
@@ -28,8 +28,9 @@ pub struct NetworkManager<M>
 }
 
 impl<M> NetworkManager<M>
-	where M: From<NetworkManagerMessage> {
-	
+where
+	M: From<NetworkManagerMessage>,
+{
 	pub fn new(sender: Sender<M>) -> Arc<Self> {
 		Arc::new(NetworkManager {
 			server_connection: Mutex::new(None),
@@ -39,8 +40,11 @@ impl<M> NetworkManager<M>
 	}
 
 	#[allow(unused)]
-	pub async fn info<T: ToSocketAddrs>(self: &Arc<Self>, host: T) -> Result<NetworkManagerMessage, Error> {
-		let connection= Connection::new();
+	pub async fn info<T: ToSocketAddrs>(
+		self: &Arc<Self>,
+		host: T,
+	) -> Result<NetworkManagerMessage, Error> {
+		let connection = Connection::new();
 		println!("Created connection");
 		connection.connect(host).await?;
 		let req = connection.read().await?;
@@ -48,12 +52,15 @@ impl<M> NetworkManager<M>
 		println!("request: {:?}", req);
 
 		if let NetworkSockOut::Request = req {
-			connection.write::<NetworkSockIn>(NetworkSockIn::Info)
+			connection
+				.write::<NetworkSockIn>(NetworkSockIn::Info)
 				.await?;
-			return Ok(connection.read::<NetworkSockOut>()
-				.await?.into());
+			return Ok(connection.read::<NetworkSockOut>().await?.into());
 		} else {
-			Err(Error::new(ErrorKind::ConnectionAborted, "Request not received"))
+			Err(Error::new(
+				ErrorKind::ConnectionAborted,
+				"Request not received",
+			))
 		}
 	}
 
@@ -63,9 +70,9 @@ impl<M> NetworkManager<M>
 		host: String,
 		uuid: Uuid,
 		username: String,
-		address: String
+		address: String,
 	) -> Result<(), Error> {
-		let connection= Connection::new();
+		let connection = Connection::new();
 
 		let _ = connection.connect(host).await?;
 
@@ -76,10 +83,15 @@ impl<M> NetworkManager<M>
 		println!("read request");
 
 		return if let NetworkSockOut::Request = req {
-
 			println!("got request");
 
-			connection.write(NetworkSockIn::Connect {username, uuid: uuid.to_string(), address}).await?;
+			connection
+				.write(NetworkSockIn::Connect {
+					username,
+					uuid,
+					address,
+				})
+				.await?;
 			let res = connection.read().await?;
 
 			// switch over to ClientStreamOut
@@ -88,12 +100,18 @@ impl<M> NetworkManager<M>
 				let _ = mem::replace(&mut *connection_lock, Some(connection));
 				Ok(())
 			} else {
-				Err(Error::new(ErrorKind::ConnectionRefused, format!("expected connecting received: {:?}", res)))
+				Err(Error::new(
+					ErrorKind::ConnectionRefused,
+					format!("expected connecting received: {:?}", res),
+				))
 			}
 		} else {
 			println!("request not found");
-			Err(Error::new(ErrorKind::ConnectionAborted, "Server did not send request"))
-		}
+			Err(Error::new(
+				ErrorKind::ConnectionAborted,
+				"Server did not send request",
+			))
+		};
 	}
 
 	#[allow(unused)]
@@ -106,108 +124,90 @@ impl<M> NetworkManager<M>
 		return if let ClientStreamOut::Disconnected = connection.read().await? {
 			Ok(())
 		} else {
-			Err(Error::new(ErrorKind::InvalidData, "disconnect failed, forcing disconnect"))
-		}
-	}
-
-	#[allow(unused)]
-	pub async fn update() {
-	
-	}
-
-	#[allow(unused)]
-	async fn start(self: Arc<Self>) {
-		let network_manager  = self.clone();
-		tokio::spawn(async {
-
-		});
+			Err(Error::new(
+				ErrorKind::InvalidData,
+				"disconnect failed, forcing disconnect",
+			))
+		};
 	}
 }
 
 #[async_trait]
 impl<M: 'static> IManager for NetworkManager<M>
-	where M: From<NetworkManagerMessage> + Send {
-	async fn run(self: Arc<Self>) {
-		// let networkManager = self.clone();
-		loop {
-			sleep(Duration::new(1,0)).await;
-			println!("networkManager tick")
-		}
-	}
-	
-	async fn start(self: &Arc<Self>) {
-		let network_manager  = self.clone();
-		tokio::spawn(
-			network_manager.run()
-		);
+where
+	M: From<NetworkManagerMessage> + Send,
+{
+	async fn run(self: &Arc<Self>) {
+		println!("networkManager tick")
 	}
 }
 
 #[cfg(test)]
 mod test {
+	use crate::managers::network::NetworkManagerMessage;
+	use crate::managers::NetworkManager;
+	use serverlib::Server;
 	use std::future::Future;
 	use tokio::sync::mpsc::channel;
 	use uuid::Uuid;
-	use serverlib::Server;
-	use crate::managers::network::NetworkManagerMessage;
-	use crate::managers::NetworkManager;
-	
-	async fn wrap_setup<T,F>(test: T)
-		where T: FnOnce(u16) -> F,
-					F: Future
+
+	async fn wrap_setup<T, F>(test: T)
+	where
+		T: FnOnce(u16) -> F,
+		F: Future,
 	{
 		let server = Server::new().await.unwrap();
-		let port = server.port();
-		tokio::spawn(
-			async move {
-				server.start().await;
-			}
-		);
-		
+		let port = server.port().await;
+
+		tokio::spawn(async move {
+			server.start().await;
+		});
 		test(port).await;
 	}
-	
 	#[tokio::test]
 	async fn test_fetch_server_info() {
 		use NetworkManagerMessage::Info;
 		#[allow(unused)]
-		let (tx,rx) =
-			channel::<NetworkManagerMessage>(16);
-		
-		wrap_setup(|port| {
-			async move {
-				let network = NetworkManager::new(tx);
-				let info = network.info(format!("localhost:{}", port)).await.expect("Failed to fetch info");
-				assert_eq!(info, Info {
+		let (tx, rx) = channel::<NetworkManagerMessage>(16);
+
+		wrap_setup(|port| async move {
+			let network = NetworkManager::new(tx);
+			let info = network
+				.info(format!("localhost:{}", port))
+				.await
+				.expect("Failed to fetch info");
+			assert_eq!(
+				info,
+				Info {
 					server_name: "oof".to_string(),
 					server_owner: "michael".to_string()
-				});
-			}
-		}).await;
+				}
+			);
+		})
+		.await;
 	}
-	
 	#[tokio::test]
 	async fn test_login_and_logout_to_server() {
 		#[allow(unused)]
-		let (tx,rx) =
-				channel::<NetworkManagerMessage>(16);
+		let (tx, rx) = channel::<NetworkManagerMessage>(16);
 
 		let network = NetworkManager::new(tx);
 
 		println!("created network manger");
 
-		wrap_setup(|port| {
-			async move {
-				network.login(
+		wrap_setup(|port| async move {
+			network
+				.login(
 					format!("localhost:{}", port),
 					Uuid::default(),
 					"user1".to_string(),
-					"localhost".to_string()
-				).await.expect("login failed");
+					"localhost".to_string(),
+				)
+				.await
+				.expect("login failed");
 
-
-				network.logout().await.expect("logout failed");
-			}
-		}).await;
+			network.logout().await.expect("logout failed");
+		})
+		.await;
 	}
 }

@@ -1,7 +1,4 @@
-use std::sync::{Arc};
 use uuid::Uuid;
-
-use foundation::connection::Connection;
 
 /// # ClientMessage
 ///
@@ -15,34 +12,41 @@ use foundation::connection::Connection;
 ///
 #[derive(Debug)]
 pub enum ClientMessage {
-
 	#[allow(dead_code)]
 	Connected,
 
 	#[allow(dead_code)]
-	IncomingMessage { from: Uuid, to: Uuid, content: String },
+	IncomingMessage {
+		from: Uuid,
+		to: Uuid,
+		content: String,
+	},
 	#[allow(dead_code)]
-	IncomingGlobalMessage { from: Uuid, content: String },
+	IncomingGlobalMessage {
+		from: Uuid,
+		content: String,
+	},
 	#[allow(dead_code)]
-	RequestedUpdate { from: Uuid },
+	RequestedUpdate {
+		from: Uuid,
+	},
 
-	Disconnect { id: Uuid },
+	Disconnect {
+		id: Uuid,
+	},
 
 	Error,
 }
 
 impl PartialEq for ClientMessage {
 	fn eq(&self, other: &Self) -> bool {
-		use ClientMessage::{Disconnect, Connected, Error};
+		use ClientMessage::{Connected, Disconnect, Error};
 
-
-		match (self,other) {
+		match (self, other) {
 			(Connected, Connected) => true,
 			(Error, Error) => true,
-			(Disconnect {id, .. }, Disconnect {id: other_id, .. }) => id == other_id,
-			_ => {
-				false
-			}
+			(Disconnect { id, .. }, Disconnect { id: other_id, .. }) => id == other_id,
+			_ => false,
 		}
 	}
 }
