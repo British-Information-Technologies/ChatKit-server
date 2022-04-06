@@ -1,2 +1,7 @@
 hard_tabs = true
 max_width = 90
+imports_indent = "Block"
+imports_layout = "HorizontalVertical"
+imports_granularity = "Crate"
+reorder_imports = true
+group_imports = "StdExternalCrate"
