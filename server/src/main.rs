@@ -1,14 +1,12 @@
-#![feature(arbitrary_self_types)]
-
 // pub mod chat_manager;
 pub mod client;
 pub mod client_manager;
+mod lua;
 pub mod messages;
 pub mod network_manager;
-pub mod server;
-mod plugin_manager;
 mod plugin;
-mod lua;
+mod plugin_manager;
+pub mod server;
 
 use std::io;
 
