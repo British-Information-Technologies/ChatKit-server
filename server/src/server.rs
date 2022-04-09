@@ -8,13 +8,12 @@ use tokio::sync::{
 	Mutex,
 };
 
-use foundation::connection::Connection;
-use foundation::prelude::IManager;
-
-use crate::client_manager::{ClientManager, ClientMgrMessage};
-
-use crate::network_manager::{NetworkManager, NetworkManagerMessage};
-use crate::plugin_manager::PluginManager;
+use crate::plugin_manager::PluginManagerMessage;
+use crate::{
+	client_manager::{ClientManager, ClientMgrMessage},
+	network_manager::{NetworkManager, NetworkManagerMessage},
+	plugin_manager::PluginManager,
+};
 
 #[derive(Debug, Clone)]
 pub enum ServerMessage {
@@ -65,6 +64,12 @@ impl From<ClientMgrMessage> for ServerMessage {
 	}
 }
 
+impl From<PluginManagerMessage> for ServerMessage {
+	fn from(_: PluginManagerMessage) -> Self {
+		todo!()
+	}
+}
+
 /// # Server
 /// authors: @michael-bailey, @Mitch161
 /// This Represents a server instance.
@@ -79,7 +84,7 @@ impl From<ClientMgrMessage> for ServerMessage {
 pub struct Server {
 	pub client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
-	plugin_manager: Arc<PluginManager>,
+	plugin_manager: Arc<PluginManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 }
 
@@ -90,8 +95,8 @@ impl Server {
 
 		let server = Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
-			network_manager: NetworkManager::new("0.0.0.0:5600", sender).await?,
-			plugin_manager: PluginManager::new(),
+			network_manager: NetworkManager::new("0.0.0.0:5600", sender.clone()).await?,
+			plugin_manager: PluginManager::new(sender),
 			receiver: Mutex::new(receiver),
 		});
 
@@ -101,6 +106,7 @@ impl Server {
 	pub async fn port(self: &Arc<Server>) -> u16 {
 		self.network_manager.port().await
 	}
+
 	pub async fn start(self: &Arc<Server>) {
 		// start client manager and network manager
 		self.network_manager.clone().start();

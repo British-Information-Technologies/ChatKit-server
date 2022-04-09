@@ -1,9 +1,12 @@
-use serverlib::plugin::plugin::Plugin;
-use serverlib::plugin::plugin_details::PluginDetails;
+use futures::lock::Mutex;
+use std::thread::sleep;
 use std::time::Duration;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
 
+use serverlib::plugin::{plugin::Plugin, plugin_details::PluginDetails};
+// use tokio::{sync::Mutex, time::sleep};
+use serverlib::plugin::plugin::IPlugin;
+
+#[derive(Debug)]
 pub struct ExamplePlugin {
 	number: Mutex<u8>,
 }
@@ -17,7 +20,7 @@ impl Default for ExamplePlugin {
 }
 
 #[async_trait::async_trait]
-impl Plugin for ExamplePlugin {
+impl IPlugin for ExamplePlugin {
 	fn details(&self) -> PluginDetails {
 		PluginDetails {
 			display_name: "ExamplePlugin",
@@ -32,10 +35,19 @@ impl Plugin for ExamplePlugin {
 	}
 
 	async fn run(&self) {
-		sleep(Duration::new(1, 0)).await;
+		println!("Example!!!");
+		sleep(Duration::new(1, 0));
 		if let mut a = self.number.lock().await {
 			*a += 1;
-			println!("[ExamplePlugin]: example run");
+			println!("[ExamplePlugin]: example run {}", *a);
 		}
+	}
+
+	fn deinit(&self) {
+		todo!()
+	}
+
+	async fn event(&self) {
+		todo!()
 	}
 }

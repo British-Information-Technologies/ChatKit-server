@@ -1,7 +1,4 @@
-use std::sync::Arc;
-use crate::client::Client;
-use crate::client_manager::ClientMgrMessage;
-
-pub struct PluginInterface {
-	new_connection_callback: Box<dyn FnMut(&mut PluginInterface) -> ()>,
+#[async_trait::async_trait]
+pub trait IPluginInterface {
+	fn get_string<T: Into<String>>() -> T;
 }
