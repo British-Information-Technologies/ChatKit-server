@@ -92,10 +92,10 @@ impl<Out: 'static> PluginManager<Out>
 			create_dir("./plugins").await?;
 		}
 
-			for i in self.plugins.lock().await.iter() {
-				i.start()
-			}
+		self.plugins.lock().await
+			.iter()
+			.for_each(|item| item.start());
 
-			Ok(())
+		Ok(())
 	}
 }

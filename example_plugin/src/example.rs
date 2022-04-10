@@ -37,17 +37,19 @@ impl IPlugin for ExamplePlugin {
 	async fn run(&self) {
 		println!("Example!!!");
 		sleep(Duration::new(1, 0));
-		if let mut a = self.number.lock().await {
-			*a += 1;
-			println!("[ExamplePlugin]: example run {}", *a);
-		}
+		let mut a = self.number.lock().await;
+		*a = a.overflowing_add(1).0;
+		println!("[ExamplePlugin]: example run {}", *a);
+
 	}
 
 	fn deinit(&self) {
-		todo!()
+		if let Some(mut lock) = self.number.try_lock() {
+			*lock = 0;
+		}
 	}
 
 	async fn event(&self) {
-		todo!()
+		println!("Not Implemented");
 	}
 }
