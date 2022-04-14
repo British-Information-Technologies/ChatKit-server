@@ -14,7 +14,7 @@ use tokio::time::sleep;
 use crate::plugin::plugin::Plugin;
 use crate::plugin::plugin_entry::PluginExecutionState::{Paused, Running, Stopped};
 
-pub type PluginEntryObj = Arc<PluginEntry>;
+pub(crate) type PluginEntryObj = Arc<PluginEntry>;
 
 #[derive(Serialize, Deserialize, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub enum PluginPermission {
