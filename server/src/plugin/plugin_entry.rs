@@ -36,7 +36,7 @@ pub(crate) enum PluginExecutionState {
 /// Used to provide an api for the plugin to use.
 /// Also acts as gatekeeper to server data with permissions.
 #[derive(Debug)]
-pub struct PluginEntry {
+pub(crate) struct PluginEntry {
 	server_permission: PluginPermission,
 	network_permission: PluginPermission,
 	client_manager_permission: PluginPermission,

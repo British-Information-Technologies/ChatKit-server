@@ -8,11 +8,11 @@ use tokio::sync::{
 	Mutex,
 };
 
+use crate::plugin::{PluginManager, PluginManagerMessage};
 use crate::plugin_manager::PluginManagerMessage;
 use crate::{
 	client_manager::{ClientManager, ClientMgrMessage},
 	network_manager::{NetworkManager, NetworkManagerMessage},
-	plugin_manager::PluginManager,
 };
 
 #[derive(Debug, Clone)]
