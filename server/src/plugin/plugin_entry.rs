@@ -1,18 +1,14 @@
+use crate::event::Event;
+use crate::plugin::plugin_interface::IPluginInterface;
+use crate::plugin::PluginInterface;
 use serde::{Deserialize, Serialize};
-use tokio::{
-	fs::File,
-	io::{AsyncReadExt, AsyncSeekExt, AsyncWrite},
-};
 
-use std::io::{SeekFrom, ErrorKind};
-use std::mem;
-use std::ops::ControlFlow::Break;
+use crate::plugin::plugin::Plugin;
+use crate::plugin::plugin_entry::PluginExecutionState::{Paused, Running, Stopped};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use crate::plugin::plugin::Plugin;
-use crate::plugin::plugin_entry::PluginExecutionState::{Paused, Running, Stopped};
 
 pub(crate) type PluginEntryObj = Arc<PluginEntry>;
 
@@ -21,7 +17,7 @@ pub enum PluginPermission {
 	Read,
 	Write,
 	ReadWrite,
-	None
+	None,
 }
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -44,13 +40,12 @@ pub(crate) struct PluginEntry {
 
 	state: Arc<Mutex<PluginExecutionState>>,
 
-	plugin: Plugin
+	plugin: Plugin,
 }
-
 
 impl PluginEntry {
 	pub fn new(plugin: Plugin) -> Arc<PluginEntry> {
-		Arc::new(PluginEntry {
+		let entry = Arc::new(PluginEntry {
 			server_permission: PluginPermission::None,
 			network_permission: PluginPermission::None,
 			client_manager_permission: PluginPermission::None,
@@ -58,8 +53,13 @@ impl PluginEntry {
 
 			state: Arc::new(Mutex::new(Stopped)),
 
-			plugin
-		})
+			plugin: plugin.clone(),
+		});
+
+		let entry_ref = entry.clone() as PluginInterface;
+
+		plugin.set_interface(Arc::downgrade(&entry_ref));
+		entry
 	}
 
 	pub(crate) async fn getState(&self) -> PluginExecutionState {
@@ -73,23 +73,25 @@ impl PluginEntry {
 			let local_state = state.clone();
 			let mut lock = local_state.lock().await;
 			match *lock {
-				Running => return,
-				Paused => {*lock = Running; return},
+				Running => (),
+				Paused => {
+					*lock = Running;
+				}
 				Stopped => {
-						tokio::spawn(async move {
+					tokio::spawn(async move {
 						cont.init();
 						let mut lock = state.lock().await;
 						*lock = Running;
 						loop {
 							match *lock {
 								Running => cont.run().await,
-								Paused => sleep(Duration::new(1,0)).await,
+								Paused => sleep(Duration::new(1, 0)).await,
 								Stopped => break,
 							}
 						}
 						cont.deinit()
-					}); return
-				},
+					});
+				}
 			}
 		});
 	}
@@ -99,9 +101,11 @@ impl PluginEntry {
 		tokio::spawn(async move {
 			let mut lock = state.lock().await;
 			match *lock {
-				Running => {*lock = Paused; return},
-				Paused => return,
-				Stopped => return,
+				Running => {
+					*lock = Paused;
+				}
+				Paused => (),
+				Stopped => (),
 			}
 		});
 	}
@@ -111,13 +115,23 @@ impl PluginEntry {
 		tokio::spawn(async move {
 			let mut lock = state.lock().await;
 			match *lock {
-				Running => {*lock = Stopped; return},
-				Paused => {*lock = Stopped; return},
-				Stopped => return,
+				Running => {
+					*lock = Stopped;
+				}
+				Paused => {
+					*lock = Stopped;
+				}
+				Stopped => (),
 			}
 		});
 	}
 }
 
-
-
+impl IPluginInterface for PluginEntry {
+	fn get_next_event(&self) -> std::option::Option<Event<'_>> {
+		todo!()
+	}
+	fn get_event_count(&self) -> usize {
+		todo!()
+	}
+}
