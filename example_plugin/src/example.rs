@@ -2,9 +2,9 @@ use futures::lock::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
-use serverlib::plugin::{plugin::Plugin, plugin_details::PluginDetails};
+use serverlib::plugin::{Plugin, PluginDetails};
 // use tokio::{sync::Mutex, time::sleep};
-use serverlib::plugin::plugin::IPlugin;
+use serverlib::plugin::IPlugin;
 
 #[derive(Debug)]
 pub struct ExamplePlugin {
@@ -40,7 +40,6 @@ impl IPlugin for ExamplePlugin {
 		let mut a = self.number.lock().await;
 		*a = a.overflowing_add(1).0;
 		println!("[ExamplePlugin]: example run {}", *a);
-
 	}
 
 	fn deinit(&self) {

@@ -1,11 +1,11 @@
 // pub mod chat_manager;
 pub mod client;
 pub mod client_manager;
+mod event;
 mod lua;
 pub mod messages;
 pub mod network_manager;
 mod plugin;
-mod plugin_manager;
 pub mod server;
 
 use std::io;
