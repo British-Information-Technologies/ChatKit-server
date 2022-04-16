@@ -1,4 +1,5 @@
 use futures::lock::Mutex;
+use serverlib::plugin::WeakPluginInterface;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -9,12 +10,14 @@ use serverlib::plugin::IPlugin;
 #[derive(Debug)]
 pub struct ExamplePlugin {
 	number: Mutex<u8>,
+	interface: Option<WeakPluginInterface>,
 }
 
 impl Default for ExamplePlugin {
 	fn default() -> Self {
 		ExamplePlugin {
 			number: Mutex::new(0),
+			interface: None,
 		}
 	}
 }
@@ -28,6 +31,10 @@ impl IPlugin for ExamplePlugin {
 			version: "0.0.1",
 			contacts: vec!["bailey-michael1@outlook.com"],
 		}
+	}
+
+	fn set_interface(&self, interface: WeakPluginInterface) {
+		todo!()
 	}
 
 	fn init(&self) {
