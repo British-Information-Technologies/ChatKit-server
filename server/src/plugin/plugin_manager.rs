@@ -1,18 +1,15 @@
-use std::{collections::HashMap, io::Error, mem, sync::Arc};
 use std::fs::Metadata;
+use std::{io::Error, mem, sync::Arc};
 
 use libloading::Library;
-use tokio::fs::{create_dir, DirEntry, read_dir};
+
+use tokio::fs::{create_dir, read_dir, DirEntry};
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{Mutex, MutexGuard};
-use serde::{Serialize, Deserialize};
-use serde_json::StreamDeserializer;
+use tokio::sync::Mutex;
 
 use futures::future::join_all;
-use futures::TryFutureExt;
-use mlua::require_module_feature;
 
-use crate::plugin::plugin::{GetPluginFn, Plugin};
+use crate::plugin::plugin::GetPluginFn;
 use crate::plugin::plugin_entry::{PluginEntry, PluginEntryObj};
 
 pub enum PluginManagerMessage {
@@ -26,8 +23,9 @@ pub enum PluginManagerMessage {
 /// - plugins: A [Vec] of all loaded plugins
 /// - server_channel: A [Sender]
 pub struct PluginManager<Out: 'static>
-	where
-		Out: From<PluginManagerMessage> + Send, {
+where
+	Out: From<PluginManagerMessage> + Send,
+{
 	#[allow(dead_code)]
 	plugins: Mutex<Vec<PluginEntryObj>>,
 
@@ -36,8 +34,9 @@ pub struct PluginManager<Out: 'static>
 }
 
 impl<Out: 'static> PluginManager<Out>
-	where
-		Out: From<PluginManagerMessage> + Send, {
+where
+	Out: From<PluginManagerMessage> + Send,
+{
 	pub fn new(channel: Sender<Out>) -> Arc<Self> {
 		Arc::new(Self {
 			plugins: Mutex::new(Vec::new()),
@@ -53,7 +52,6 @@ impl<Out: 'static> PluginManager<Out>
 		);
 
 		if let Ok(mut plugins) = read_dir("./plugins").await {
-
 			// Todo: - make this concurrent
 			let mut plugin_vec = vec![];
 			while let Some(next) = plugins.next_entry().await? {
@@ -62,20 +60,24 @@ impl<Out: 'static> PluginManager<Out>
 			}
 
 			// get all entries by extension
-			let entries: Vec<DirEntry> = plugin_vec.into_iter()
+			let entries: Vec<DirEntry> = plugin_vec
+				.into_iter()
 				.filter(|item| item.path().extension().unwrap_or_default() == "dylib")
 				.collect();
 
 			// get entry metadata
-			let metadata: Vec<Metadata> = join_all(entries.iter()
-				.map(|item| item.metadata())).await
+			#[allow(clippy::needless_collect)] // This is a false positive. Collect is needed here
+			let metadata: Vec<Metadata> = join_all(entries.iter().map(|item| item.metadata()))
+				.await
 				.into_iter()
 				.filter_map(|item| item.ok())
 				.collect();
 
 			// convert correct ones to plugins
-			let mut plugins: Vec<PluginEntryObj> = entries.into_iter().zip(metadata.into_iter())
-				.filter(|(item, meta)| meta.is_file())
+			let plugins: Vec<PluginEntryObj> = entries
+				.into_iter()
+				.zip(metadata.into_iter())
+				.filter(|(_item, meta)| meta.is_file())
 				.map(|item| item.0)
 				.map(|item| unsafe {
 					let lib = Library::new(item.path()).unwrap();
@@ -92,7 +94,10 @@ impl<Out: 'static> PluginManager<Out>
 			create_dir("./plugins").await?;
 		}
 
-		self.plugins.lock().await
+		self
+			.plugins
+			.lock()
+			.await
 			.iter()
 			.for_each(|item| item.start());
 
