@@ -1,13 +1,14 @@
 use crate::event::Event;
+use crate::event::EventResult;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Weak;
 
+use futures::channel::oneshot::Receiver;
+
 pub type WeakPluginInterface = Weak<dyn IPluginInterface>;
 pub(crate) type PluginInterface = Arc<dyn IPluginInterface>;
 
-#[async_trait::async_trait]
 pub trait IPluginInterface: Send + Sync + Debug {
-	fn get_next_event(&self) -> Option<Event>;
-	fn get_event_count(&self) -> usize;
+	fn send_event(&self, event: Event) -> Receiver<EventResult>;
 }

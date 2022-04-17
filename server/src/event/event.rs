@@ -1,37 +1,49 @@
+use crate::event::EventResult;
 use std::collections::HashMap;
 
-pub enum EventType<'str> {
+use futures::channel::oneshot::{channel, Receiver, Sender};
+
+pub enum EventType {
 	NewConnection,
-	Custom(&'str str)
+	Custom(String),
 }
 
-pub struct Event<'str> {
-	Type: EventType<'str>,
-	args: HashMap<&'str str, String>
+pub struct Event {
+	Type: EventType,
+	args: HashMap<String, String>,
+	sender: Sender<EventResult>,
+	receiver: Option<Receiver<EventResult>>,
 }
 
-pub struct Builder<'str> {
-	Type: EventType<'str>,
-	args: HashMap<&'str str, String>
+pub struct EventBuilder {
+	Type: EventType,
+	args: HashMap<String, String>,
+	sender: Sender<EventResult>,
+	receiver: Option<Receiver<EventResult>>,
 }
 
-impl<'str> Builder<'str> {
-	pub(super) fn new(Type: EventType<'str>) -> Builder {
-		Builder {
+impl EventBuilder {
+	pub(super) fn new(Type: EventType) -> EventBuilder {
+		let (sender, receiver) = channel();
+		EventBuilder {
 			Type,
-			args: HashMap::new()
+			args: HashMap::new(),
+			sender,
+			receiver: Some(receiver),
 		}
 	}
 
-	pub fn add_arg<T: Into<String>>(mut self, key: &'str str, value: T) -> Self {
-		self.args.insert(key, value.into());
+	pub fn add_arg<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
+		self.args.insert(key.into(), value.into());
 		self
 	}
 
-	pub(crate) fn build(self) -> Event<'str> {
+	pub(crate) fn build(self) -> Event {
 		Event {
 			Type: self.Type,
-			args: self.args
+			args: self.args,
+			sender: self.sender,
+			receiver: self.receiver,
 		}
 	}
 }

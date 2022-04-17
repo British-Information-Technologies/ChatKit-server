@@ -1,7 +1,10 @@
 use crate::event::Event;
+use crate::event::EventResult;
 use crate::plugin::plugin_interface::IPluginInterface;
 use crate::plugin::PluginInterface;
 use serde::{Deserialize, Serialize};
+
+use futures::channel::oneshot::Receiver;
 
 use crate::plugin::plugin::Plugin;
 use crate::plugin::plugin_entry::PluginExecutionState::{Paused, Running, Stopped};
@@ -128,10 +131,7 @@ impl PluginEntry {
 }
 
 impl IPluginInterface for PluginEntry {
-	fn get_next_event(&self) -> std::option::Option<Event<'_>> {
-		todo!()
-	}
-	fn get_event_count(&self) -> usize {
+	fn send_event(&self, _event: Event) -> Receiver<EventResult> {
 		todo!()
 	}
 }
