@@ -1,23 +1,23 @@
 use futures::lock::Mutex;
 use serverlib::plugin::WeakPluginInterface;
+use std::sync::Mutex as StdMutex;
 use std::thread::sleep;
 use std::time::Duration;
 
-use serverlib::plugin::{Plugin, PluginDetails};
-// use tokio::{sync::Mutex, time::sleep};
 use serverlib::plugin::IPlugin;
+use serverlib::plugin::PluginDetails;
 
 #[derive(Debug)]
 pub struct ExamplePlugin {
 	number: Mutex<u8>,
-	interface: Option<WeakPluginInterface>,
+	interface: StdMutex<Option<WeakPluginInterface>>,
 }
 
 impl Default for ExamplePlugin {
 	fn default() -> Self {
 		ExamplePlugin {
 			number: Mutex::new(0),
-			interface: None,
+			interface: StdMutex::default(),
 		}
 	}
 }
@@ -34,7 +34,13 @@ impl IPlugin for ExamplePlugin {
 	}
 
 	fn set_interface(&self, interface: WeakPluginInterface) {
-		todo!()
+		if let Ok(mut lock) = self.interface.lock() {
+			*lock = Some(interface);
+		}
+	}
+
+	async fn event(&self) {
+		println!("Not Implemented");
 	}
 
 	fn init(&self) {
@@ -53,9 +59,5 @@ impl IPlugin for ExamplePlugin {
 		if let Some(mut lock) = self.number.try_lock() {
 			*lock = 0;
 		}
-	}
-
-	async fn event(&self) {
-		println!("Not Implemented");
 	}
 }
