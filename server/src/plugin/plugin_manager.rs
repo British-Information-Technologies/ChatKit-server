@@ -37,6 +37,7 @@ impl<Out: 'static> PluginManager<Out>
 where
 	Out: From<PluginManagerMessage> + Send,
 {
+	/// Creates a new plugin manager with sender.
 	pub fn new(channel: Sender<Out>) -> Arc<Self> {
 		Arc::new(Self {
 			plugins: Mutex::new(Vec::new()),
@@ -44,6 +45,8 @@ where
 		})
 	}
 
+	/// Starts loading plugins from the plugins directory.
+	/// If this directory isn't found then create it get created.
 	pub async fn load(&self) -> Result<(), Error> {
 		println!("[PluginManager]: loading plugins");
 		println!(
