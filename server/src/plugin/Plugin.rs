@@ -8,11 +8,11 @@ use std::sync::Arc;
 
 /// # Plugin
 /// Type alias for plugin objects.
-pub type Plugin = Arc<dyn IPlugin>;
+pub type Plugin<T> = Arc<dyn IPlugin<T>>;
 
 /// # GetPluginFn
 /// This defines the type for getting the plugin struct from a
-pub type GetPluginFn = fn() -> Plugin;
+pub type GetPluginFn<T> = fn() -> Plugin<T>;
 
 /// # Plugin
 /// This trait defines an interface for plugins to implement.
@@ -23,9 +23,9 @@ pub type GetPluginFn = fn() -> Plugin;
 /// - run: defines a routine to be ran like a thread by the plugin manager.
 /// - deinit: Defines the deinitalisation routine for the plugin
 #[async_trait::async_trait]
-pub trait IPlugin: Send + Sync + Debug {
+pub trait IPlugin<T>: Send + Sync + Debug {
 	fn details(&self) -> PluginDetails;
-	fn on_event(&self, event: Event);
+	fn on_event(&self, event: Event<T>);
 
 	fn set_interface(&self, interface: WeakPluginInterface);
 
