@@ -1,7 +1,9 @@
 use crate::plugin::plugin_interface::IPluginInterface;
 use crate::plugin::PluginInterface;
 use foundation::event::Event;
+
 use foundation::event::EventResult;
+use foundation::event::EventType;
 use foundation::event::IResponder;
 use serde::{Deserialize, Serialize};
 use std::sync::Weak;
@@ -139,8 +141,22 @@ impl IPluginInterface for PluginEntry {
 }
 
 impl IResponder for PluginEntry {
-	fn on_event(&self, _: foundation::event::Event) {
-		todo!()
+	fn on_event(&self, event: Event) {
+		use EventType::{ClientAdded, Custom, NewConnection};
+		use PluginPermission::{None, Read, ReadWrite, Write};
+
+		match (
+			&event.Type,
+			&self.network_permission,
+			&self.client_manager_permission,
+			&self.client_permission,
+			&self.server_permission,
+		) {
+			(NewConnection, Read | ReadWrite, _, _, _) => self.plugin.on_event(event),
+			(ClientAdded, _, Read | ReadWrite, _, _) => self.plugin.on_event(event),
+			(Custom("ping"), _, _, _, _) => println!("[PluginEntry:on_event] Ping!"),
+			_ => println!("[PluginEntry:on_event] not handled"),
+		};
 	}
 	fn get_next(&self) -> Option<Weak<dyn IResponder>> {
 		todo!()
