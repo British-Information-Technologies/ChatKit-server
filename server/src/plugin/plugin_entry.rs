@@ -1,8 +1,10 @@
-use crate::event::Event;
-use crate::event::EventResult;
 use crate::plugin::plugin_interface::IPluginInterface;
 use crate::plugin::PluginInterface;
+use foundation::event::Event;
+use foundation::event::EventResult;
+use foundation::event::IResponder;
 use serde::{Deserialize, Serialize};
+use std::sync::Weak;
 
 use futures::channel::oneshot::Receiver;
 
@@ -132,6 +134,15 @@ impl PluginEntry {
 
 impl IPluginInterface for PluginEntry {
 	fn send_event(&self, _event: Event) -> Receiver<EventResult> {
+		todo!()
+	}
+}
+
+impl IResponder for PluginEntry {
+	fn on_event(&self, _: foundation::event::Event) {
+		todo!()
+	}
+	fn get_next(&self) -> Option<Weak<dyn IResponder>> {
 		todo!()
 	}
 }
