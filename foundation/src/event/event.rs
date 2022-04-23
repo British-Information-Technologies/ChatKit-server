@@ -1,32 +1,35 @@
 use crate::event::EventResult;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 use futures::channel::oneshot::{channel, Receiver, Sender};
 
-pub enum EventType {
+//todo: move this out of foundation
+pub enum EventType<'a> {
 	NewConnection,
-	Custom(String),
+	ClientAdded,
+	Custom(&'a str),
 }
 
-pub struct Event {
-	Type: EventType,
+pub struct Event<T> {
+	pub r#type: T,
 	args: HashMap<String, String>,
 	sender: Sender<EventResult>,
 	receiver: Option<Receiver<EventResult>>,
 }
 
-pub struct EventBuilder {
-	Type: EventType,
+pub struct EventBuilder<T> {
+	r#type: T,
 	args: HashMap<String, String>,
 	sender: Sender<EventResult>,
 	receiver: Option<Receiver<EventResult>>,
 }
 
-impl EventBuilder {
-	pub(super) fn new(Type: EventType) -> EventBuilder {
+impl<T> EventBuilder<T> {
+	pub(super) fn new(r#type: T) -> EventBuilder<T> {
 		let (sender, receiver) = channel();
 		EventBuilder {
-			Type,
+			r#type,
 			args: HashMap::new(),
 			sender,
 			receiver: Some(receiver),
@@ -38,9 +41,9 @@ impl EventBuilder {
 		self
 	}
 
-	pub(crate) fn build(self) -> Event {
+	pub(crate) fn build(self) -> Event<T> {
 		Event {
-			Type: self.Type,
+			r#type: self.r#type,
 			args: self.args,
 			sender: self.sender,
 			receiver: self.receiver,
