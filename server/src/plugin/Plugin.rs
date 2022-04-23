@@ -1,4 +1,5 @@
 use crate::plugin::WeakPluginInterface;
+use foundation::event::Event;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -24,7 +25,7 @@ pub type GetPluginFn = fn() -> Plugin;
 #[async_trait::async_trait]
 pub trait IPlugin: Send + Sync + Debug {
 	fn details(&self) -> PluginDetails;
-	async fn event(&self);
+	fn on_event(&self, event: Event);
 
 	fn set_interface(&self, interface: WeakPluginInterface);
 
