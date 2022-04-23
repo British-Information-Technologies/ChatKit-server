@@ -1,8 +1,8 @@
 use crate::event::Event;
 use std::sync::Weak;
 
-pub trait IResponder {
-	fn post_event(&self, event: Event) {
+pub trait IResponder<T> {
+	fn post_event(&self, event: Event<T>) {
 		if let Some(next) = self.get_next() {
 			if let Some(next) = next.upgrade() {
 				next.post_event(event);
@@ -11,7 +11,7 @@ pub trait IResponder {
 		}
 		self.r#final(event);
 	}
-	fn get_next(&self) -> Option<Weak<dyn IResponder>>;
-	fn on_event(&self, event: Event);
-	fn r#final(&self, _event: Event) {}
+	fn get_next(&self) -> Option<Weak<dyn IResponder<T>>>;
+	fn on_event(&self, event: Event<T>);
+	fn r#final(&self, _event: Event<T>) {}
 }
