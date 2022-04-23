@@ -1,6 +1,7 @@
 extern crate core;
 
 pub mod encryption;
+pub mod event;
 pub mod messages;
 pub mod prelude;
 pub mod connection;
