@@ -27,7 +27,7 @@ pub trait IPlugin<T>: Send + Sync + Debug {
 	fn details(&self) -> PluginDetails;
 	fn on_event(&self, event: Event<T>);
 
-	fn set_interface(&self, interface: WeakPluginInterface);
+	fn set_interface(&self, interface: WeakPluginInterface<T>);
 
 	fn init(&self);
 	async fn run(&self);

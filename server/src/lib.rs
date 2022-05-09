@@ -1,10 +1,11 @@
 // mod chat_manager;
 mod client;
 mod client_manager;
-mod event;
+mod event_type;
+mod lua;
 mod messages;
 mod network_manager;
-pub mod plugin;
+// pub mod plugin;
 mod server;
 
 pub use server::Server;

@@ -84,7 +84,7 @@ where
 				.map(|item| item.0)
 				.map(|item| unsafe {
 					let lib = Library::new(item.path()).unwrap();
-					let plugin_fn = lib.get::<GetPluginFn>("get_plugin".as_ref()).unwrap();
+					let plugin_fn = lib.get::<GetPluginFn<()>>("get_plugin".as_ref()).unwrap();
 					PluginEntry::new(plugin_fn())
 				})
 				.collect();

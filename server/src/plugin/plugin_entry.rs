@@ -2,8 +2,9 @@ use crate::plugin::plugin_interface::IPluginInterface;
 use crate::plugin::PluginInterface;
 use foundation::event::Event;
 
+use crate::event_type::EventType;
+
 use foundation::event::EventResult;
-use foundation::event::EventType;
 use foundation::event::IResponder;
 use serde::{Deserialize, Serialize};
 use std::sync::Weak;
@@ -39,7 +40,10 @@ pub(crate) enum PluginExecutionState {
 /// Used to provide an api for the plugin to use.
 /// Also acts as gatekeeper to server data with permissions.
 #[derive(Debug)]
-pub(crate) struct PluginEntry {
+pub(crate) struct PluginEntry<T>
+where
+	T: Sync + Send,
+{
 	server_permission: PluginPermission,
 	network_permission: PluginPermission,
 	client_manager_permission: PluginPermission,
@@ -47,11 +51,14 @@ pub(crate) struct PluginEntry {
 
 	state: Arc<Mutex<PluginExecutionState>>,
 
-	plugin: Plugin,
+	plugin: Plugin<EventType<'static>>,
 }
 
-impl PluginEntry {
-	pub fn new(plugin: Plugin) -> Arc<PluginEntry> {
+impl<T> PluginEntry<T>
+where
+	T: Sync + Send,
+{
+	pub fn new(plugin: Plugin<EventType>) -> Arc<PluginEntry<T>> {
 		let entry = Arc::new(PluginEntry {
 			server_permission: PluginPermission::None,
 			network_permission: PluginPermission::None,
@@ -63,7 +70,7 @@ impl PluginEntry {
 			plugin: plugin.clone(),
 		});
 
-		let entry_ref = entry.clone() as PluginInterface;
+		let entry_ref = entry.clone() as PluginInterface<T>;
 
 		plugin.set_interface(Arc::downgrade(&entry_ref));
 		entry
@@ -134,31 +141,31 @@ impl PluginEntry {
 	}
 }
 
-impl IPluginInterface for PluginEntry {
-	fn send_event(&self, _event: Event) -> Receiver<EventResult> {
+impl<T> IPluginInterface<T> for PluginEntry {
+	fn send_event(&self, _event: Event<EventType>) -> Receiver<EventResult> {
 		todo!()
 	}
 }
 
-impl IResponder for PluginEntry {
-	fn on_event(&self, event: Event) {
+impl IResponder<EventType<'_>> for PluginEntry {
+	fn on_event(&self, event: Event<EventType>) {
 		use EventType::{ClientAdded, Custom, NewConnection};
 		use PluginPermission::{None, Read, ReadWrite, Write};
 
 		match (
-			&event.Type,
+			&event.r#type,
 			&self.network_permission,
 			&self.client_manager_permission,
 			&self.client_permission,
 			&self.server_permission,
 		) {
 			(NewConnection, Read | ReadWrite, _, _, _) => self.plugin.on_event(event),
-			(ClientAdded, _, Read | ReadWrite, _, _) => self.plugin.on_event(event),
+			(ClientAdded(id), _, Read | ReadWrite, _, _) => self.plugin.on_event(event),
 			(Custom("ping"), _, _, _, _) => println!("[PluginEntry:on_event] Ping!"),
 			_ => println!("[PluginEntry:on_event] not handled"),
 		};
 	}
-	fn get_next(&self) -> Option<Weak<dyn IResponder>> {
+	fn get_next(&self) -> Option<Weak<dyn IResponder<EventType>>> {
 		todo!()
 	}
 }

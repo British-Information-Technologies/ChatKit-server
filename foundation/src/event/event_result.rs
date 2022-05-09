@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 pub enum EventResultType {
 	Success,
+	NoResponse,
 	InvalidArgs,
 	InvalidCode,
 	Other(String),
@@ -14,21 +15,25 @@ pub struct EventResult {
 }
 
 impl EventResult {
-	pub fn create(result_type: EventResultType) -> EventResultBuilder {
-		EventResultBuilder::new(result_type)
+	pub fn create(result_type: EventResultType, sender: Sender<EventResult>) -> EventResultBuilder {
+		EventResultBuilder::new(result_type, sender)
 	}
 }
 
+/// # EventResultBuilder
+/// Builds the result of an event
 pub struct EventResultBuilder {
 	code: EventResultType,
 	args: HashMap<String, String>,
+	sender: Sender<EventResult>,
 }
 
 impl EventResultBuilder {
-	pub(self) fn new(result_type: EventResultType) -> Self {
+	pub(self) fn new(result_type: EventResultType, sender: Sender<EventResult>) -> Self {
 		Self {
 			code: result_type,
 			args: HashMap::default(),
+			sender,
 		}
 	}
 
@@ -37,15 +42,9 @@ impl EventResultBuilder {
 		self
 	}
 
-	pub fn build(self) -> EventResult {
-		EventResult {
-			code: self.code,
-			args: self.args,
-		}
-	}
-
-	pub fn send(self, sender: Sender<EventResult>) {
-		sender
+	pub fn send(self) {
+		self
+			.sender
 			.send(EventResult {
 				code: self.code,
 				args: self.args,

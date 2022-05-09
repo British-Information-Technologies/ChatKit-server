@@ -7,9 +7,19 @@ use std::sync::Weak;
 
 use futures::channel::oneshot::Receiver;
 
-pub type WeakPluginInterface = Weak<dyn IPluginInterface>;
-pub(crate) type PluginInterface = Arc<dyn IPluginInterface>;
+pub type WeakPluginInterface<T>
+where
+	T: Sync + Send,
+= Weak<dyn IPluginInterface<T>>;
 
-pub trait IPluginInterface: IResponder + Send + Sync + Debug {
-	fn send_event(&self, event: Event) -> Receiver<EventResult>;
+pub(crate) type PluginInterface<T>
+where
+	T: Sync + Send,
+= Arc<dyn IPluginInterface<T>>;
+
+pub trait IPluginInterface<T>: IResponder<T> + Send + Sync + Debug
+where
+	T: Sync + Send,
+{
+	fn send_event(&self, event: Event<T>) -> Receiver<EventResult>;
 }

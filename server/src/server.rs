@@ -8,8 +8,7 @@ use tokio::sync::{
 	Mutex,
 };
 
-use crate::plugin::{PluginManager, PluginManagerMessage};
-use crate::plugin_manager::PluginManagerMessage;
+// use crate::plugin::{PluginManager, PluginManagerMessage};
 use crate::{
 	client_manager::{ClientManager, ClientMgrMessage},
 	network_manager::{NetworkManager, NetworkManagerMessage},
@@ -64,11 +63,11 @@ impl From<ClientMgrMessage> for ServerMessage {
 	}
 }
 
-impl From<PluginManagerMessage> for ServerMessage {
-	fn from(_: PluginManagerMessage) -> Self {
-		todo!()
-	}
-}
+// impl From<PluginManagerMessage> for ServerMessage {
+// 	fn from(_: PluginManagerMessage) -> Self {
+// 		todo!()
+// 	}
+// }
 
 /// # Server
 /// authors: @michael-bailey, @Mitch161
@@ -84,7 +83,7 @@ impl From<PluginManagerMessage> for ServerMessage {
 pub struct Server {
 	pub client_manager: Arc<ClientManager<ServerMessage>>,
 	network_manager: Arc<NetworkManager<ServerMessage>>,
-	plugin_manager: Arc<PluginManager<ServerMessage>>,
+	// plugin_manager: Arc<PluginManager<ServerMessage>>,
 	receiver: Mutex<Receiver<ServerMessage>>,
 }
 
@@ -96,7 +95,7 @@ impl Server {
 		let server = Arc::new(Server {
 			client_manager: ClientManager::new(sender.clone()),
 			network_manager: NetworkManager::new("0.0.0.0:5600", sender.clone()).await?,
-			plugin_manager: PluginManager::new(sender),
+			// plugin_manager: PluginManager::new(sender),
 			receiver: Mutex::new(receiver),
 		});
 
@@ -111,7 +110,7 @@ impl Server {
 		// start client manager and network manager
 		self.network_manager.clone().start();
 		self.client_manager.clone().start();
-		let _ = self.plugin_manager.clone().load().await;
+		// let _ = self.plugin_manager.clone().load().await;
 
 		// clone block items
 		let server = self.clone();
