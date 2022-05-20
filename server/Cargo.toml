@@ -14,6 +14,10 @@ path = "src/lib.rs"
 name = "server"
 path = "src/main.rs"
 
+[[bin]]
+name = "server-actix"
+path = "src/actor.rs"
+
 [dependencies]
 clap = "2.33.3"
 uuid = {version = "0.8", features = ["serde", "v4"]}

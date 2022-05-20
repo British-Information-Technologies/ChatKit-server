@@ -1,3 +1,4 @@
+use foundation::connection::Connection;
 use std::io::Error;
 use std::sync::Arc;
 
@@ -13,6 +14,8 @@ use crate::{
 	client_manager::{ClientManager, ClientMgrMessage},
 	network_manager::{NetworkManager, NetworkManagerMessage},
 };
+
+use foundation::prelude::IManager;
 
 #[derive(Debug, Clone)]
 pub enum ServerMessage {
