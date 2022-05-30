@@ -1,8 +1,7 @@
-/// # connection.rs
-/// An actor that handles a TcpStream.
 use crate::prelude::ObservableMessage;
 use actix::fut::wrap_future;
 use actix::Actor;
+use actix::ActorContext;
 use actix::Addr;
 use actix::AsyncContext;
 use actix::Context;
@@ -10,17 +9,27 @@ use actix::Handler;
 use actix::Message;
 use actix::Recipient;
 use actix::SpawnHandle;
+use futures::future::join_all;
+use futures::Future;
+use futures::FutureExt;
+use serde::Serialize;
+use std::io::Write;
 use std::net::SocketAddr;
+use std::pin::Pin;
+use std::sync::Arc;
 use tokio::io::split;
 use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::io::ReadHalf;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 
+/// This is a message that can be sent to the Connection.
 #[derive(Message)]
 #[rtype(result = "()")]
-enum ConnectionMessage {
+pub(crate) enum ConnectionMessage {
 	SendData(String),
 	CloseConnection,
 }
@@ -28,8 +37,8 @@ enum ConnectionMessage {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(crate) enum ConnectionOuput {
-	RecvData(String),
-	NoMessage,
+	RecvData(Addr<Connection>, SocketAddr, String),
+	ConnectionClosed(Addr<Connection>),
 }
 
 #[derive(Message)]
@@ -49,7 +58,7 @@ enum SelfMessage {
 /// - loop_future: the future holding the receiving loop.
 pub(crate) struct Connection {
 	read_half: Option<ReadHalf<TcpStream>>,
-	write_half: WriteHalf<TcpStream>,
+	write_half: Arc<Mutex<WriteHalf<TcpStream>>>,
 	address: SocketAddr,
 	observers: Vec<Recipient<ConnectionOuput>>,
 	loop_future: Option<SpawnHandle>,
@@ -63,7 +72,7 @@ impl Connection {
 		let (read_half, write_half) = split(stream);
 		Connection {
 			read_half: Some(read_half),
-			write_half,
+			write_half: Arc::new(Mutex::new(write_half)),
 			address,
 			observers: Vec::new(),
 			loop_future: None,
@@ -128,12 +137,21 @@ impl Handler<ConnectionMessage> for Connection {
 	fn handle(
 		&mut self,
 		msg: ConnectionMessage,
-		_ctx: &mut Self::Context,
+		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use ConnectionMessage::{CloseConnection, SendData};
+		let writer = self.write_half.clone();
+
 		match msg {
-			SendData(d) => {}
-			CloseConnection => {}
+			SendData(d) => {
+				ctx.spawn(wrap_future(async move {
+					let mut lock = writer.lock().await;
+					let mut buffer = Vec::new();
+					writeln!(&mut buffer, "{}", d.as_str());
+					lock.write_all(&buffer).await;
+				}));
+			}
+			CloseConnection => ctx.stop(),
 		};
 	}
 }
@@ -143,15 +161,31 @@ impl Handler<SelfMessage> for Connection {
 	fn handle(
 		&mut self,
 		msg: SelfMessage,
-		_ctx: &mut Self::Context,
+		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use ConnectionOuput::RecvData;
 		use SelfMessage::UpdateObserversWithData;
 		match msg {
 			UpdateObserversWithData(data) => {
-				for o in self.observers.clone() {
-					o.do_send(RecvData(data.clone()));
-				}
+				let send = ctx.address();
+				let addr = self.address.clone();
+				// this is a mess
+				let futs: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = self
+					.observers
+					.iter()
+					.cloned()
+					.map(|r| {
+						let send = send.clone();
+						let data = data.clone();
+						async move {
+							let _ = r.send(RecvData(send, addr, data)).await;
+						}
+						.boxed()
+					})
+					.collect();
+				let _ = ctx.spawn(wrap_future(async {
+					join_all(futs).await;
+				}));
 			}
 		};
 	}

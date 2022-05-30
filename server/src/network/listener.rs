@@ -1,6 +1,6 @@
-/// # listener.rs
-/// An actor for listening for new connections from the network
 use crate::network::connection::Connection;
+use crate::network::ConnectionInitiator;
+use crate::network::InitiatorOutput;
 use actix::fut::wrap_future;
 use actix::Actor;
 use actix::Addr;
@@ -12,7 +12,6 @@ use actix::Recipient;
 use actix::SpawnHandle;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
-use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
@@ -26,46 +25,51 @@ pub(super) enum ListenerMessage {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(super) enum ListenerOutput {
-	Started,
-	StartFailed,
 	NewConnection(Addr<Connection>),
-	NoConnection,
-	Error,
-	Stopped,
+	InfoRequest(Addr<Connection>),
 }
 
 pub(super) struct NetworkListener {
 	address: SocketAddr,
-	// delegate: Arc<RwLock<Recipient<ListenerOutput>>>,
+	delegate: Recipient<ListenerOutput>,
 	looper: Option<SpawnHandle>,
 }
 
 impl NetworkListener {
 	pub(crate) fn new<T: ToSocketAddrs>(
 		address: T,
-		// delegate: Recipient<ListenerOutput>,
+		delegate: Recipient<ListenerOutput>,
 	) -> Addr<NetworkListener> {
 		NetworkListener {
 			address: address
 				.to_socket_addrs()
 				.unwrap()
 				.collect::<Vec<SocketAddr>>()[0],
-			// delegate: Arc::new(RwLock::new(delegate)),
+			delegate,
 			looper: None,
 		}
 		.start()
 	}
 
+	/// called when the actor is to start listening
 	fn start_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
+		println!("Network listener started listening");
 		let addr = self.address.clone();
+		let self_addr = ctx.address();
 		let loop_future = ctx.spawn(wrap_future(async move {
 			let listener = TcpListener::bind(addr).await.unwrap();
 			while let Ok((stream, addr)) = listener.accept().await {
+				println!("new tcp connection");
 				let conn = Connection::new(stream, addr);
+				let connection_initiator =
+					ConnectionInitiator::new(self_addr.clone().recipient(), conn);
 			}
 		}));
 	}
+
+	/// called when the actor is to stop listening
 	fn stop_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
+		println!("Network listener stopped listening");
 		if let Some(fut) = self.looper.take() {
 			ctx.cancel_future(fut);
 		}
@@ -75,7 +79,9 @@ impl NetworkListener {
 impl Actor for NetworkListener {
 	type Context = Context<Self>;
 
-	fn started(&mut self, ctx: &mut Self::Context) {}
+	fn started(&mut self, ctx: &mut Self::Context) {
+		println!("Network listener started");
+	}
 }
 
 impl Handler<ListenerMessage> for NetworkListener {
@@ -89,6 +95,24 @@ impl Handler<ListenerMessage> for NetworkListener {
 		match msg {
 			StartListening => self.start_listening(ctx),
 			StopListening => self.stop_listening(ctx),
+		}
+	}
+}
+
+impl Handler<InitiatorOutput> for NetworkListener {
+	type Result = ();
+	fn handle(
+		&mut self,
+		msg: InitiatorOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
+		use InitiatorOutput::{ClientRequest, InfoRequest};
+		match msg {
+			ClientRequest(addr, client_details) => {}
+			InfoRequest(addr) => {
+				println!("Got Info request");
+				self.delegate.do_send(ListenerOutput::InfoRequest(addr));
+			}
 		}
 	}
 }
