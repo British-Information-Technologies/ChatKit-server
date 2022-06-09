@@ -10,6 +10,7 @@ use actix::Context;
 use actix::Handler;
 use actix::Message;
 use actix::Recipient;
+use actix::WeakRecipient;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 use foundation::ClientDetails;
 use serde_json::{from_str, to_string};
@@ -24,8 +25,8 @@ enum ConnectionPhase {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(crate) enum InitiatorOutput {
-	InfoRequest(Addr<Connection>),
-	ClientRequest(Addr<Connection>, ClientDetails),
+	InfoRequest(Addr<ConnectionInitiator>, Addr<Connection>),
+	ClientRequest(Addr<ConnectionInitiator>, Addr<Connection>, ClientDetails),
 }
 
 /// # ConnectionInitiator
@@ -35,13 +36,13 @@ pub(crate) enum InitiatorOutput {
 /// - Create a new client and send it to the network manager.
 /// - Request the eserver info and send it to the connection.
 pub(crate) struct ConnectionInitiator {
-	delegate: Recipient<InitiatorOutput>,
+	delegate: WeakRecipient<InitiatorOutput>,
 	connection: Addr<Connection>,
 }
 
 impl ConnectionInitiator {
 	pub(crate) fn new(
-		delegate: Recipient<InitiatorOutput>,
+		delegate: WeakRecipient<InitiatorOutput>,
 		connection: Addr<Connection>,
 	) -> Addr<Self> {
 		ConnectionInitiator {
@@ -64,20 +65,17 @@ impl ConnectionInitiator {
 		use ObservableMessage::Unsubscribe;
 
 		let msg = from_str::<NetworkSockIn>(data.as_str())
-			.expect("error deserialising incomming message");
-
-		match msg {
-			Info => self
-				.delegate
-				.do_send(InfoRequest(sender))
-				.expect("Failed to send info request Message"),
-			Connect {
-				uuid,
-				username,
-				address,
-			} => self
-				.delegate
-				.do_send(ClientRequest(
+			.expect("[ConnectionInitiator] error deserialising incomming message");
+		println!("[ConnectionInitiator] matching request");
+		if let Some(delegate) = self.delegate.upgrade() {
+			match msg {
+				Info => delegate.do_send(InfoRequest(ctx.address(), sender)),
+				Connect {
+					uuid,
+					username,
+					address,
+				} => delegate.do_send(ClientRequest(
+					ctx.address(),
 					sender,
 					ClientDetails {
 						uuid,
@@ -85,10 +83,10 @@ impl ConnectionInitiator {
 						address,
 						public_key: None,
 					},
-				))
-				.expect("Failed to send connect request"),
-		};
-		ctx.stop();
+				)),
+			};
+			ctx.stop();
+		}
 	}
 }
 
@@ -102,6 +100,8 @@ impl Actor for ConnectionInitiator {
 		use NetworkSockOut::Request;
 		use ObservableMessage::Subscribe;
 
+		println!("[ConnectionInitiator] started");
+
 		self
 			.connection
 			.do_send(Subscribe(ctx.address().recipient()));
@@ -114,6 +114,7 @@ impl Actor for ConnectionInitiator {
 	/// once stopped remove self from the connection subscribers
 	fn stopped(&mut self, ctx: &mut Self::Context) {
 		use ObservableMessage::Unsubscribe;
+		println!("[ConnectionInitiator] stopped");
 		self
 			.connection
 			.do_send(Unsubscribe(ctx.address().recipient()));
@@ -129,11 +130,8 @@ impl Handler<ConnectionOuput> for ConnectionInitiator {
 	) -> Self::Result {
 		use ConnectionOuput::{ConnectionClosed, RecvData};
 		use ConnectionPhase::Requested;
-		match msg {
-			RecvData(sender, addr, data) => {
-				self.handle_request(sender, ctx, addr, data)
-			}
-			ConnectionClosed(_) => todo!(),
+		if let RecvData(sender, addr, data) = msg {
+			self.handle_request(sender, ctx, addr, data)
 		}
 	}
 }

@@ -88,6 +88,7 @@ impl Actor for Connection {
 	/// takes out eh read_half ad turns it into a buffered reader
 	/// then eneters loop readling lines from the tcp stream
 	fn started(&mut self, ctx: &mut Self::Context) {
+		println!("[Connection] started");
 		let addr = ctx.address();
 		let read_half = self
 			.read_half
@@ -98,6 +99,7 @@ impl Actor for Connection {
 			let mut buffer_string = String::new();
 
 			while let Ok(_) = reader.read_line(&mut buffer_string).await {
+				println!("[Connection] read line");
 				use SelfMessage::UpdateObserversWithData;
 				addr
 					.send(UpdateObserversWithData(buffer_string.clone()))
@@ -105,6 +107,14 @@ impl Actor for Connection {
 				buffer_string.clear();
 			}
 		}));
+	}
+
+	fn stopped(&mut self, ctx: &mut Self::Context) {
+		use ConnectionOuput::ConnectionClosed;
+		println!("[Connection] stopped");
+		for recp in self.observers.iter() {
+			recp.do_send(ConnectionClosed(ctx.address()));
+		}
 	}
 }
 
@@ -118,9 +128,11 @@ impl Handler<ObservableMessage<ConnectionOuput>> for Connection {
 		use ObservableMessage::{Subscribe, Unsubscribe};
 		match msg {
 			Subscribe(r) => {
+				println!("[Connection] adding subscriber");
 				self.observers.push(r);
 			}
 			Unsubscribe(r) => {
+				println!("[Connection] removing subscriber");
 				self.observers = self
 					.observers
 					.clone()
@@ -145,6 +157,7 @@ impl Handler<ConnectionMessage> for Connection {
 		match msg {
 			SendData(d) => {
 				ctx.spawn(wrap_future(async move {
+					println!("[Connection] sending data");
 					let mut lock = writer.lock().await;
 					let mut buffer = Vec::new();
 					writeln!(&mut buffer, "{}", d.as_str());

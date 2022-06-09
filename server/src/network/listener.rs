@@ -13,7 +13,6 @@ use actix::SpawnHandle;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -26,7 +25,6 @@ pub(super) enum ListenerMessage {
 #[rtype(result = "()")]
 pub(super) enum ListenerOutput {
 	NewConnection(Addr<Connection>),
-	InfoRequest(Addr<Connection>),
 }
 
 pub(super) struct NetworkListener {
@@ -53,23 +51,24 @@ impl NetworkListener {
 
 	/// called when the actor is to start listening
 	fn start_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
-		println!("Network listener started listening");
+		println!("[NetworkListener] started listening");
 		let addr = self.address.clone();
 		let self_addr = ctx.address();
+		let delegate = self.delegate.clone();
 		let loop_future = ctx.spawn(wrap_future(async move {
+			use ListenerOutput::NewConnection;
 			let listener = TcpListener::bind(addr).await.unwrap();
 			while let Ok((stream, addr)) = listener.accept().await {
-				println!("new tcp connection");
+				println!("[NetworkListener] accepted socket");
 				let conn = Connection::new(stream, addr);
-				let connection_initiator =
-					ConnectionInitiator::new(self_addr.clone().recipient(), conn);
+				delegate.do_send(NewConnection(conn));
 			}
 		}));
 	}
 
 	/// called when the actor is to stop listening
 	fn stop_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
-		println!("Network listener stopped listening");
+		println!("[NetworkListener] stopped listening");
 		if let Some(fut) = self.looper.take() {
 			ctx.cancel_future(fut);
 		}
@@ -79,8 +78,12 @@ impl NetworkListener {
 impl Actor for NetworkListener {
 	type Context = Context<Self>;
 
-	fn started(&mut self, ctx: &mut Self::Context) {
-		println!("Network listener started");
+	fn started(&mut self, _ctx: &mut Self::Context) {
+		println!("[NetworkListener] started");
+	}
+
+	fn stopped(&mut self, _ctx: &mut Self::Context) {
+		println!("[NetworkListener] stopped");
 	}
 }
 
@@ -95,24 +98,6 @@ impl Handler<ListenerMessage> for NetworkListener {
 		match msg {
 			StartListening => self.start_listening(ctx),
 			StopListening => self.stop_listening(ctx),
-		}
-	}
-}
-
-impl Handler<InitiatorOutput> for NetworkListener {
-	type Result = ();
-	fn handle(
-		&mut self,
-		msg: InitiatorOutput,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
-		use InitiatorOutput::{ClientRequest, InfoRequest};
-		match msg {
-			ClientRequest(addr, client_details) => {}
-			InfoRequest(addr) => {
-				println!("Got Info request");
-				self.delegate.do_send(ListenerOutput::InfoRequest(addr));
-			}
 		}
 	}
 }
