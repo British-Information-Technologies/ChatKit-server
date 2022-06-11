@@ -6,6 +6,7 @@ use crate::network::listener::ListenerOutput;
 use crate::network::Connection;
 use crate::network::ConnectionInitiator;
 use crate::network::InitiatorOutput;
+use crate::network::InitiatorOutput::ClientRequest;
 use crate::network::ListenerMessage;
 use crate::network::NetworkListener;
 use actix::Actor;
@@ -19,29 +20,26 @@ use foundation::ClientDetails;
 
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[rtype(result = "()")]
-pub(crate) enum NetworkMessage {
+pub enum NetworkMessage {
 	StartListening,
 	StopListening,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub(crate) enum NetworkOutput {
-	NewConnection(Addr<Connection>),
+pub enum NetworkOutput {
 	NewClient(Addr<Connection>, ClientDetails),
 	InfoRequested(Addr<Connection>),
 }
 
-pub(crate) struct NetworkManager {
+pub struct NetworkManager {
 	listener_addr: Option<Addr<NetworkListener>>,
 	delegate: WeakRecipient<NetworkOutput>,
 	initiators: Vec<Addr<ConnectionInitiator>>,
 }
 
 impl NetworkManager {
-	pub(crate) fn new(
-		delegate: WeakRecipient<NetworkOutput>,
-	) -> Addr<NetworkManager> {
+	pub fn new(delegate: WeakRecipient<NetworkOutput>) -> Addr<NetworkManager> {
 		NetworkManager {
 			listener_addr: None,
 			delegate,
@@ -94,16 +92,18 @@ impl NetworkManager {
 	/// to the server actor to be dispatched to the appropriate
 	/// manager
 	#[inline]
-	#[allow(unreachable_code, unused_variables)]
 	fn client_request(
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
 		sender: Addr<ConnectionInitiator>,
-		_connection: Addr<Connection>,
-		_client_details: ClientDetails,
+		connection: Addr<Connection>,
+		client_details: ClientDetails,
 	) {
+		use NetworkOutput::NewClient;
 		println!("[NetworkManager] recieved client request");
-		todo!();
+		if let Some(delegate) = self.delegate.upgrade() {
+			delegate.do_send(NewClient(connection, client_details));
+		}
 		self.remove_initiator(sender);
 	}
 
@@ -132,8 +132,7 @@ impl Actor for NetworkManager {
 	fn started(&mut self, ctx: &mut Self::Context) {
 		println!("started network manager");
 		let recipient = ctx.address().recipient();
-		self
-			.listener_addr
+		self.listener_addr
 			.replace(NetworkListener::new("0.0.0.0:5600", recipient));
 	}
 }

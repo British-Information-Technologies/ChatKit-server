@@ -1,20 +1,24 @@
 use crate::network::Connection;
 use crate::prelude::ObservableMessage;
-use actix::{Actor, Addr, Context, Handler, Message, WeakAddr};
+use actix::{Actor, Addr, Context, Handler, Message, WeakAddr, Recipient, Running, ArbiterHandle};
+use serde_json::to_string;
 use foundation::ClientDetails;
+use crate::network::ConnectionMessage;
 use uuid::Uuid;
+use foundation::messages::client::ClientStreamOut;
 
+/// Message sent ot the clients delegate
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(crate) enum ClientMessage {
-	AddClient(Uuid, Addr<Client>),
-	RemoveClient(Uuid),
+
 }
 
+/// message that is sent to all observers of the current client.
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(crate) enum ClientObservableMessage {
-	SendRequest(WeakAddr<Client>, Uuid, String),
+	SendMessageRequest(WeakAddr<Client>, Uuid, String),
 }
 
 /// # Client
@@ -23,6 +27,7 @@ pub(crate) enum ClientObservableMessage {
 pub(crate) struct Client {
 	connection: Addr<Connection>,
 	details: ClientDetails,
+	observers: Vec<Recipient<ClientObservableMessage>>
 }
 
 impl Client {
@@ -33,6 +38,7 @@ impl Client {
 		Client {
 			connection,
 			details,
+			observers: Vec::default(),
 		}
 		.start()
 	}
@@ -40,6 +46,14 @@ impl Client {
 
 impl Actor for Client {
 	type Context = Context<Self>;
+
+	// tells the client that it has been connected
+	fn started(&mut self, ctx: &mut Self::Context) {
+		use ClientStreamOut::Connected;
+		use ConnectionMessage::{SendData};
+		println!("[Client] started");
+		self.connection.do_send(SendData(to_string::<ClientStreamOut>(&Connected).unwrap()));
+	}
 }
 
 impl Handler<ClientMessage> for Client {
@@ -55,4 +69,25 @@ impl Handler<ClientMessage> for Client {
 	}
 }
 
-impl Handler<ObservableMessage<ClientObservableMessage>> for Client {}
+impl Handler<ObservableMessage<ClientObservableMessage>> for Client {
+	type Result = ();
+
+	fn handle(&mut self, msg: ObservableMessage<ClientObservableMessage>, ctx: &mut Self::Context) -> Self::Result {
+		use ObservableMessage::{Subscribe,Unsubscribe};
+		match msg {
+			Subscribe(r) => {
+				println!("[Client] adding subscriber");
+				self.observers.push(r);
+			}
+			Unsubscribe(r) => {
+				println!("[Client] removing subscriber");
+				self.observers = self
+					.observers
+					.clone()
+					.into_iter()
+					.filter(|a| a != &r)
+					.collect();
+			}
+		}
+	}
+}

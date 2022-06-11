@@ -5,7 +5,7 @@ use actix::Recipient;
 /// represents common messages for observers
 #[derive(Message)]
 #[rtype(result = "()")]
-pub(crate) enum ObservableMessage<M>
+pub enum ObservableMessage<M>
 where
 	M: Message + Send,
 	M::Result: Send,

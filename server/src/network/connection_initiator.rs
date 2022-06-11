@@ -1,7 +1,6 @@
 use crate::network::connection::ConnectionOuput;
-use crate::network::Connection;
+use crate::network::{Connection, ConnectionMessage};
 use crate::prelude::ObservableMessage;
-use actix::fut::wrap_future;
 use actix::Actor;
 use actix::ActorContext;
 use actix::Addr;
@@ -11,6 +10,8 @@ use actix::Handler;
 use actix::Message;
 use actix::Recipient;
 use actix::WeakRecipient;
+use foundation::messages::client::ClientStreamOut;
+use foundation::messages::client::ClientStreamOut::Error;
 use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
 use foundation::ClientDetails;
 use serde_json::{from_str, to_string};
@@ -35,7 +36,7 @@ pub(crate) enum InitiatorOutput {
 /// This will do one of two things:
 /// - Create a new client and send it to the network manager.
 /// - Request the eserver info and send it to the connection.
-pub(crate) struct ConnectionInitiator {
+pub struct ConnectionInitiator {
 	delegate: WeakRecipient<InitiatorOutput>,
 	connection: Addr<Connection>,
 }
@@ -64,8 +65,14 @@ impl ConnectionInitiator {
 		use NetworkSockOut::{Connecting, GotInfo};
 		use ObservableMessage::Unsubscribe;
 
-		let msg = from_str::<NetworkSockIn>(data.as_str())
-			.expect("[ConnectionInitiator] error deserialising incomming message");
+		let msg = from_str::<NetworkSockIn>(data.as_str());
+		if let Err(e) = msg.as_ref() {
+			println!("[ConnectionInitiator] error decoding message {}", e);
+			self.error(ctx, sender);
+			return;
+		}
+		let msg = msg.unwrap();
+
 		println!("[ConnectionInitiator] matching request");
 		if let Some(delegate) = self.delegate.upgrade() {
 			match msg {
@@ -88,6 +95,20 @@ impl ConnectionInitiator {
 			ctx.stop();
 		}
 	}
+
+	fn error(
+		&mut self,
+		ctx: &mut <Self as Actor>::Context,
+		sender: Addr<Connection>,
+	) {
+		use ConnectionMessage::{CloseConnection, SendData};
+		sender.do_send(SendData(
+			to_string::<ClientStreamOut>(&Error)
+				.expect("failed to convert error to string"),
+		));
+		sender.do_send(CloseConnection);
+		ctx.stop()
+	}
 }
 
 impl Actor for ConnectionInitiator {
@@ -102,12 +123,10 @@ impl Actor for ConnectionInitiator {
 
 		println!("[ConnectionInitiator] started");
 
-		self
-			.connection
+		self.connection
 			.do_send(Subscribe(ctx.address().recipient()));
 
-		self
-			.connection
+		self.connection
 			.do_send(SendData(to_string(&Request).unwrap()));
 	}
 
@@ -115,8 +134,7 @@ impl Actor for ConnectionInitiator {
 	fn stopped(&mut self, ctx: &mut Self::Context) {
 		use ObservableMessage::Unsubscribe;
 		println!("[ConnectionInitiator] stopped");
-		self
-			.connection
+		self.connection
 			.do_send(Unsubscribe(ctx.address().recipient()));
 	}
 }

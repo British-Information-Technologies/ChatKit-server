@@ -1,9 +1,14 @@
-mod actix_server;
-mod client_management;
-mod network;
+//! # actor
+//! This is the main module of the actix server.
+//! It starts the actor runtime and then sleeps
+//! for the duration of the program.
+
+pub(crate) mod actix_server;
+pub(crate) mod client_management;
+pub(crate) mod network;
 pub(crate) mod prelude;
 
-pub(crate) use actix_server::ServerActor;
+use actix_server::ServerActor;
 
 use tokio::time::sleep;
 use tokio::time::Duration;

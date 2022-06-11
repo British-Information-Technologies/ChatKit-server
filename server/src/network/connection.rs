@@ -29,7 +29,7 @@ use tokio::sync::Mutex;
 /// This is a message that can be sent to the Connection.
 #[derive(Message)]
 #[rtype(result = "()")]
-pub(crate) enum ConnectionMessage {
+pub enum ConnectionMessage {
 	SendData(String),
 	CloseConnection,
 }
@@ -56,7 +56,7 @@ enum SelfMessage {
 /// - address: The socket address of the conneciton.
 /// - observers: A list of observers to events created by the connection.
 /// - loop_future: the future holding the receiving loop.
-pub(crate) struct Connection {
+pub struct Connection {
 	read_half: Option<ReadHalf<TcpStream>>,
 	write_half: Arc<Mutex<WriteHalf<TcpStream>>>,
 	address: SocketAddr,

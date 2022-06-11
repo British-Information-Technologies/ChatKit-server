@@ -22,7 +22,6 @@ use foundation::messages::network::NetworkSockOut;
 use foundation::ClientDetails;
 use crate::network::{NetworkManager, NetworkMessage};
 
-
 /// This struct is the main actor of the server.
 /// all other actors are ran through here.
 pub struct ServerActor {
@@ -41,14 +40,14 @@ impl ServerActor {
 
 	pub(crate) fn client_request(
 		&mut self,
-		ctx: &mut <Self as Actor>::Context,
+		_ctx: &mut <Self as Actor>::Context,
 		addr: Addr<Connection>,
 		details: ClientDetails
 	) {
 		use ClientManagerMessage::{AddClient};
 		if let Some(mgr) = self.client_management.as_ref() {
-			let client = Client::new(addr, details);
-			mgr.do_send(AddClient(client));
+			let client = Client::new(addr, details.clone());
+			mgr.do_send(AddClient(details.uuid, client));
 		}
 	}
 
@@ -104,7 +103,7 @@ impl Handler<NetworkOutput> for ServerActor {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use ConnectionMessage::{CloseConnection, SendData};
-		use NetworkOutput::{InfoRequested, NewClient,NewConnection};
+		use NetworkOutput::{InfoRequested, NewClient};
 		use NetworkSockOut::GotInfo;
 		println!("[ServerActor] received message");
 		match msg {
@@ -113,11 +112,7 @@ impl Handler<NetworkOutput> for ServerActor {
 			// so they occur in the right order
 			InfoRequested(sender) => self.info_request(ctx, sender),
 			// A new client is to be added
-			NewClient(addr, details) => {
-
-			}
-			// A new client is to be added
-			NewConnection(_) => todo!(),
+			NewClient(addr, details) => self.client_request(ctx, addr, details),
 		};
 	}
 }
@@ -126,10 +121,13 @@ impl Handler<ClientManagerOutput> for ServerActor {
 	type Result = ();
 	fn handle(
 		&mut self,
-		_msg: ClientManagerOutput,
+		msg: ClientManagerOutput,
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
 		use ClientManagerOutput::{};
+		match msg {
+			_ => todo!()
+		}
 	}
 }
 
