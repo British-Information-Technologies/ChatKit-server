@@ -3,7 +3,7 @@
 //! the server acts as teh main actor 
 //! and supervisor to the actor system.
 
-use crate::client_management::Client;
+use crate::client_management::{Client};
 use crate::client_management::ClientManager;
 use crate::client_management::ClientManagerOutput;
 use crate::network::Connection;
@@ -20,6 +20,7 @@ use actix::Handler;
 use crate::client_management::ClientManagerMessage;
 use foundation::messages::network::NetworkSockOut;
 use foundation::ClientDetails;
+use server::Server;
 use crate::network::{NetworkManager, NetworkMessage};
 
 /// This struct is the main actor of the server.
@@ -79,15 +80,15 @@ impl Actor for ServerActor {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		let recp = ctx.address();
+		let addr = ctx.address();
 
 		self
 			.network_manager
-			.replace(NetworkManager::new(recp.clone().recipient().downgrade()));
+			.replace(NetworkManager::new(addr.clone().recipient().downgrade()));
 
 		self
 			.client_management
-			.replace(ClientManager::new(recp.clone().recipient().downgrade()));
+			.replace(ClientManager::new(addr.clone().recipient::<ClientManagerOutput>().downgrade()));
 
 		if let Some(net_mgr) = self.network_manager.as_ref() {
 			net_mgr.do_send(NetworkMessage::StartListening);
@@ -119,15 +120,8 @@ impl Handler<NetworkOutput> for ServerActor {
 
 impl Handler<ClientManagerOutput> for ServerActor {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: ClientManagerOutput,
-		_ctx: &mut Self::Context,
-	) -> Self::Result {
-		use ClientManagerOutput::{};
-		match msg {
-			_ => todo!()
-		}
+
+	fn handle(&mut self, msg: ClientManagerOutput, ctx: &mut Self::Context) -> Self::Result {
+		todo!()
 	}
 }
-
