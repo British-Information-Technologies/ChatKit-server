@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Message the server will receive from a socket
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum NetworkSockIn {
@@ -12,6 +13,7 @@ pub enum NetworkSockIn {
 	},
 }
 
+/// Message the server will send through a socket
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum NetworkSockOut {
