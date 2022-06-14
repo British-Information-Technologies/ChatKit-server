@@ -36,7 +36,7 @@ pub enum ConnectionMessage {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub(crate) enum ConnectionOuput {
+pub enum ConnectionOuput {
 	RecvData(Addr<Connection>, SocketAddr, String),
 	ConnectionClosed(Addr<Connection>),
 }
@@ -98,9 +98,18 @@ impl Actor for Connection {
 			let mut reader = BufReader::new(read_half);
 			let mut buffer_string = String::new();
 
-			while let Ok(_) = reader.read_line(&mut buffer_string).await {
+			while let Ok(len) = reader.read_line(&mut buffer_string).await {
+				use SelfMessage::{UpdateObserversWithData};
+				use ConnectionMessage::CloseConnection;
+				if len == 0 {
+					println!("[Connection] connection closed");
+					addr.send(CloseConnection)
+						.await
+						.expect("[Connection] failed to send close message to self");
+					return
+				}
+
 				println!("[Connection] read line");
-				use SelfMessage::UpdateObserversWithData;
 				addr
 					.send(UpdateObserversWithData(buffer_string.clone()))
 					.await;
