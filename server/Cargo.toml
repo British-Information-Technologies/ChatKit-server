@@ -34,5 +34,6 @@ actix = "0.13"
 mlua = { version = "0.7.3", features=["lua54", "async", "serde", "macros"] }
 libloading = "0.7"
 aquamarine = "0.1.11"
+tokio-stream = "0.1.9"
 
 foundation = {path = '../foundation'}
