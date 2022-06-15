@@ -16,7 +16,7 @@ edition = "2018"
 
 [[bin]]
 name = "server"
-path = "src/actor.rs"
+path = "src/main.rs"
 
 [dependencies]
 clap = "2.33.3"
