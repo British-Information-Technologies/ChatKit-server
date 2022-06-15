@@ -20,7 +20,6 @@ use actix::Handler;
 use crate::client_management::ClientManagerMessage;
 use foundation::messages::network::NetworkSockOut;
 use foundation::ClientDetails;
-use server::Server;
 use crate::network::{NetworkManager, NetworkMessage};
 
 /// This struct is the main actor of the server.
