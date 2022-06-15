@@ -1,5 +1,4 @@
-use actix::Message;
-use actix::Recipient;
+use actix::{Message, Recipient};
 
 /// # ObservableMessage
 /// represents common messages for observers

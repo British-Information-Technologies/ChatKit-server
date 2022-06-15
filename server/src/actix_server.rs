@@ -1,26 +1,35 @@
 //! # actix_server
 //! this holds the server actor
-//! the server acts as teh main actor 
+//! the server acts as teh main actor
 //! and supervisor to the actor system.
 
-use crate::client_management::{Client};
-use crate::client_management::ClientManager;
-use crate::client_management::ClientManagerOutput;
-use crate::network::Connection;
-use crate::network::ConnectionInitiator;
-use crate::network::ConnectionMessage;
-use crate::network::NetworkOutput;
-use actix::fut::wrap_future;
-use actix::Actor;
-use actix::ActorFutureExt;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use crate::client_management::ClientManagerMessage;
-use foundation::messages::network::NetworkSockOut;
-use foundation::ClientDetails;
-use crate::network::{NetworkManager, NetworkMessage};
+use actix::{
+	fut::wrap_future,
+	Actor,
+	ActorFutureExt,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+};
+use foundation::{messages::network::NetworkSockOut, ClientDetails};
+
+use crate::{
+	client_management::{
+		Client,
+		ClientManager,
+		ClientManagerMessage,
+		ClientManagerOutput,
+	},
+	network::{
+		Connection,
+		ConnectionInitiator,
+		ConnectionMessage,
+		NetworkManager,
+		NetworkMessage,
+		NetworkOutput,
+	},
+};
 
 /// This struct is the main actor of the server.
 /// all other actors are ran through here.
@@ -42,9 +51,9 @@ impl ServerActor {
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
 		addr: Addr<Connection>,
-		details: ClientDetails
+		details: ClientDetails,
 	) {
-		use ClientManagerMessage::{AddClient};
+		use ClientManagerMessage::AddClient;
 		if let Some(mgr) = self.client_management.as_ref() {
 			let client = Client::new(addr, details.clone());
 			mgr.do_send(AddClient(details.uuid, client));
@@ -56,8 +65,8 @@ impl ServerActor {
 		ctx: &mut <Self as Actor>::Context,
 		sender: Addr<Connection>,
 	) {
-		use NetworkSockOut::GotInfo;
 		use ConnectionMessage::{CloseConnection, SendData};
+		use NetworkSockOut::GotInfo;
 		let fut = wrap_future(
 			sender.send(SendData(
 				serde_json::to_string(&GotInfo {
@@ -81,13 +90,12 @@ impl Actor for ServerActor {
 	fn started(&mut self, ctx: &mut Self::Context) {
 		let addr = ctx.address();
 
-		self
-			.network_manager
+		self.network_manager
 			.replace(NetworkManager::new(addr.clone().recipient().downgrade()));
 
-		self
-			.client_management
-			.replace(ClientManager::new(addr.clone().recipient::<ClientManagerOutput>().downgrade()));
+		self.client_management.replace(ClientManager::new(
+			addr.clone().recipient::<ClientManagerOutput>().downgrade(),
+		));
 
 		if let Some(net_mgr) = self.network_manager.as_ref() {
 			net_mgr.do_send(NetworkMessage::StartListening);
@@ -120,7 +128,11 @@ impl Handler<NetworkOutput> for ServerActor {
 impl Handler<ClientManagerOutput> for ServerActor {
 	type Result = ();
 
-	fn handle(&mut self, msg: ClientManagerOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientManagerOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		todo!()
 	}
 }

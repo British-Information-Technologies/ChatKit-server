@@ -1,21 +1,29 @@
-use crate::network::connection::ConnectionOuput;
-use crate::network::{Connection, ConnectionMessage};
-use crate::prelude::ObservableMessage;
-use actix::Actor;
-use actix::ActorContext;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Recipient;
-use actix::WeakRecipient;
-use foundation::messages::client::ClientStreamOut;
-use foundation::messages::client::ClientStreamOut::Error;
-use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
-use foundation::ClientDetails;
-use serde_json::{from_str, to_string};
 use std::net::SocketAddr;
+
+use actix::{
+	Actor,
+	ActorContext,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	Recipient,
+	WeakRecipient,
+};
+use foundation::{
+	messages::{
+		client::{ClientStreamOut, ClientStreamOut::Error},
+		network::{NetworkSockIn, NetworkSockOut},
+	},
+	ClientDetails,
+};
+use serde_json::{from_str, to_string};
+
+use crate::{
+	network::{connection::ConnectionOuput, Connection, ConnectionMessage},
+	prelude::ObservableMessage,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum ConnectionPhase {
@@ -117,9 +125,10 @@ impl Actor for ConnectionInitiator {
 	/// on start initiate the protocol.
 	/// also add self as a subscriber to the connection.
 	fn started(&mut self, ctx: &mut Self::Context) {
-		use super::ConnectionMessage::SendData;
 		use NetworkSockOut::Request;
 		use ObservableMessage::Subscribe;
+
+		use super::ConnectionMessage::SendData;
 
 		println!("[ConnectionInitiator] started");
 

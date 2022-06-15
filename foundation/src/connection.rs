@@ -1,13 +1,16 @@
-use std::io::{Error, ErrorKind};
-use std::io::Write;
-use std::mem;
-use std::sync::Arc;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use tokio::io;
-use tokio::io::{AsyncWriteExt, BufReader, AsyncBufReadExt, ReadHalf, WriteHalf};
-use tokio::net::{TcpStream, ToSocketAddrs};
-use tokio::sync::Mutex;
+use std::{
+	io::{Error, ErrorKind, Write},
+	mem,
+	sync::Arc,
+};
+
+use serde::{de::DeserializeOwned, Serialize};
+use tokio::{
+	io,
+	io::{AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf},
+	net::{TcpStream, ToSocketAddrs},
+	sync::Mutex,
+};
 
 #[derive(Debug)]
 pub struct Connection {
@@ -22,24 +25,28 @@ impl Connection {
 			stream_tx: Mutex::new(None),
 		})
 	}
-	
-	pub async fn connect<T: ToSocketAddrs>(&self, host: T) -> Result<(), Error> {
+
+	pub async fn connect<T: ToSocketAddrs>(
+		&self,
+		host: T,
+	) -> Result<(), Error> {
 		let connection = TcpStream::connect(host).await?;
 		let (rd, wd) = io::split(connection);
-		
+
 		let mut writer_lock = self.stream_tx.lock().await;
 		let mut reader_lock = self.stream_rx.lock().await;
-		
+
 		let _ = mem::replace(&mut *writer_lock, Some(wd));
 		let _ = mem::replace(&mut *reader_lock, Some(BufReader::new(rd)));
-		
+
 		Ok(())
 	}
-	
-	pub async fn write<T>(&self, message: T) -> Result<(), Error>
-		where T: Serialize {
-		let mut out_buffer = Vec::new();
 
+	pub async fn write<T>(&self, message: T) -> Result<(), Error>
+	where
+		T: Serialize,
+	{
+		let mut out_buffer = Vec::new();
 
 		let out = serde_json::to_string(&message).unwrap();
 
@@ -56,11 +63,13 @@ impl Connection {
 			Ok(())
 		} else {
 			Err(Error::new(ErrorKind::Interrupted, "Writer does not exist"))
-		}
+		};
 	}
-	
-	pub async fn read<T>(&self) -> Result<T,Error>
-		where T: DeserializeOwned {
+
+	pub async fn read<T>(&self) -> Result<T, Error>
+	where
+		T: DeserializeOwned,
+	{
 		let mut buffer = String::new();
 		let mut reader_lock = self.stream_rx.lock().await;
 		let old = mem::replace(&mut *reader_lock, None);
@@ -87,48 +96,49 @@ impl From<TcpStream> for Connection {
 
 #[cfg(test)]
 mod test {
-	use std::future::Future;
-	use std::io::Error;
-	use std::panic;
+	use std::{future::Future, io::Error, panic};
+
+	use serde::{Deserialize, Serialize};
 	use tokio::net::TcpListener;
-	use serde::{Serialize,Deserialize};
+
 	use crate::connection::Connection;
 
 	#[derive(Serialize, Deserialize, Debug, PartialEq)]
 	enum TestMessages {
 		Ping,
-		Pong
+		Pong,
 	}
-	
-	
+
 	#[tokio::test]
 	async fn a() -> Result<(), Error> {
-		wrap_setup(|port| {
-			async move {
-				println!("{}", port);
-				let connection = Connection::new();
-				connection.connect(format!("localhost:{}", &port)).await.unwrap();
-				connection.write(&TestMessages::Ping).await.unwrap();
-				let res = connection.read::<TestMessages>().await.unwrap();
-				
-				assert_eq!(res, TestMessages::Pong);
-			}
-		}).await
+		wrap_setup(|port| async move {
+			println!("{}", port);
+			let connection = Connection::new();
+			connection
+				.connect(format!("localhost:{}", &port))
+				.await
+				.unwrap();
+			connection.write(&TestMessages::Ping).await.unwrap();
+			let res = connection.read::<TestMessages>().await.unwrap();
+
+			assert_eq!(res, TestMessages::Pong);
+		})
+		.await
 	}
-	
-	
-	async fn wrap_setup<T,F>(test: T) -> Result<(), std::io::Error>
-		where T: FnOnce(u16) -> F + panic::UnwindSafe,
-					F: Future
+
+	async fn wrap_setup<T, F>(test: T) -> Result<(), std::io::Error>
+	where
+		T: FnOnce(u16) -> F + panic::UnwindSafe,
+		F: Future,
 	{
 		let server = TcpListener::bind("localhost:0").await?;
 		let addr = server.local_addr()?;
-		
+
 		// create tokio server execution
 		tokio::spawn(async move {
 			while let Ok((stream, addr)) = server.accept().await {
-				use TestMessages::{Ping,Pong};
-				
+				use TestMessages::{Ping, Pong};
+
 				println!("[server]: Connected {}", &addr);
 				let connection = Connection::from(stream);
 				if let Ok(Ping) = connection.read::<TestMessages>().await {
@@ -136,7 +146,7 @@ mod test {
 				}
 			}
 		});
-		
+
 		test(addr.port()).await;
 		Ok(())
 	}

@@ -1,30 +1,33 @@
-use crate::prelude::ObservableMessage;
-use actix::fut::wrap_future;
-use actix::Actor;
-use actix::ActorContext;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Recipient;
-use actix::SpawnHandle;
-use futures::future::join_all;
-use futures::Future;
-use futures::FutureExt;
+use std::{io::Write, net::SocketAddr, pin::Pin, sync::Arc};
+
+use actix::{
+	fut::wrap_future,
+	Actor,
+	ActorContext,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	Recipient,
+	SpawnHandle,
+};
+use futures::{future::join_all, Future, FutureExt};
 use serde::Serialize;
-use std::io::Write;
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::sync::Arc;
-use tokio::io::split;
-use tokio::io::AsyncBufReadExt;
-use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::io::ReadHalf;
-use tokio::io::WriteHalf;
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use tokio::{
+	io::{
+		split,
+		AsyncBufReadExt,
+		AsyncWriteExt,
+		BufReader,
+		ReadHalf,
+		WriteHalf,
+	},
+	net::TcpStream,
+	sync::Mutex,
+};
+
+use crate::prelude::ObservableMessage;
 
 /// This is a message that can be sent to the Connection.
 #[derive(Message)]
@@ -99,19 +102,18 @@ impl Actor for Connection {
 			let mut buffer_string = String::new();
 
 			while let Ok(len) = reader.read_line(&mut buffer_string).await {
-				use SelfMessage::{UpdateObserversWithData};
 				use ConnectionMessage::CloseConnection;
+				use SelfMessage::UpdateObserversWithData;
 				if len == 0 {
 					println!("[Connection] connection closed");
-					addr.send(CloseConnection)
-						.await
-						.expect("[Connection] failed to send close message to self");
-					return
+					addr.send(CloseConnection).await.expect(
+						"[Connection] failed to send close message to self",
+					);
+					return;
 				}
 
 				println!("[Connection] read line");
-				addr
-					.send(UpdateObserversWithData(buffer_string.clone()))
+				addr.send(UpdateObserversWithData(buffer_string.clone()))
 					.await;
 				buffer_string.clear();
 			}

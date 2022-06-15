@@ -1,24 +1,45 @@
-use crate::client_management::Client;
-use actix::{Actor, ActorFutureExt, ActorStreamExt, ArbiterHandle, MailboxError, Recipient, Running, StreamHandler, WeakAddr};
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::{Message, MessageResponse};
-use actix::WeakRecipient;
 use std::collections::HashMap;
-use actix::fut::{wrap_future, wrap_stream};
+
+use actix::{
+	fut::{wrap_future, wrap_stream},
+	Actor,
+	ActorFutureExt,
+	ActorStreamExt,
+	Addr,
+	ArbiterHandle,
+	AsyncContext,
+	Context,
+	Handler,
+	MailboxError,
+	Message,
+	MessageResponse,
+	Recipient,
+	Running,
+	StreamHandler,
+	WeakAddr,
+	WeakRecipient,
+};
+use foundation::{
+	messages::client::{ClientStreamIn, ClientStreamIn::SendGlobalMessage},
+	ClientDetails,
+};
 use futures::{SinkExt, TryStreamExt};
-use uuid::Uuid;
 use tokio_stream::StreamExt;
-use foundation::ClientDetails;
-use foundation::messages::client::ClientStreamIn;
-use foundation::messages::client::ClientStreamIn::SendGlobalMessage;
-use crate::client_management::client::ClientMessage;
-use crate::client_management::client::{ClientDataMessage, ClientObservableMessage};
-use crate::client_management::client::ClientMessage::SendMessage;
-use crate::network::NetworkOutput;
-use crate::prelude::ObservableMessage;
+use uuid::Uuid;
+
+use crate::{
+	client_management::{
+		client::{
+			ClientDataMessage,
+			ClientMessage,
+			ClientMessage::SendMessage,
+			ClientObservableMessage,
+		},
+		Client,
+	},
+	network::NetworkOutput,
+	prelude::ObservableMessage,
+};
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -39,19 +60,19 @@ pub struct ClientManager {
 }
 
 impl ClientManager {
-	pub(crate) fn send_update(&mut self, ctx: &mut Context<Self>, addr: WeakAddr<Client>) {
+	pub(crate) fn send_update(
+		&mut self,
+		ctx: &mut Context<Self>,
+		addr: WeakAddr<Client>,
+	) {
 		println!("[ClientManager] sending update to client");
 		use ClientMessage::SendUpdate;
 		let self_addr = ctx.address();
 		if let Some(to_send) = addr.upgrade() {
-			let client_addr: Vec<Addr<Client>> = self.clients
-				.iter()
-				.map(|(_, v)| v)
-				.cloned()
-				.collect();
+			let client_addr: Vec<Addr<Client>> =
+				self.clients.iter().map(|(_, v)| v).cloned().collect();
 
-			let collection =
-				tokio_stream::iter(client_addr)
+			let collection = tokio_stream::iter(client_addr)
 				.then(|addr| addr.send(ClientDataMessage))
 				.map(|val| val.unwrap().0)
 				// .filter(|val| )
@@ -71,28 +92,25 @@ impl ClientManager {
 		ctx: &mut Context<ClientManager>,
 		sender: WeakAddr<Client>,
 		uuid: Uuid,
-		content: String
+		content: String,
 	) {
 		println!("[ClientManager] sending message to client");
-		let client_addr: Vec<Addr<Client>> = self.clients
-			.iter()
-			.map(|(_, v)| v)
-			.cloned()
+		let client_addr: Vec<Addr<Client>> =
+			self.clients.iter().map(|(_, v)| v).cloned().collect();
+
+		let collection = tokio_stream::iter(client_addr)
+			.then(|addr| addr.send(ClientDataMessage))
+			.map(|val| val.unwrap().0)
 			.collect();
 
-		let collection =
-			tokio_stream::iter(client_addr)
-				.then(|addr| addr.send(ClientDataMessage))
-				.map(|val| val.unwrap().0)
-				.collect();
-
 		let fut = wrap_future(async move {
-			if let Some(sender)= sender.upgrade() {
-				let from: Uuid = sender.send(ClientDataMessage).await.unwrap().0.uuid;
+			if let Some(sender) = sender.upgrade() {
+				let from: Uuid =
+					sender.send(ClientDataMessage).await.unwrap().0.uuid;
 				let client_details: Vec<ClientDetails> = collection.await;
 				let pos = client_details.iter().position(|i| i.uuid == from);
 				if let Some(pos) = pos {
-					sender.send(SendMessage {content, from}).await;
+					sender.send(SendMessage { content, from }).await;
 				}
 			}
 		});
@@ -104,23 +122,24 @@ impl ClientManager {
 		&self,
 		ctx: &mut Context<ClientManager>,
 		sender: WeakAddr<Client>,
-		content: String
+		content: String,
 	) {
 		use ClientMessage::SendGlobalMessage;
-		let client_addr: Vec<Addr<Client>> = self.clients
-			.iter()
-			.map(|(_, v)| v)
-			.cloned()
-			.collect();
+		let client_addr: Vec<Addr<Client>> =
+			self.clients.iter().map(|(_, v)| v).cloned().collect();
 
-
-		if let Some(sender)= sender.upgrade() {
+		if let Some(sender) = sender.upgrade() {
 			let fut = wrap_future(async move {
-				let from: Uuid = sender.send(ClientDataMessage).await.unwrap().0.uuid;
-				let collection =
-					tokio_stream::iter(client_addr)
-						.then(move |addr| addr.send(SendGlobalMessage { content: content.clone(), from }))
-						.collect();
+				let from: Uuid =
+					sender.send(ClientDataMessage).await.unwrap().0.uuid;
+				let collection = tokio_stream::iter(client_addr)
+					.then(move |addr| {
+						addr.send(SendGlobalMessage {
+							content: content.clone(),
+							from,
+						})
+					})
+					.collect();
 				let a: Vec<_> = collection.await;
 			});
 			ctx.spawn(fut);
@@ -139,7 +158,12 @@ impl ClientManager {
 		.start()
 	}
 
-	fn add_client(&mut self, ctx: &mut Context<ClientManager>, uuid: Uuid, addr: Addr<Client>) {
+	fn add_client(
+		&mut self,
+		ctx: &mut Context<ClientManager>,
+		uuid: Uuid,
+		addr: Addr<Client>,
+	) {
 		println!("[ClientManager] adding client");
 		use crate::prelude::ObservableMessage::Subscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
@@ -185,13 +209,25 @@ impl Handler<ClientManagerMessage> for ClientManager {
 impl Handler<ClientObservableMessage> for ClientManager {
 	type Result = ();
 
-	fn handle(&mut self, msg: ClientObservableMessage, ctx: &mut Self::Context) -> Self::Result {
-		use ClientObservableMessage::{SendMessageRequest, UpdateRequest, SendGlobalMessageRequest};
+	fn handle(
+		&mut self,
+		msg: ClientObservableMessage,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
+		use ClientObservableMessage::{
+			SendGlobalMessageRequest,
+			SendMessageRequest,
+			UpdateRequest,
+		};
 		match msg {
-			SendMessageRequest(addr, uuid, content) => self.send_message_request(ctx, addr, uuid, content),
-			SendGlobalMessageRequest(addr,content) => self.send_global_message_request(ctx, addr, content),
+			SendMessageRequest(addr, uuid, content) => {
+				self.send_message_request(ctx, addr, uuid, content)
+			}
+			SendGlobalMessageRequest(addr, content) => {
+				self.send_global_message_request(ctx, addr, content)
+			}
 			UpdateRequest(addr) => self.send_update(ctx, addr),
-			_ => todo!()
+			_ => todo!(),
 		}
 	}
 }

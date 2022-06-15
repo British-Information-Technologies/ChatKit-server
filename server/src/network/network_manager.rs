@@ -2,21 +2,26 @@
 //! This module contains the network manager actor
 //! it's role involves handling new oncomming network connections
 
-use crate::network::listener::ListenerOutput;
-use crate::network::Connection;
-use crate::network::ConnectionInitiator;
-use crate::network::InitiatorOutput;
-use crate::network::InitiatorOutput::ClientRequest;
-use crate::network::ListenerMessage;
-use crate::network::NetworkListener;
-use actix::Actor;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::WeakRecipient;
+use actix::{
+	Actor,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	WeakRecipient,
+};
 use foundation::ClientDetails;
+
+use crate::network::{
+	listener::ListenerOutput,
+	Connection,
+	ConnectionInitiator,
+	InitiatorOutput,
+	InitiatorOutput::ClientRequest,
+	ListenerMessage,
+	NetworkListener,
+};
 
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[rtype(result = "()")]

@@ -9,9 +9,7 @@ pub(crate) mod network;
 pub(crate) mod prelude;
 
 use actix_server::ServerActor;
-
-use tokio::time::sleep;
-use tokio::time::Duration;
+use tokio::time::{sleep, Duration};
 
 #[actix::main()]
 async fn main() {

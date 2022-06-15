@@ -1,7 +1,7 @@
-use crate::ClientDetails;
 use serde::{Deserialize, Serialize};
-
 use uuid::Uuid;
+
+use crate::ClientDetails;
 
 /// This enum defined the message that the server will receive from a client
 /// This uses the serde library to transform to and from json.
@@ -10,7 +10,6 @@ use uuid::Uuid;
 pub enum ClientStreamIn {
 	Connected,
 	Update,
-
 
 	SendMessage { to: Uuid, content: String },
 	SendGlobalMessage { content: String },
@@ -40,7 +39,7 @@ impl PartialEq for ClientStreamOut {
 		match (self, other) {
 			(Connected, Connected) => true,
 			(Disconnected, Disconnected) => true,
-			_ => false
+			_ => false,
 		}
 	}
 }

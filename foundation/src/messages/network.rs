@@ -24,19 +24,26 @@ pub enum NetworkSockOut {
 		server_owner: String,
 	},
 	Connecting,
-	
-	Error
+
+	Error,
 }
 
 impl PartialEq for NetworkSockOut {
 	fn eq(&self, other: &Self) -> bool {
 		match (self, other) {
 			(NetworkSockOut::Request, NetworkSockOut::Request) => true,
-			(NetworkSockOut::GotInfo {server_name,server_owner},
-				NetworkSockOut::GotInfo {server_owner: owner_other,server_name: name_other})
-					=> server_name == name_other && server_owner == owner_other,
+			(
+				NetworkSockOut::GotInfo {
+					server_name,
+					server_owner,
+				},
+				NetworkSockOut::GotInfo {
+					server_owner: owner_other,
+					server_name: name_other,
+				},
+			) => server_name == name_other && server_owner == owner_other,
 			(NetworkSockOut::Connecting, NetworkSockOut::Connecting) => true,
-			_ => false
+			_ => false,
 		}
 	}
 }

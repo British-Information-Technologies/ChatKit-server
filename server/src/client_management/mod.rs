@@ -3,5 +3,7 @@ mod client_manager;
 
 pub(crate) use client::Client;
 pub(crate) use client_manager::{
-	ClientManager, ClientManagerMessage, ClientManagerOutput,
+	ClientManager,
+	ClientManagerMessage,
+	ClientManagerOutput,
 };

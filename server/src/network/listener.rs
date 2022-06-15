@@ -1,18 +1,23 @@
-use crate::network::connection::Connection;
-use crate::network::ConnectionInitiator;
-use crate::network::InitiatorOutput;
-use actix::fut::wrap_future;
-use actix::Actor;
-use actix::Addr;
-use actix::AsyncContext;
-use actix::Context;
-use actix::Handler;
-use actix::Message;
-use actix::Recipient;
-use actix::SpawnHandle;
-use std::net::SocketAddr;
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
+
+use actix::{
+	fut::wrap_future,
+	Actor,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	Recipient,
+	SpawnHandle,
+};
 use tokio::net::TcpListener;
+
+use crate::network::{
+	connection::Connection,
+	ConnectionInitiator,
+	InitiatorOutput,
+};
 
 #[derive(Message)]
 #[rtype(result = "()")]

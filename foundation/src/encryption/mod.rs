@@ -3,8 +3,10 @@
 
 #[cfg(test)]
 mod test {
-	use openssl::sha::sha256;
-	use openssl::symm::{Cipher, Crypter, Mode};
+	use openssl::{
+		sha::sha256,
+		symm::{Cipher, Crypter, Mode},
+	};
 
 	#[test]
 	fn testEncryption() {

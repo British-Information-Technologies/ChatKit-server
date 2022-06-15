@@ -1,29 +1,50 @@
 use std::net::SocketAddr;
-use crate::network::{Connection, ConnectionOuput};
-use crate::prelude::ObservableMessage;
-use actix::{Actor, Addr, Context, Handler, Message, MessageResponse, WeakAddr, Recipient, Running, ArbiterHandle, AsyncContext};
+
+use actix::{
+	Actor,
+	Addr,
+	ArbiterHandle,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	MessageResponse,
+	Recipient,
+	Running,
+	WeakAddr,
+};
+use foundation::{
+	messages::client::{ClientStreamIn, ClientStreamOut},
+	ClientDetails,
+};
 use serde_json::{from_str, to_string};
-use foundation::ClientDetails;
-use crate::network::ConnectionMessage;
 use uuid::Uuid;
-use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
-use crate::client_management::client::ClientObservableMessage::{SendGlobalMessageRequest, SendMessageRequest, UpdateRequest};
-use crate::network::ConnectionMessage::SendData;
-use crate::prelude::ObservableMessage::{Subscribe, Unsubscribe};
+
+use crate::{
+	client_management::client::ClientObservableMessage::{
+		SendGlobalMessageRequest,
+		SendMessageRequest,
+		UpdateRequest,
+	},
+	network::{
+		Connection,
+		ConnectionMessage,
+		ConnectionMessage::SendData,
+		ConnectionOuput,
+	},
+	prelude::{
+		ObservableMessage,
+		ObservableMessage::{Subscribe, Unsubscribe},
+	},
+};
 
 /// Message sent ot the clients delegate
 #[derive(Message)]
 #[rtype(result = "()")]
 pub enum ClientMessage {
 	SendUpdate(Vec<ClientDetails>),
-	SendMessage {
-		from: Uuid,
-		content: String,
-	},
-	SendGlobalMessage {
-		from: Uuid,
-		content: String,
-	}
+	SendMessage { from: Uuid, content: String },
+	SendGlobalMessage { from: Uuid, content: String },
 }
 
 #[derive(Message)]
@@ -35,7 +56,7 @@ pub struct ClientDetailsResponse(pub ClientDetails);
 
 /// messages the client will send to itself
 enum SelfMessage {
-	ReceivedMessage(ClientStreamIn)
+	ReceivedMessage(ClientStreamIn),
 }
 
 /// message that is sent to all observers of the current client.
@@ -53,7 +74,7 @@ pub enum ClientObservableMessage {
 pub struct Client {
 	connection: Addr<Connection>,
 	details: ClientDetails,
-	observers: Vec<Recipient<ClientObservableMessage>>
+	observers: Vec<Recipient<ClientObservableMessage>>,
 }
 
 impl Client {
@@ -74,38 +95,52 @@ impl Client {
 		ctx: &mut Context<Client>,
 		sender: Addr<Connection>,
 		addr: SocketAddr,
-		data: String
+		data: String,
 	) {
-		use ClientStreamIn::{Update, SendMessage, SendGlobalMessage, Disconnect};
-		let msg = from_str::<ClientStreamIn>(data.as_str()).expect("[Client] failed to decode incoming message");
+		use ClientStreamIn::{
+			Disconnect,
+			SendGlobalMessage,
+			SendMessage,
+			Update,
+		};
+		let msg = from_str::<ClientStreamIn>(data.as_str())
+			.expect("[Client] failed to decode incoming message");
 		match msg {
 			Update => self.handle_update(ctx),
 			SendMessage { to, content } => self.handle_send(ctx, to, content),
-			SendGlobalMessage { content } => self.handle_global_send(ctx, content),
+			SendGlobalMessage { content } => {
+				self.handle_global_send(ctx, content)
+			}
 			Disconnect => self.handle_disconnect(ctx),
-			_ => todo!()
+			_ => todo!(),
 		}
 	}
 
 	#[inline]
-	fn handle_update(&self,
-	 	ctx: &mut Context<Client>,
-	) {
+	fn handle_update(&self, ctx: &mut Context<Client>) {
 		self.broadcast(UpdateRequest(ctx.address().downgrade()));
 	}
 
 	#[inline]
-	fn handle_send(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
+	fn handle_send(
+		&self,
+		ctx: &mut Context<Client>,
+		to: Uuid,
+		content: String,
+	) {
 		self.broadcast(SendMessageRequest(
 			ctx.address().downgrade(),
 			to,
-			content
+			content,
 		));
 	}
 
 	#[inline]
 	fn handle_global_send(&self, ctx: &mut Context<Client>, content: String) {
-		self.broadcast(SendGlobalMessageRequest(ctx.address().downgrade(), content));
+		self.broadcast(SendGlobalMessageRequest(
+			ctx.address().downgrade(),
+			content,
+		));
 	}
 
 	#[inline]
@@ -127,23 +162,33 @@ impl Actor for Client {
 	// tells the client that it has been connected.
 	fn started(&mut self, ctx: &mut Self::Context) {
 		use ClientStreamOut::Connected;
-		use ConnectionMessage::{SendData};
+		use ConnectionMessage::SendData;
 		println!("[Client] started");
-		self.connection.do_send(Subscribe(ctx.address().recipient()));
-		self.connection.do_send(SendData(to_string::<ClientStreamOut>(&Connected).unwrap()));
+		self.connection
+			.do_send(Subscribe(ctx.address().recipient()));
+		self.connection.do_send(SendData(
+			to_string::<ClientStreamOut>(&Connected).unwrap(),
+		));
 	}
 
 	fn stopped(&mut self, ctx: &mut Self::Context) {
 		use ClientStreamOut::Disconnected;
-		use ConnectionMessage::{SendData};
-		self.connection.do_send(Unsubscribe(ctx.address().recipient()));
-		self.connection.do_send(SendData(to_string::<ClientStreamOut>(&Disconnected).unwrap()));
+		use ConnectionMessage::SendData;
+		self.connection
+			.do_send(Unsubscribe(ctx.address().recipient()));
+		self.connection.do_send(SendData(
+			to_string::<ClientStreamOut>(&Disconnected).unwrap(),
+		));
 	}
 }
 
 impl Handler<ClientDataMessage> for Client {
 	type Result = ClientDetailsResponse;
-	fn handle(&mut self, msg: ClientDataMessage, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientDataMessage,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		ClientDetailsResponse(self.details.clone())
 	}
 }
@@ -156,22 +201,27 @@ impl Handler<ClientMessage> for Client {
 		msg: ClientMessage,
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ClientMessage::{SendUpdate, SendMessage, SendGlobalMessage};
-		use ClientStreamOut::{ConnectedClients, UserMessage, GlobalMessage};
+		use ClientMessage::{SendGlobalMessage, SendMessage, SendUpdate};
+		use ClientStreamOut::{ConnectedClients, GlobalMessage, UserMessage};
 
 		match msg {
-			SendUpdate(clients) => self.connection.do_send(
-				SendData(to_string::<ClientStreamOut>(
-					&ConnectedClients { clients }
-				).expect("[Client] Failed to encode string"))),
-			SendMessage {content, from} => self.connection.do_send(
-				SendData(to_string::<ClientStreamOut>(
-					&UserMessage {from,content}
-				).expect("[Client] Failed to encode string"))),
-			SendGlobalMessage { from, content } => self.connection.do_send(
-				SendData(to_string::<ClientStreamOut>(
-					&GlobalMessage {from,content}
-				).expect("[Client] Failed to encode string"))),
+			SendUpdate(clients) => self.connection.do_send(SendData(
+				to_string::<ClientStreamOut>(&ConnectedClients { clients })
+					.expect("[Client] Failed to encode string"),
+			)),
+			SendMessage { content, from } => self.connection.do_send(SendData(
+				to_string::<ClientStreamOut>(&UserMessage { from, content })
+					.expect("[Client] Failed to encode string"),
+			)),
+			SendGlobalMessage { from, content } => {
+				self.connection.do_send(SendData(
+					to_string::<ClientStreamOut>(&GlobalMessage {
+						from,
+						content,
+					})
+					.expect("[Client] Failed to encode string"),
+				))
+			}
 			_ => todo!(),
 		}
 	}
@@ -184,13 +234,15 @@ impl Handler<ConnectionOuput> for Client {
 	fn handle(
 		&mut self,
 		msg: ConnectionOuput,
-		ctx: &mut Self::Context
+		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use ConnectionOuput::RecvData;
 		match msg {
-			RecvData(sender, addr, data) => self.handle_request(ctx, sender, addr, data),
+			RecvData(sender, addr, data) => {
+				self.handle_request(ctx, sender, addr, data)
+			}
 
-			_ => todo!()
+			_ => todo!(),
 		}
 	}
 }
@@ -198,8 +250,12 @@ impl Handler<ConnectionOuput> for Client {
 impl Handler<ObservableMessage<ClientObservableMessage>> for Client {
 	type Result = ();
 
-	fn handle(&mut self, msg: ObservableMessage<ClientObservableMessage>, ctx: &mut Self::Context) -> Self::Result {
-		use ObservableMessage::{Subscribe,Unsubscribe};
+	fn handle(
+		&mut self,
+		msg: ObservableMessage<ClientObservableMessage>,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
+		use ObservableMessage::{Subscribe, Unsubscribe};
 		match msg {
 			Subscribe(r) => {
 				println!("[Client] adding subscriber");
