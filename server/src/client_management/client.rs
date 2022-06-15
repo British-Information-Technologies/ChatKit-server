@@ -7,19 +7,23 @@ use foundation::ClientDetails;
 use crate::network::ConnectionMessage;
 use uuid::Uuid;
 use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
-use crate::client_management::client::ClientObservableMessage::UpdateRequest;
+use crate::client_management::client::ClientObservableMessage::{SendGlobalMessageRequest, SendMessageRequest, UpdateRequest};
 use crate::network::ConnectionMessage::SendData;
-use crate::prelude::ObservableMessage::Subscribe;
+use crate::prelude::ObservableMessage::{Subscribe, Unsubscribe};
 
 /// Message sent ot the clients delegate
 #[derive(Message)]
 #[rtype(result = "()")]
 pub enum ClientMessage {
 	SendUpdate(Vec<ClientDetails>),
-	sendMessage {
+	SendMessage {
 		from: Uuid,
 		content: String,
 	},
+	SendGlobalMessage {
+		from: Uuid,
+		content: String,
+	}
 }
 
 #[derive(Message)]
@@ -39,6 +43,7 @@ enum SelfMessage {
 #[rtype(result = "()")]
 pub enum ClientObservableMessage {
 	SendMessageRequest(WeakAddr<Client>, Uuid, String),
+	SendGlobalMessageRequest(WeakAddr<Client>, String),
 	UpdateRequest(WeakAddr<Client>),
 }
 
@@ -90,13 +95,17 @@ impl Client {
 	}
 
 	#[inline]
-	fn handle_send(&self, ctx: &mut Context<Client>, uuid: Uuid, content: String) {
-		todo!()
+	fn handle_send(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
+		self.broadcast(SendMessageRequest(
+			ctx.address().downgrade(),
+			to,
+			content
+		));
 	}
 
 	#[inline]
-	fn handle_global_send(&self, p0: &mut Context<Client>, p1: String) {
-		todo!()
+	fn handle_global_send(&self, ctx: &mut Context<Client>, content: String) {
+		self.broadcast(SendGlobalMessageRequest(ctx.address().downgrade(), content));
 	}
 
 	#[inline]
@@ -123,6 +132,13 @@ impl Actor for Client {
 		self.connection.do_send(Subscribe(ctx.address().recipient()));
 		self.connection.do_send(SendData(to_string::<ClientStreamOut>(&Connected).unwrap()));
 	}
+
+	fn stopped(&mut self, ctx: &mut Self::Context) {
+		use ClientStreamOut::Disconnected;
+		use ConnectionMessage::{SendData};
+		self.connection.do_send(Unsubscribe(ctx.address().recipient()));
+		self.connection.do_send(SendData(to_string::<ClientStreamOut>(&Disconnected).unwrap()));
+	}
 }
 
 impl Handler<ClientDataMessage> for Client {
@@ -140,15 +156,22 @@ impl Handler<ClientMessage> for Client {
 		msg: ClientMessage,
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ClientMessage::SendUpdate;
-		use ClientStreamOut::{ConnectedClients};
+		use ClientMessage::{SendUpdate, SendMessage, SendGlobalMessage};
+		use ClientStreamOut::{ConnectedClients, UserMessage, GlobalMessage};
 
 		match msg {
 			SendUpdate(clients) => self.connection.do_send(
 				SendData(to_string::<ClientStreamOut>(
 					&ConnectedClients { clients }
 				).expect("[Client] Failed to encode string"))),
-
+			SendMessage {content, from} => self.connection.do_send(
+				SendData(to_string::<ClientStreamOut>(
+					&UserMessage {from,content}
+				).expect("[Client] Failed to encode string"))),
+			SendGlobalMessage { from, content } => self.connection.do_send(
+				SendData(to_string::<ClientStreamOut>(
+					&GlobalMessage {from,content}
+				).expect("[Client] Failed to encode string"))),
 			_ => todo!(),
 		}
 	}
