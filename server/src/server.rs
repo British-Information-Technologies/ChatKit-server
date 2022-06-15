@@ -33,14 +33,14 @@ use crate::{
 
 /// This struct is the main actor of the server.
 /// all other actors are ran through here.
-pub struct ServerActor {
+pub struct Server {
 	network_manager: Option<Addr<NetworkManager>>,
 	client_management: Option<Addr<ClientManager>>,
 }
 
-impl ServerActor {
+impl Server {
 	pub(crate) fn new() -> Addr<Self> {
-		ServerActor {
+		Server {
 			network_manager: None,
 			client_management: None,
 		}
@@ -84,7 +84,7 @@ impl ServerActor {
 	}
 }
 
-impl Actor for ServerActor {
+impl Actor for Server {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
@@ -103,7 +103,7 @@ impl Actor for ServerActor {
 	}
 }
 
-impl Handler<NetworkOutput> for ServerActor {
+impl Handler<NetworkOutput> for Server {
 	type Result = ();
 	fn handle(
 		&mut self,
@@ -125,7 +125,7 @@ impl Handler<NetworkOutput> for ServerActor {
 	}
 }
 
-impl Handler<ClientManagerOutput> for ServerActor {
+impl Handler<ClientManagerOutput> for Server {
 	type Result = ();
 
 	fn handle(

@@ -8,12 +8,12 @@ pub(crate) mod client_management;
 pub(crate) mod network;
 pub(crate) mod prelude;
 
-use server::ServerActor;
+use server::Server;
 use tokio::time::{sleep, Duration};
 
 #[actix::main()]
 async fn main() {
-	let _server = ServerActor::new();
+	let _server = Server::new();
 	loop {
 		sleep(Duration::from_millis(1000)).await;
 	}
