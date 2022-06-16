@@ -1,3 +1,6 @@
+//! # observer.rs
+//! crates a message type for the observer pattern.
+
 use actix::{Message, Recipient};
 
 /// # ObservableMessage
