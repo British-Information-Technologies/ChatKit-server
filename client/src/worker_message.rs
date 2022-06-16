@@ -12,13 +12,18 @@ pub enum WorkerMessage {
 impl From<NetworkManagerMessage> for WorkerMessage {
 	fn from(other: NetworkManagerMessage) -> Self {
 		#[allow(unused)]
-		use WorkerMessage::{Info as NewInfo, Error as NewError};
+		use NetworkManagerMessage::{Error, Info as OldInfo};
 		#[allow(unused)]
-		use NetworkManagerMessage::{Info as OldInfo, Error};
+		use WorkerMessage::{Error as NewError, Info as NewInfo};
 		match other {
-			OldInfo {server_name, server_owner}
-				=> NewInfo {server_owner,server_name},
-			_ => todo!()
+			OldInfo {
+				server_name,
+				server_owner,
+			} => NewInfo {
+				server_owner,
+				server_name,
+			},
+			_ => todo!(),
 		}
 	}
 }

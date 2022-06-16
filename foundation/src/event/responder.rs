@@ -1,9 +1,11 @@
-use crate::event::Event;
 use std::sync::Weak;
+
+use crate::event::Event;
 
 pub trait IResponder<T>
 where
-	T: Sync + Send {
+	T: Sync + Send,
+{
 	fn post_event(&self, event: Event<T>) {
 		if let Some(next) = self.get_next() {
 			if let Some(next) = next.upgrade() {

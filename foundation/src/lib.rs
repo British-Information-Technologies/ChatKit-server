@@ -1,10 +1,9 @@
 extern crate core;
-
+pub mod connection;
 pub mod encryption;
 pub mod event;
 pub mod messages;
 pub mod prelude;
-pub mod connection;
 pub mod test;
 
 use serde::{Deserialize, Serialize};

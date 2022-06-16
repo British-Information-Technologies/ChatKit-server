@@ -1,18 +1,25 @@
+use std::{
+	io::{Error, ErrorKind},
+	mem,
+	sync::{atomic::AtomicBool, Arc},
+};
+
 use async_trait::async_trait;
-use std::io::{Error, ErrorKind};
-use std::mem;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use tokio::net::ToSocketAddrs;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
+use foundation::{
+	connection::Connection,
+	messages::{
+		client::{ClientStreamIn, ClientStreamOut},
+		network::{NetworkSockIn, NetworkSockOut},
+	},
+	prelude::IManager,
+};
+use tokio::{
+	net::ToSocketAddrs,
+	sync::{mpsc::Sender, Mutex},
+};
 use uuid::Uuid;
 
 use crate::managers::NetworkManagerMessage;
-use foundation::connection::Connection;
-use foundation::messages::client::{ClientStreamIn, ClientStreamOut};
-use foundation::messages::network::{NetworkSockIn, NetworkSockOut};
-use foundation::prelude::IManager;
 
 pub struct NetworkManager<M>
 where
@@ -144,12 +151,13 @@ where
 
 #[cfg(test)]
 mod test {
-	use crate::managers::network::NetworkManagerMessage;
-	use crate::managers::NetworkManager;
-	use serverlib::Server;
 	use std::future::Future;
+
+	use serverlib::Server;
 	use tokio::sync::mpsc::channel;
 	use uuid::Uuid;
+
+	use crate::managers::{network::NetworkManagerMessage, NetworkManager};
 
 	async fn wrap_setup<T, F>(test: T)
 	where

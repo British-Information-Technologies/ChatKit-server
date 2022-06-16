@@ -6,9 +6,13 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-name = "serverlib"
-path = "src/lib.rs"
+# [lib]
+# name = "serverlib"
+# path = "src/lib.rs"
+
+# [[bin]]
+# name = "server"
+# path = "src/main.rs"
 
 [[bin]]
 name = "server"
@@ -26,8 +30,10 @@ openssl = "0.10.33"
 tokio = { version = "1.9.0", features = ["full"] }
 futures = "0.3.16"
 async-trait = "0.1.52"
-actix = "0.12"
+actix = "0.13"
 mlua = { version = "0.7.3", features=["lua54", "async", "serde", "macros"] }
 libloading = "0.7"
+aquamarine = "0.1.11"
+tokio-stream = "0.1.9"
 
 foundation = {path = '../foundation'}

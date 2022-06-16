@@ -1,23 +1,20 @@
-// pub mod chat_manager;
-pub mod client;
-pub mod client_manager;
-mod event_type;
-mod lua;
-pub mod messages;
-pub mod network_manager;
-// mod plugin;
-pub mod server;
+//! # actor
+//! This is the main module of the actix server.
+//! It starts the actor runtime and then sleeps
+//! for the duration of the program.
 
-use std::io;
-
-use clap::{App, Arg};
+pub(crate) mod server;
+pub(crate) mod client_management;
+pub(crate) mod network;
+pub(crate) mod prelude;
 
 use server::Server;
+use tokio::time::{sleep, Duration};
 
-#[tokio::main]
-async fn main() -> io::Result<()> {
-	let server = Server::new().await.unwrap();
-
-	server.start().await;
-	Ok(())
+#[actix::main()]
+async fn main() {
+	let _server = Server::new();
+	loop {
+		sleep(Duration::from_millis(1000)).await;
+	}
 }

@@ -1,5 +1,6 @@
-use futures::channel::oneshot::Sender;
 use std::collections::HashMap;
+
+use futures::channel::oneshot::Sender;
 
 pub enum EventResultType {
 	Success,
@@ -15,7 +16,10 @@ pub struct EventResult {
 }
 
 impl EventResult {
-	pub fn create(result_type: EventResultType, sender: Sender<EventResult>) -> EventResultBuilder {
+	pub fn create(
+		result_type: EventResultType,
+		sender: Sender<EventResult>,
+	) -> EventResultBuilder {
 		EventResultBuilder::new(result_type, sender)
 	}
 }
@@ -29,7 +33,10 @@ pub struct EventResultBuilder {
 }
 
 impl EventResultBuilder {
-	pub(self) fn new(result_type: EventResultType, sender: Sender<EventResult>) -> Self {
+	pub(self) fn new(
+		result_type: EventResultType,
+		sender: Sender<EventResult>,
+	) -> Self {
 		Self {
 			code: result_type,
 			args: HashMap::default(),
@@ -43,8 +50,7 @@ impl EventResultBuilder {
 	}
 
 	pub fn send(self) {
-		self
-			.sender
+		self.sender
 			.send(EventResult {
 				code: self.code,
 				args: self.args,

@@ -1,6 +1,9 @@
+use std::{
+	sync::{Arc, Weak},
+	time::Duration,
+};
+
 use async_trait::async_trait;
-use std::sync::{Arc, Weak};
-use std::time::Duration;
 use tokio::time::sleep;
 
 /// # IManager
