@@ -33,8 +33,8 @@ use crate::{
 		ConnectionOuput,
 	},
 	prelude::{
-		ObservableMessage,
-		ObservableMessage::{Subscribe, Unsubscribe},
+		messages::ObservableMessage,
+		messages::ObservableMessage::{Subscribe, Unsubscribe},
 	},
 };
 
@@ -165,7 +165,7 @@ impl Actor for Client {
 		use ConnectionMessage::SendData;
 		println!("[Client] started");
 		self.connection
-			.do_send(Subscribe(ctx.address().recipient()));
+			.do_send::<ObservableMessage<ConnectionOuput>>(Subscribe(ctx.address().recipient()));
 		self.connection.do_send(SendData(
 			to_string::<ClientStreamOut>(&Connected).unwrap(),
 		));
@@ -175,7 +175,7 @@ impl Actor for Client {
 		use ClientStreamOut::Disconnected;
 		use ConnectionMessage::SendData;
 		self.connection
-			.do_send(Unsubscribe(ctx.address().recipient()));
+			.do_send::<ObservableMessage<ConnectionOuput>>(Unsubscribe(ctx.address().recipient()));
 		self.connection.do_send(SendData(
 			to_string::<ClientStreamOut>(&Disconnected).unwrap(),
 		));
