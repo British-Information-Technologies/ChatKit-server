@@ -3,7 +3,7 @@ use super::*;
 
 pub struct ServerBuilder {
 	pub(super) name: Option<String>,
-	pub(super) port: Option<usize>,
+	pub(super) port: Option<u16>,
 	pub(super) owner: Option<String>,
 }
 
@@ -16,7 +16,7 @@ impl ServerBuilder {
 		}
 	}
 
-	pub fn port(mut self, port: usize) -> Self {
+	pub fn port(mut self, port: u16) -> Self {
 		self.port = Some(port);
 		self
 	}

@@ -26,7 +26,7 @@ async fn main() {
 				.short('p')
 				.long("port")
 				.takes_value(true)
-				.value_parser(value_parser!(usize))
+				.value_parser(value_parser!(u16))
 				.default_value("5600")
 				.help("overrides the default port")
 		)
@@ -51,7 +51,7 @@ async fn main() {
 
 	let mut server_builder = Server::create();
 
-	if let Some(port) = args.get_one::<usize>("port") {
+	if let Some(port) = args.get_one::<u16>("port") {
 		server_builder = server_builder.port(*port);
 		println!("got port number {:?}", port);
 	}

@@ -52,8 +52,8 @@ impl Server {
 		let fut = wrap_future(
 			sender.send(SendData(
 				serde_json::to_string(&GotInfo {
-					server_name: "String".to_owned(),
-					server_owner: "String".to_owned(),
+					server_name: self.config.name.clone(),
+					server_owner: self.config.owner.clone(),
 				})
 					.expect("Failed to serialise"),
 			)),
@@ -70,13 +70,15 @@ impl Actor for Server {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		let addr = ctx.address();
+		let addr = ctx.address().downgrade();
 
-		self.network_manager
-			.replace(NetworkManager::new(addr.clone().recipient().downgrade()));
+		let nm = NetworkManager::create(addr.clone().recipient())
+			.port(self.config.port)
+			.build();
+		self.network_manager.replace(nm);
 
 		self.client_management.replace(ClientManager::new(
-			addr.clone().recipient::<ClientManagerOutput>().downgrade(),
+			addr.clone().recipient(),
 		));
 
 		if let Some(net_mgr) = self.network_manager.as_ref() {

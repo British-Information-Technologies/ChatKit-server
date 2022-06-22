@@ -1,6 +1,6 @@
 /// Configuration for the server
 pub(super) struct ServerConfig {
-	pub(super) port: usize,
+	pub(super) port: u16,
 	pub(super) name: String,
 	pub(super) owner: String,
 }
