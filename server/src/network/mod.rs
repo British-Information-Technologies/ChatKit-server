@@ -37,6 +37,6 @@ pub(crate) use connection_initiator::{ConnectionInitiator, InitiatorOutput};
 use listener::{ListenerMessage, ListenerOutput, NetworkListener};
 pub(crate) use network_manager::{
 	NetworkManager,
-	NetworkMessage,
 	NetworkOutput,
+	NetworkMessage
 };

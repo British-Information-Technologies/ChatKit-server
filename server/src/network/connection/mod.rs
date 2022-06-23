@@ -27,7 +27,7 @@ use tokio::{
 	sync::Mutex,
 };
 
-use crate::prelude::ObservableMessage;
+use crate::prelude::messages::ObservableMessage;
 
 /// This is a message that can be sent to the Connection.
 #[derive(Message)]

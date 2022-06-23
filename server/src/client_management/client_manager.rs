@@ -38,7 +38,7 @@ use crate::{
 		Client,
 	},
 	network::NetworkOutput,
-	prelude::ObservableMessage,
+	prelude::messages::ObservableMessage,
 };
 
 #[derive(Message)]
@@ -165,7 +165,7 @@ impl ClientManager {
 		addr: Addr<Client>,
 	) {
 		println!("[ClientManager] adding client");
-		use crate::prelude::ObservableMessage::Subscribe;
+		use crate::prelude::messages::ObservableMessage::Subscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
 		addr.do_send(Subscribe(recp));
 		self.clients.insert(uuid, addr);
@@ -173,7 +173,7 @@ impl ClientManager {
 
 	fn remove_client(&mut self, ctx: &mut Context<ClientManager>, uuid: Uuid) {
 		println!("[ClientManager] removing client");
-		use crate::prelude::ObservableMessage::Unsubscribe;
+		use crate::prelude::messages::ObservableMessage::Unsubscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
 		if let Some(addr) = self.clients.remove(&uuid) {
 			addr.do_send(Unsubscribe(recp));

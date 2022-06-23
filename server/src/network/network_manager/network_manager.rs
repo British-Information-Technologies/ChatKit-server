@@ -1,43 +1,14 @@
-//! # network_manager
-//! This module contains the network manager actor
-//! it's role involves handling new oncomming network connections
-
-use actix::{
-	Actor,
-	Addr,
-	AsyncContext,
-	Context,
-	Handler,
-	Message,
-	WeakRecipient,
-};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, WeakRecipient};
 use foundation::ClientDetails;
-
-use crate::network::{
-	listener::ListenerOutput,
-	Connection,
-	ConnectionInitiator,
-	InitiatorOutput,
-	InitiatorOutput::ClientRequest,
-	ListenerMessage,
-	NetworkListener,
-};
-
-#[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
-#[rtype(result = "()")]
-pub enum NetworkMessage {
-	StartListening,
-	StopListening,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub enum NetworkOutput {
-	NewClient(Addr<Connection>, ClientDetails),
-	InfoRequested(Addr<Connection>),
-}
+use crate::network::{Connection, ConnectionInitiator, InitiatorOutput};
+use crate::network::listener::{ListenerMessage, ListenerOutput};
+use crate::network::listener::NetworkListener;
+use crate::network::network_manager::Builder;
+use crate::network::network_manager::config::Config;
+use crate::network::network_manager::messages::{NetworkMessage, NetworkOutput};
 
 pub struct NetworkManager {
+	config: Config,
 	listener_addr: Option<Addr<NetworkListener>>,
 	delegate: WeakRecipient<NetworkOutput>,
 	initiators: Vec<Addr<ConnectionInitiator>>,
@@ -46,11 +17,18 @@ pub struct NetworkManager {
 impl NetworkManager {
 	pub fn new(delegate: WeakRecipient<NetworkOutput>) -> Addr<NetworkManager> {
 		NetworkManager {
+			config: Config {
+				port: 5600
+			},
 			listener_addr: None,
 			delegate,
 			initiators: Vec::new(),
 		}
-		.start()
+			.start()
+	}
+
+	pub fn create(delegate: WeakRecipient<NetworkOutput>) -> Builder {
+		Builder::new(delegate)
 	}
 
 	fn start_listener(&mut self, _ctx: &mut <Self as actix::Actor>::Context) {
@@ -135,10 +113,10 @@ impl Actor for NetworkManager {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		println!("started network manager");
+		println!("[NetworkManager] started with config {:?}", self.config);
 		let recipient = ctx.address().recipient();
 		self.listener_addr
-			.replace(NetworkListener::new("0.0.0.0:5600", recipient));
+			.replace(NetworkListener::new(format!("0.0.0.0:{}", self.config.port), recipient));
 	}
 }
 
@@ -184,6 +162,20 @@ impl Handler<InitiatorOutput> for NetworkManager {
 				self.client_request(ctx, sender, addr, client_details)
 			}
 			InfoRequest(sender, addr) => self.info_request(ctx, sender, addr),
+		}
+	}
+}
+
+impl From<Builder> for NetworkManager {
+	fn from(builder: Builder) -> Self {
+		Self {
+			config: Config {
+				port: builder.port.unwrap_or_else(|| 5600),
+			},
+			listener_addr: None,
+			delegate: builder.delegate,
+
+			initiators: Vec::default()
 		}
 	}
 }

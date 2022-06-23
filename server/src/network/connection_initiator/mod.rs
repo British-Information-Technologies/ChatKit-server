@@ -22,7 +22,7 @@ use serde_json::{from_str, to_string};
 
 use crate::{
 	network::{connection::ConnectionOuput, Connection, ConnectionMessage},
-	prelude::ObservableMessage,
+	prelude::messages::ObservableMessage,
 };
 
 #[derive(Debug, Clone, Copy)]
