@@ -1,3 +1,7 @@
+//! # lua_manager.rs
+//!
+//! Holds the LuaManger struct and implements it's methods
+
 use actix::{Actor, Addr, ArbiterHandle, AsyncContext, Context, Running};
 use actix::fut::wrap_future;
 use mlua::{Lua, Thread, ThreadStatus};
@@ -8,8 +12,10 @@ use crate::network::NetworkManager;
 use crate::scripting::scriptable_server::ScriptableServer;
 use crate::Server;
 
+/// # LuaManager
+/// Holds common server objects
+/// todo: change to weak references
 pub struct LuaManager {
-	pub(super) engine: Lua,
 	pub(super) server: Addr<Server>,
 	pub(super) network_manager: Addr<NetworkManager>,
 	pub(super) client_manager: Addr<ClientManager>,
@@ -22,9 +28,9 @@ impl LuaManager {
 		client_manager: Addr<ClientManager>
 	) -> Builder {
 		Builder::new(
-			server.clone(),
-			network_manager.clone(),
-			client_manager.clone()
+			server,
+			network_manager,
+			client_manager
 		)
 	}
 
@@ -34,7 +40,6 @@ impl LuaManager {
 
 		let api = engine.create_table().unwrap();
 		api.set::<&str, ScriptableServer>("server", server).unwrap();
-		api.set::<&str, i32>("a", 12).unwrap();
 
 		engine.globals().set("chat", api).unwrap();
 		engine
@@ -51,7 +56,6 @@ impl Actor for LuaManager {
 			let coroutine: Thread = engine.load(r#"
 				coroutine.create(function ()
 					print("hello lua")
-					print(chat.server.Test)
 					print(chat.server:name())
 				end)
 			"#).eval().unwrap();
@@ -65,25 +69,10 @@ impl Actor for LuaManager {
 // we enforce the actor model on the consumer of the api.
 impl From<Builder> for Addr<LuaManager> {
 	fn from(b: Builder) -> Addr<LuaManager> {
-		let mgr = LuaManager {
-			engine: b.engine,
-			server: b.server.clone(),
-			network_manager: b.network_manager.clone(),
-			client_manager: b.client_manager.clone()
-		};
-
-		let server = ScriptableServer::from(b.server);
-
-		let api = mgr.engine.create_table().unwrap();
-		api.set::<&str, ScriptableServer>("server", server).unwrap();
-		api.set::<&str, i32>("a", 12).unwrap();
-
-		let a = api.get::<&str, i32>("a").unwrap();
-
-		println!("Lua stored: {}", a);
-
-		mgr.engine.globals().set("chat", api).unwrap();
-
-		mgr.start()
+		LuaManager {
+			server: b.server,
+			network_manager: b.network_manager,
+			client_manager: b.client_manager
+		}.start()
 	}
 }

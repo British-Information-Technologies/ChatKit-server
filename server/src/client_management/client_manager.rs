@@ -40,19 +40,8 @@ use crate::{
 	network::NetworkOutput,
 	prelude::messages::ObservableMessage,
 };
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub(crate) enum ClientManagerMessage {
-	AddClient(Uuid, Addr<Client>),
-	RemoveClient(Uuid),
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub enum ClientManagerOutput {
-	UpdateRequest(Addr<ClientManager>),
-}
+use crate::client_management::messages::{ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage, ClientManagerOutput};
+use crate::client_management::messages::ClientManagerDataResponse::{ClientCount, Clients};
 
 pub struct ClientManager {
 	clients: HashMap<Uuid, Addr<Client>>,
@@ -60,6 +49,16 @@ pub struct ClientManager {
 }
 
 impl ClientManager {
+	pub(crate) fn new(
+		delegate: WeakRecipient<ClientManagerOutput>,
+	) -> Addr<Self> {
+		ClientManager {
+			delegate,
+			clients: HashMap::new(),
+		}
+			.start()
+	}
+
 	pub(crate) fn send_update(
 		&mut self,
 		ctx: &mut Context<Self>,
@@ -145,18 +144,6 @@ impl ClientManager {
 			ctx.spawn(fut);
 		}
 	}
-}
-
-impl ClientManager {
-	pub(crate) fn new(
-		delegate: WeakRecipient<ClientManagerOutput>,
-	) -> Addr<Self> {
-		ClientManager {
-			delegate,
-			clients: HashMap::new(),
-		}
-		.start()
-	}
 
 	fn add_client(
 		&mut self,
@@ -228,6 +215,23 @@ impl Handler<ClientObservableMessage> for ClientManager {
 			}
 			UpdateRequest(addr) => self.send_update(ctx, addr),
 			_ => todo!(),
+		}
+	}
+}
+
+impl Handler<ClientManagerDataMessage> for ClientManager {
+	type Result = ClientManagerDataResponse;
+
+	fn handle(&mut self, msg: ClientManagerDataMessage, ctx: &mut Self::Context) -> Self::Result {
+		match msg {
+			ClientManagerDataMessage::ClientCount => {
+				ClientCount(self.clients.values().count())
+			}
+			ClientManagerDataMessage::Clients => Clients(
+				self.clients.values()
+					.map(|a| a.downgrade())
+					.collect()
+			)
 		}
 	}
 }
