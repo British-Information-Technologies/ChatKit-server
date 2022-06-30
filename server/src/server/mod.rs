@@ -6,7 +6,9 @@
 mod server;
 mod config;
 mod builder;
+mod messages;
 
 use config::ServerConfig;
 pub use server::Server;
-pub(crate) use builder::ServerBuilder;
+pub use builder::ServerBuilder;
+pub use messages::*;
