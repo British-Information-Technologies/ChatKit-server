@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use actix::{
-	fut::{wrap_future, wrap_stream},
 	Actor,
 	ActorFutureExt,
 	ActorStreamExt,
@@ -9,6 +8,7 @@ use actix::{
 	ArbiterHandle,
 	AsyncContext,
 	Context,
+	fut::{wrap_future, wrap_stream},
 	Handler,
 	MailboxError,
 	Message,
@@ -20,26 +20,21 @@ use actix::{
 	WeakRecipient,
 };
 use foundation::{
-	messages::client::{ClientStreamIn, ClientStreamIn::SendGlobalMessage},
 	ClientDetails,
+	messages::client::{ClientStreamIn, ClientStreamIn::SendGlobalMessage},
 };
 use futures::{SinkExt, TryStreamExt};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 use crate::{
-	client_management::{
-		client::{
-			ClientDataMessage,
-			ClientMessage,
-			ClientMessage::SendMessage,
-			ClientObservableMessage,
-		},
-		Client,
-	},
 	network::NetworkOutput,
 	prelude::messages::ObservableMessage,
 };
+use crate::client_management::client::{Client, ClientDataResponse};
+use crate::client_management::client::{ClientDataMessage, ClientMessage, ClientObservableMessage};
+use crate::client_management::client::ClientDataResponse::Details;
+use crate::client_management::client::ClientMessage::SendMessage;
 use crate::client_management::messages::{ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage, ClientManagerOutput};
 use crate::client_management::messages::ClientManagerDataResponse::{ClientCount, Clients};
 
@@ -65,16 +60,15 @@ impl ClientManager {
 		addr: WeakAddr<Client>,
 	) {
 		println!("[ClientManager] sending update to client");
-		use ClientMessage::SendUpdate;
+		use crate::client_management::client::ClientMessage::SendUpdate;
 		let self_addr = ctx.address();
 		if let Some(to_send) = addr.upgrade() {
 			let client_addr: Vec<Addr<Client>> =
 				self.clients.iter().map(|(_, v)| v).cloned().collect();
 
 			let collection = tokio_stream::iter(client_addr)
-				.then(|addr| addr.send(ClientDataMessage))
-				.map(|val| val.unwrap().0)
-				// .filter(|val| )
+				.then(|addr| addr.send(ClientDataMessage::Details))
+				.map(|val| if let Details(details) = val.unwrap() { details } else { ClientDetails::default() })
 				.collect();
 
 			let fut = wrap_future(async move {
@@ -98,18 +92,30 @@ impl ClientManager {
 			self.clients.iter().map(|(_, v)| v).cloned().collect();
 
 		let collection = tokio_stream::iter(client_addr)
-			.then(|addr| addr.send(ClientDataMessage))
-			.map(|val| val.unwrap().0)
+			.then(|addr| addr.send(ClientDataMessage::Details))
+			.map(|val| val.unwrap())
+			.map(|val: ClientDataResponse| if let Details(details) = val {
+				details
+			} else {
+				ClientDetails::default()
+			})
 			.collect();
 
 		let fut = wrap_future(async move {
 			if let Some(sender) = sender.upgrade() {
-				let from: Uuid =
-					sender.send(ClientDataMessage).await.unwrap().0.uuid;
+				let details: ClientDataResponse =
+					sender.send(ClientDataMessage::Details).await.unwrap();
+
+				let from = if let Details(details) = details {
+					details.uuid
+				} else {
+					ClientDetails::default().uuid
+				};
+
 				let client_details: Vec<ClientDetails> = collection.await;
 				let pos = client_details.iter().position(|i| i.uuid == from);
 				if let Some(pos) = pos {
-					sender.send(SendMessage { content, from }).await;
+					sender.send(SendMessage { content, from }).await.expect("TODO: panic message");
 				}
 			}
 		});
@@ -123,14 +129,22 @@ impl ClientManager {
 		sender: WeakAddr<Client>,
 		content: String,
 	) {
-		use ClientMessage::SendGlobalMessage;
+		use crate::client_management::client::ClientMessage::SendGlobalMessage;
 		let client_addr: Vec<Addr<Client>> =
 			self.clients.iter().map(|(_, v)| v).cloned().collect();
 
 		if let Some(sender) = sender.upgrade() {
 			let fut = wrap_future(async move {
-				let from: Uuid =
-					sender.send(ClientDataMessage).await.unwrap().0.uuid;
+
+				let details: ClientDataResponse =
+					sender.send(ClientDataMessage::Details).await.unwrap();
+
+				let from = if let Details(details) = details {
+					details.uuid
+				} else {
+					ClientDetails::default().uuid
+				};
+
 				let collection = tokio_stream::iter(client_addr)
 					.then(move |addr| {
 						addr.send(SendGlobalMessage {
@@ -201,7 +215,7 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		msg: ClientObservableMessage,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ClientObservableMessage::{
+		use crate::client_management::client::ClientObservableMessage::{
 			SendGlobalMessageRequest,
 			SendMessageRequest,
 			UpdateRequest,

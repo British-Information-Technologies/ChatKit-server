@@ -1,6 +1,6 @@
 use actix::{Actor, Addr, AsyncContext, Context, Handler, WeakRecipient};
 use foundation::ClientDetails;
-use crate::network::{Connection, ConnectionInitiator, InitiatorOutput};
+use crate::network::{Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage, NetworkDataOutput};
 use crate::network::listener::{ListenerMessage, ListenerOutput};
 use crate::network::listener::NetworkListener;
 use crate::network::network_manager::Builder;
@@ -131,6 +131,16 @@ impl Handler<NetworkMessage> for NetworkManager {
 		match msg {
 			StartListening => self.start_listener(ctx),
 			StopListening => self.stop_listener(ctx),
+		}
+	}
+}
+
+impl Handler<NetworkDataMessage> for NetworkManager {
+	type Result = ();
+
+	fn handle(&mut self, msg: NetworkDataMessage, ctx: &mut Self::Context) -> Self::Result {
+		match msg {
+			NetworkDataMessage::IsListening => NetworkDataOutput::IsListening(if self.)
 		}
 	}
 }

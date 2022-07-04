@@ -10,4 +10,4 @@ mod config;
 use config::*;
 pub(crate) use network_manager::{NetworkManager};
 pub(crate) use builder::*;
-pub(crate) use messages::{NetworkMessage,NetworkOutput};
+pub(crate) use messages::{NetworkMessage, NetworkOutput, NetworkDataMessage, NetworkDataOutput};
