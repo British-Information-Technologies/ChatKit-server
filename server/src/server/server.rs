@@ -1,13 +1,21 @@
+//! This crate holds the implementations and functions for the server
+//! including server boot procedures
+
 use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, ContextFutureSpawner, Handler};
+use actix::dev::MessageResponse;
 use actix::fut::wrap_future;
+use mlua::Lua;
 use foundation::ClientDetails;
 use foundation::messages::network::NetworkSockOut::GotInfo;
-use crate::client_management::{Client, ClientManager, ClientManagerOutput};
+use crate::client_management::{ClientManager, ClientManagerOutput};
+use crate::client_management::client::Client;
 use crate::client_management::ClientManagerMessage::AddClient;
+use crate::lua::LuaManager;
+use crate::rhai::RhaiManager;
 use crate::network::{Connection, NetworkManager, NetworkMessage, NetworkOutput};
 use crate::network::ConnectionMessage::{CloseConnection, SendData};
 use crate::network::NetworkOutput::{InfoRequested, NewClient};
-use crate::server::{builder, ServerBuilder};
+use crate::server::{builder, ServerBuilder, ServerDataMessage, ServerDataResponse};
 use crate::server::config::ServerConfig;
 
 /// This struct is the main actor of the server.
@@ -16,18 +24,11 @@ pub struct Server {
 	config: ServerConfig,
 	network_manager: Option<Addr<NetworkManager>>,
 	client_management: Option<Addr<ClientManager>>,
+	rhai_manager: Option<Addr<RhaiManager>>,
+	lua_manager: Option<Addr<LuaManager>>
 }
 
 impl Server {
-	pub(crate) fn new() -> Addr<Self> {
-		Server {
-			config: Default::default(),
-			network_manager: None,
-			client_management: None,
-		}
-			.start()
-	}
-
 	pub fn create() -> builder::ServerBuilder {
 		ServerBuilder::new()
 	}
@@ -75,14 +76,38 @@ impl Actor for Server {
 		let nm = NetworkManager::create(addr.clone().recipient())
 			.port(self.config.port)
 			.build();
-		self.network_manager.replace(nm);
+		self.network_manager.replace(nm.clone());
 
-		self.client_management.replace(ClientManager::new(
+		let cm = ClientManager::new(
 			addr.clone().recipient(),
-		));
+		);
+		self.client_management.replace(cm.clone());
+
+		let rm = RhaiManager::create(ctx.address(), nm.clone(), cm.clone())
+			.build();
+		self.rhai_manager.replace(rm);
+
+		let lm = LuaManager::create(ctx.address(), nm, cm)
+			.build();
+		self.lua_manager.replace(lm);
 
 		if let Some(net_mgr) = self.network_manager.as_ref() {
 			net_mgr.do_send(NetworkMessage::StartListening);
+		}
+	}
+}
+
+impl Handler<ServerDataMessage> for Server {
+	type Result = ServerDataResponse;
+
+	fn handle(&mut self, msg: ServerDataMessage, ctx: &mut Self::Context) -> Self::Result {
+		println!("data message");
+		match msg {
+			ServerDataMessage::Name => ServerDataResponse::Name(self.config.name.clone()),
+			ServerDataMessage::Port => ServerDataResponse::Port(self.config.port.clone()),
+			ServerDataMessage::Owner => ServerDataResponse::Owner(self.config.owner.clone()),
+			ServerDataMessage::ClientManager => ServerDataResponse::ClientManager(self.client_management.clone()),
+			ServerDataMessage::NetworkManager => ServerDataResponse::NetworkManager(self.network_manager.clone()),
 		}
 	}
 }
@@ -118,7 +143,7 @@ impl Handler<ClientManagerOutput> for Server {
 	}
 }
 
-impl From<builder::ServerBuilder> for Server {
+impl From<ServerBuilder> for Server {
 	fn from(builder: ServerBuilder) -> Self {
 		Server {
 			config: ServerConfig {
@@ -127,7 +152,9 @@ impl From<builder::ServerBuilder> for Server {
 				owner: builder.owner.unwrap_or_else(|| "Default owner".to_string()),
 			},
 			network_manager: None,
-			client_management: None
+			client_management: None,
+			rhai_manager: None,
+			lua_manager: None
 		}
 	}
 }

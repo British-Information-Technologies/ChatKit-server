@@ -1,7 +1,4 @@
-mod client_lua;
-mod client_manager_lua;
-mod server_lua;
+mod lua_manager;
+mod builder;
 
-pub use client_lua::ClientLua;
-pub use client_manager_lua::ClientManagerLua;
-pub use server_lua::ServerLua;
+pub use lua_manager::LuaManager;

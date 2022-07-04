@@ -7,7 +7,7 @@ pub struct ServerBuilder {
 	pub(super) owner: Option<String>,
 }
 
-impl ServerBuilder {
+impl<'rhai> ServerBuilder {
 	pub(super) fn new() -> Self {
 		Self {
 			name: None,

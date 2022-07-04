@@ -17,7 +17,7 @@ use uuid::Uuid;
  * address:       the ip address of the connected user.
  * public_key:    the public key used when sending messages to the user.
  */
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct ClientDetails {
 	pub uuid: Uuid,
 	pub username: String,

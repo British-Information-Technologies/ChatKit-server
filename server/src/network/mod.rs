@@ -38,5 +38,7 @@ use listener::{ListenerMessage, ListenerOutput, NetworkListener};
 pub(crate) use network_manager::{
 	NetworkManager,
 	NetworkOutput,
-	NetworkMessage
+	NetworkMessage,
+	NetworkDataMessage,
+	NetworkDataOutput
 };

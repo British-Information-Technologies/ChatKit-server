@@ -1,71 +1,16 @@
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Recipient};
+use foundation::ClientDetails;
+use foundation::messages::client::ClientStreamIn;
 use std::net::SocketAddr;
-
-use actix::{
-	Actor,
-	Addr,
-	ArbiterHandle,
-	AsyncContext,
-	Context,
-	Handler,
-	Message,
-	MessageResponse,
-	Recipient,
-	Running,
-	WeakAddr,
-};
-use foundation::{
-	messages::client::{ClientStreamIn, ClientStreamOut},
-	ClientDetails,
-};
-use serde_json::{from_str, to_string};
 use uuid::Uuid;
-
-use crate::{
-	client_management::client::ClientObservableMessage::{
-		SendGlobalMessageRequest,
-		SendMessageRequest,
-		UpdateRequest,
-	},
-	network::{
-		Connection,
-		ConnectionMessage,
-		ConnectionMessage::SendData,
-		ConnectionOuput,
-	},
-	prelude::{
-		messages::ObservableMessage,
-		messages::ObservableMessage::{Subscribe, Unsubscribe},
-	},
-};
-
-/// Message sent ot the clients delegate
-#[derive(Message)]
-#[rtype(result = "()")]
-pub enum ClientMessage {
-	SendUpdate(Vec<ClientDetails>),
-	SendMessage { from: Uuid, content: String },
-	SendGlobalMessage { from: Uuid, content: String },
-}
-
-#[derive(Message)]
-#[rtype(result = "ClientDetailsResponse")]
-pub struct ClientDataMessage;
-
-#[derive(MessageResponse)]
-pub struct ClientDetailsResponse(pub ClientDetails);
+use crate::client_management::client::messages::{ClientDataMessage, ClientDataResponse, ClientMessage, ClientObservableMessage};
+use crate::client_management::client::messages::ClientObservableMessage::{SendGlobalMessageRequest, SendMessageRequest, UpdateRequest};
+use crate::network::{Connection, ConnectionOuput};
+use crate::prelude::messages::ObservableMessage;
 
 /// messages the client will send to itself
 enum SelfMessage {
 	ReceivedMessage(ClientStreamIn),
-}
-
-/// message that is sent to all observers of the current client.
-#[derive(Message, Clone)]
-#[rtype(result = "()")]
-pub enum ClientObservableMessage {
-	SendMessageRequest(WeakAddr<Client>, Uuid, String),
-	SendGlobalMessageRequest(WeakAddr<Client>, String),
-	UpdateRequest(WeakAddr<Client>),
 }
 
 /// # Client
@@ -97,12 +42,13 @@ impl Client {
 		addr: SocketAddr,
 		data: String,
 	) {
-		use ClientStreamIn::{
+		use foundation::messages::client::ClientStreamIn::{
 			Disconnect,
 			SendGlobalMessage,
 			SendMessage,
 			Update,
 		};
+		use serde_json::from_str;
 		let msg = from_str::<ClientStreamIn>(data.as_str())
 			.expect("[Client] failed to decode incoming message");
 		match msg {
@@ -161,8 +107,12 @@ impl Actor for Client {
 
 	// tells the client that it has been connected.
 	fn started(&mut self, ctx: &mut Self::Context) {
-		use ClientStreamOut::Connected;
-		use ConnectionMessage::SendData;
+		use foundation::messages::client::ClientStreamOut::Connected;
+		use serde_json::to_string;
+		use foundation::messages::client::ClientStreamOut;
+		use crate::network::ConnectionMessage::SendData;
+		use crate::network::ConnectionOuput;
+		use crate::prelude::messages::ObservableMessage::Subscribe;
 		println!("[Client] started");
 		self.connection
 			.do_send::<ObservableMessage<ConnectionOuput>>(Subscribe(ctx.address().recipient()));
@@ -172,8 +122,12 @@ impl Actor for Client {
 	}
 
 	fn stopped(&mut self, ctx: &mut Self::Context) {
-		use ClientStreamOut::Disconnected;
-		use ConnectionMessage::SendData;
+		use foundation::messages::client::ClientStreamOut::Disconnected;
+		use serde_json::to_string;
+		use foundation::messages::client::ClientStreamOut;
+		use crate::network::ConnectionMessage::SendData;
+		use crate::network::ConnectionOuput;
+		use crate::prelude::messages::ObservableMessage::Unsubscribe;
 		self.connection
 			.do_send::<ObservableMessage<ConnectionOuput>>(Unsubscribe(ctx.address().recipient()));
 		self.connection.do_send(SendData(
@@ -183,13 +137,16 @@ impl Actor for Client {
 }
 
 impl Handler<ClientDataMessage> for Client {
-	type Result = ClientDetailsResponse;
+	type Result = ClientDataResponse;
 	fn handle(
 		&mut self,
 		msg: ClientDataMessage,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
-		ClientDetailsResponse(self.details.clone())
+		match msg {
+			ClientDataMessage::Details => ClientDataResponse::Details(self.details.clone()),
+			_ => todo!()
+		}
 	}
 }
 
@@ -201,8 +158,11 @@ impl Handler<ClientMessage> for Client {
 		msg: ClientMessage,
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ClientMessage::{SendGlobalMessage, SendMessage, SendUpdate};
-		use ClientStreamOut::{ConnectedClients, GlobalMessage, UserMessage};
+		use crate::client_management::client::messages::ClientMessage::{SendGlobalMessage, SendMessage, SendUpdate};
+		use foundation::messages::client::ClientStreamOut::{ConnectedClients, GlobalMessage, UserMessage};
+		use serde_json::to_string;
+		use foundation::messages::client::ClientStreamOut;
+		use crate::network::ConnectionMessage::SendData;
 
 		match msg {
 			SendUpdate(clients) => self.connection.do_send(SendData(
@@ -236,7 +196,7 @@ impl Handler<ConnectionOuput> for Client {
 		msg: ConnectionOuput,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ConnectionOuput::RecvData;
+		use crate::network::ConnectionOuput::RecvData;
 		match msg {
 			RecvData(sender, addr, data) => {
 				self.handle_request(ctx, sender, addr, data)
@@ -255,7 +215,7 @@ impl Handler<ObservableMessage<ClientObservableMessage>> for Client {
 		msg: ObservableMessage<ClientObservableMessage>,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ObservableMessage::{Subscribe, Unsubscribe};
+		use crate::prelude::messages::ObservableMessage::{Subscribe, Unsubscribe};
 		match msg {
 			Subscribe(r) => {
 				println!("[Client] adding subscriber");

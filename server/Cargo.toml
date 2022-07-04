@@ -31,7 +31,8 @@ tokio = { version = "1.9.0", features = ["full"] }
 futures = "0.3.16"
 async-trait = "0.1.52"
 actix = "0.13"
-mlua = { version = "0.7.3", features=["lua54", "async", "serde", "macros"] }
+rhai = {version = "1.7.0"}
+mlua = { version = "0.8.1", features=["lua54", "async", "serde", "macros", "vendored"] }
 libloading = "0.7"
 toml = "0.4.2"
 aquamarine = "0.1.11"

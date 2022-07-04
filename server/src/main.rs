@@ -7,6 +7,9 @@ pub(crate) mod server;
 pub(crate) mod client_management;
 pub(crate) mod network;
 pub(crate) mod prelude;
+pub(crate) mod rhai;
+pub(crate) mod lua;
+pub(crate) mod scripting;
 
 use std::env::args;
 use server::Server;
