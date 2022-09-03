@@ -10,6 +10,7 @@ use foundation::messages::network::NetworkSockOut::GotInfo;
 use crate::client_management::{ClientManager, ClientManagerOutput};
 use crate::client_management::client::Client;
 use crate::client_management::ClientManagerMessage::AddClient;
+use crate::config_manager::ConfigManager;
 use crate::lua::LuaManager;
 use crate::rhai::RhaiManager;
 use crate::network::{Connection, NetworkManager, NetworkMessage, NetworkOutput};
@@ -29,8 +30,8 @@ pub struct Server {
 }
 
 impl Server {
-	pub fn create() -> builder::ServerBuilder {
-		ServerBuilder::new()
+	pub(crate) fn create(config_manager: Addr<ConfigManager>) -> builder::ServerBuilder {
+		ServerBuilder::new(config_manager)
 	}
 
 	pub(crate) fn client_request(

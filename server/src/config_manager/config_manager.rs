@@ -30,7 +30,7 @@ pub(crate) struct ConfigManager {
 }
 
 impl ConfigManager {
-	pub fn new(file: Option<String>) -> Addr<Self> {
+	pub fn shared(file: Option<String>) -> Addr<Self> {
 		INIT.call_once(|| {
 			// Since this access is inside a call_once, before any other accesses, it is safe
 			unsafe {
@@ -70,7 +70,7 @@ impl ConfigManager {
 }
 
 impl ConfigManager {
-	pub(crate) fn get_value(
+	pub fn get_value(
 		&self,
 		val_path: String,
 	) -> Result<ConfigValue, &'static str> {
@@ -94,6 +94,52 @@ impl ConfigManager {
 			}
 		}
 		Ok(current_node.clone())
+	}
+
+	// this doesn't work for now
+	pub fn set_value(&self, val_path: String) -> Result<(), &'static str> {
+		use ConfigValue::{Array, Dict};
+
+		let path: Vec<String> = val_path.split('.').map(|v| v.into()).collect();
+		let mut current_node: &ConfigValue = &self.root;
+		let mut next_node: Option<&ConfigValue> = None;
+
+		// check that the current
+		for i in path {
+			match current_node {
+				Dict(v) => {
+					if v.contains_key(&i) {
+						next_node = v.get(&i);
+					} else {
+						return Err("invalid path");
+					}
+				}
+				Array(v) => {
+					if let Ok(index) = i.parse::<usize>() {
+						if v.len() > index {
+							next_node = v.get(index)
+						} else {
+							return Err("invalid path");
+						}
+					}
+				}
+				_ => return Err("invalid path"),
+			}
+
+			match next_node {
+				Some(a @ Dict(_) | a @ Array(_)) => {
+					current_node = a;
+					continue;
+				}
+				_ => return Err("invalid path"),
+			}
+		}
+
+		if let Dict(v) = current_node {
+		} else if let Dict(v) = current_node {
+		}
+
+		Ok(())
 	}
 }
 
