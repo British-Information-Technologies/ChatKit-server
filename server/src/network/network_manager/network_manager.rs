@@ -136,11 +136,11 @@ impl Handler<NetworkMessage> for NetworkManager {
 }
 
 impl Handler<NetworkDataMessage> for NetworkManager {
-	type Result = ();
+	type Result = NetworkDataOutput;
 
 	fn handle(&mut self, msg: NetworkDataMessage, ctx: &mut Self::Context) -> Self::Result {
 		match msg {
-			NetworkDataMessage::IsListening => NetworkDataOutput::IsListening(if self.)
+			NetworkDataMessage::IsListening => NetworkDataOutput::IsListening(self.listener_addr.is_some())
 		}
 	}
 }
