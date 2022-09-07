@@ -10,6 +10,7 @@ use toml::Value;
 
 use crate::{
 	config_manager::{
+		builder::Builder,
 		get_args,
 		messages::{
 			ConfigManagerDataMessage, ConfigManagerDataResponse,
@@ -23,6 +24,7 @@ use crate::{
 static mut SHARED: Option<Addr<ConfigManager>> = None;
 static INIT: Once = Once::new();
 
+#[allow(dead_code)]
 pub(crate) struct ConfigManager {
 	file: File,
 	stored: ConfigValue,
@@ -30,58 +32,26 @@ pub(crate) struct ConfigManager {
 	subscribers: Vec<Recipient<ObservableMessage<ConfigManagerOutput>>>,
 }
 
+// static methods
 impl ConfigManager {
-	pub fn shared(file: Option<String>) -> Addr<Self> {
+	pub fn shared() -> Addr<Self> {
 		INIT.call_once(|| {
-			// Since this access is inside a call_once, before any other accesses, it is safe
-			unsafe {
-				let mut file = Self::get_file();
-				let shared = Self::new(file);
+			let args = get_args();
+			let mut builder = Self::create();
 
-				SHARED = Some(shared);
-			}
+			args.get_one::<String>("config file")
+				.map(|p| builder.set_config_path(p));
+			unsafe { SHARED = Some(builder.build()) }
 		});
 		unsafe { SHARED.clone().unwrap() }
 	}
 
-	fn new(mut file: File) -> Addr<Self> {
-		let mut output = String::new();
-		file.read_to_string(&mut output)
-			.expect("failed to read from file");
-
-		let stored = output
-			.parse::<Value>()
-			.map(|v| v.into())
-			.ok()
-			.unwrap_or_else(|| ConfigValue::Dict(BTreeMap::new()));
-
-		let root = stored.clone();
-
-		Self {
-			file,
-			root,
-			stored,
-			subscribers: Vec::default(),
-		}
-		.start()
-	}
-
-	fn get_file() -> File {
-		let default = "./config_file.toml".to_owned();
-
-		let args = get_args();
-		let file_path =
-			args.get_one::<String>("config file").unwrap_or(&default);
-
-		OpenOptions::new()
-			.write(true)
-			.read(true)
-			.open(file_path)
-			.ok()
-			.unwrap()
+	pub(super) fn create() -> Builder {
+		Builder::new()
 	}
 }
 
+// instance methods
 impl ConfigManager {
 	pub fn get_value(&self, key: String) -> Result<ConfigValue, &'static str> {
 		use ConfigValue::Dict;
@@ -151,6 +121,34 @@ impl Handler<ConfigManagerDataMessage> for ConfigManager {
 				self.set_value(key, value)
 			}
 			ConfigManagerDataMessage::SoftSetValue(_, _) => Ok(SetValue),
+		}
+	}
+}
+
+impl From<Builder> for ConfigManager {
+	fn from(builder: Builder) -> Self {
+		let mut file = OpenOptions::new()
+			.write(true)
+			.read(true)
+			.open(builder.file_path)
+			.ok()
+			.unwrap();
+
+		let mut output = String::new();
+		file.read_to_string(&mut output)
+			.expect("failed to read from file");
+
+		let stored = output
+			.parse::<Value>()
+			.map(|v| v.into())
+			.ok()
+			.unwrap_or_else(|| ConfigValue::Dict(BTreeMap::new()));
+
+		Self {
+			file,
+			root: stored.clone(),
+			stored,
+			subscribers: Vec::default(),
 		}
 	}
 }

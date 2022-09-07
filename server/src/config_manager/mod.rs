@@ -3,6 +3,7 @@
 //! It tries to implement a singleton actor, that will be fetchable globaly.
 
 mod arg_fetcher;
+mod builder;
 mod config_manager;
 mod messages;
 mod types;
