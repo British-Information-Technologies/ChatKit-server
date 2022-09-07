@@ -130,6 +130,7 @@ impl From<Builder> for ConfigManager {
 		let mut file = OpenOptions::new()
 			.write(true)
 			.read(true)
+			.create(true)
 			.open(builder.file_path)
 			.ok()
 			.unwrap();
