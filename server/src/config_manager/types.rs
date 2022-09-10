@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Index;
-use serde::{Serialize, Deserialize};
 use toml::value::Value;
 
-pub enum Error {
-	UnknownField,
+#[derive(Debug)]
+pub enum ConfigError {
+	NoKey,
 	IncompatableValue,
 	NoValue,
 }
@@ -12,7 +13,7 @@ pub enum Error {
 /// # ConfigValue
 /// Each value type that can be used within a config file.
 /// gets used when reading and writing to a config file.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ConfigValue {
 	Dict(BTreeMap<String, Self>),
 	Array(Vec<Self>),
@@ -26,11 +27,11 @@ impl From<ConfigValue> for Value {
 	fn from(v: ConfigValue) -> Self {
 		match v {
 			ConfigValue::Dict(dict) => Value::Table(
-				dict.into_iter().map(|(k,v)| (k, v.into())).collect()
+				dict.into_iter().map(|(k, v)| (k, v.into())).collect(),
 			),
-			ConfigValue::Array(arr) => Value::Array(
-				arr.into_iter().map(|v| v.into()).collect()
-			),
+			ConfigValue::Array(arr) => {
+				Value::Array(arr.into_iter().map(|v| v.into()).collect())
+			}
 			ConfigValue::String(s) => Value::String(s),
 			ConfigValue::Number(n) => Value::Integer(n),
 			ConfigValue::Float(f) => Value::Float(f),
@@ -43,11 +44,11 @@ impl From<Value> for ConfigValue {
 	fn from(v: Value) -> Self {
 		match v {
 			Value::Table(dict) => ConfigValue::Dict(
-				dict.into_iter().map(|(k,v)| (k, v.into())).collect()
+				dict.into_iter().map(|(k, v)| (k, v.into())).collect(),
 			),
-			Value::Array(arr) => ConfigValue::Array(
-				arr.into_iter().map(|v| v.into()).collect()
-			),
+			Value::Array(arr) => {
+				ConfigValue::Array(arr.into_iter().map(|v| v.into()).collect())
+			}
 			Value::String(s) => ConfigValue::String(s),
 			Value::Integer(n) => ConfigValue::Number(n),
 			Value::Float(f) => ConfigValue::Float(f),
@@ -56,5 +57,3 @@ impl From<Value> for ConfigValue {
 		}
 	}
 }
-
-

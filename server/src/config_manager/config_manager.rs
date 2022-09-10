@@ -16,7 +16,7 @@ use crate::{
 			ConfigManagerDataMessage, ConfigManagerDataResponse,
 			ConfigManagerOutput,
 		},
-		types::ConfigValue,
+		types::{ConfigError, ConfigValue},
 	},
 	prelude::messages::ObservableMessage,
 };
@@ -53,7 +53,8 @@ impl ConfigManager {
 
 // instance methods
 impl ConfigManager {
-	pub fn get_value(&self, key: String) -> Result<ConfigValue, &'static str> {
+	pub fn get_value(&self, key: String) -> Result<ConfigValue, ConfigError> {
+		use ConfigError::{NoKey, NoValue};
 		use ConfigValue::Dict;
 
 		if let Dict(dict) = &self.root {
@@ -61,26 +62,44 @@ impl ConfigManager {
 			return if let Some(value) = opt_value {
 				Ok(value.clone())
 			} else {
-				Err("[ConfigManager] get_value: Value does not exist")
+				Err(NoValue)
 			};
 		}
-		Err("[ConfigManager] get_value: Key does not exist")
+		Err(NoKey)
 	}
 
-	// this doesn't work for now
 	pub fn set_value(
 		&mut self,
 		key: String,
 		value: ConfigValue,
-	) -> Result<ConfigManagerDataResponse, &'static str> {
-		use ConfigManagerDataResponse::SetValue;
+	) -> Result<ConfigValue, ConfigError> {
+		use ConfigError::IncompatableValue;
+
 		use ConfigValue::Dict;
 
-		if let Dict(dict) = &mut self.root {
-			dict.insert(key, value);
-			Ok(SetValue)
+		if let (Dict(stored), Dict(root)) = (&mut self.stored, &mut self.root) {
+			stored.insert(key.clone(), value.clone());
+			root.insert(key.clone(), value.clone());
+			Ok(value)
 		} else {
-			Err("[ConfigManager] set_value: What the hell did ou do wrong")
+			Err(IncompatableValue)
+		}
+	}
+
+	// this doesn't work for now
+	pub fn soft_set_value(
+		&mut self,
+		key: String,
+		value: ConfigValue,
+	) -> Result<ConfigValue, ConfigError> {
+		use ConfigError::IncompatableValue;
+		use ConfigValue::Dict;
+
+		if let Dict(root) = &mut self.root {
+			root.insert(key, value.clone());
+			Ok(value)
+		} else {
+			Err(IncompatableValue)
 		}
 	}
 }
@@ -88,7 +107,10 @@ impl ConfigManager {
 impl Actor for ConfigManager {
 	type Context = Context<Self>;
 
-	fn started(&mut self, _ctx: &mut Self::Context) {}
+	fn started(&mut self, _ctx: &mut Self::Context) {
+		println!("[ConfigManager] starting");
+		println!("[ConfigManager] started");
+	}
 }
 
 impl Handler<ObservableMessage<ConfigManagerOutput>> for ConfigManager {
@@ -104,23 +126,25 @@ impl Handler<ObservableMessage<ConfigManagerOutput>> for ConfigManager {
 }
 
 impl Handler<ConfigManagerDataMessage> for ConfigManager {
-	type Result = Result<ConfigManagerDataResponse, &'static str>;
+	type Result = Result<ConfigManagerDataResponse, ConfigError>;
 
 	fn handle(
 		&mut self,
 		msg: ConfigManagerDataMessage,
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ConfigManagerDataResponse::{GotValue, SetValue};
+		use ConfigManagerDataResponse::{GotValue, SetValue, SoftSetValue};
 
 		match msg {
 			ConfigManagerDataMessage::GetValue(val) => {
 				Ok(GotValue(self.get_value(val)?))
 			}
 			ConfigManagerDataMessage::SetValue(key, value) => {
-				self.set_value(key, value)
+				Ok(SetValue(key.clone(), self.set_value(key, value)?))
 			}
-			ConfigManagerDataMessage::SoftSetValue(_, _) => Ok(SetValue),
+			ConfigManagerDataMessage::SoftSetValue(key, value) => {
+				Ok(SoftSetValue(key.clone(), self.soft_set_value(key, value)?))
+			}
 		}
 	}
 }

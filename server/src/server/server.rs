@@ -97,10 +97,6 @@ impl Actor for Server {
 
 		let lm = LuaManager::create(ctx.address(), nm, cm).build();
 		self.lua_manager.replace(lm);
-
-		if let Some(net_mgr) = self.network_manager.as_ref() {
-			net_mgr.do_send(NetworkMessage::StartListening);
-		}
 	}
 }
 

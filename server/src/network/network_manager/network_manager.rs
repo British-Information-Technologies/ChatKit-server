@@ -1,4 +1,7 @@
-use crate::config_manager::ConfigManager;
+use crate::config_manager::{
+	ConfigManager, ConfigManagerDataMessage, ConfigManagerDataResponse,
+	ConfigValue,
+};
 use crate::network::listener::NetworkListener;
 use crate::network::listener::{ListenerMessage, ListenerOutput};
 use crate::network::network_manager::config::Config;
@@ -10,8 +13,10 @@ use crate::network::{
 	Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage,
 	NetworkDataOutput,
 };
+use actix::fut::wrap_future;
 use actix::{
-	Actor, Addr, AsyncContext, Context, Handler, WeakAddr, WeakRecipient,
+	Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, WeakAddr,
+	WeakRecipient,
 };
 use foundation::ClientDetails;
 
@@ -44,6 +49,9 @@ impl NetworkManager {
 
 	fn start_listener(&mut self, _ctx: &mut <Self as actix::Actor>::Context) {
 		use ListenerMessage::StartListening;
+
+		println!("[NetworkManager] got Listen message");
+
 		if let Some(addr) = self.listener_addr.as_ref() {
 			addr.do_send(StartListening);
 		}
@@ -124,12 +132,40 @@ impl Actor for NetworkManager {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		println!("[NetworkManager] started with config {:?}", self.config);
-		let recipient = ctx.address().recipient();
-		self.listener_addr.replace(NetworkListener::new(
-			format!("0.0.0.0:{}", self.config.port),
-			recipient,
-		));
+		println!("[NetworkManager] Starting");
+		let config_mgr = self.config_manager.clone().upgrade();
+
+		if let Some(config_mgr) = config_mgr {
+			let fut = wrap_future(config_mgr.send(
+				ConfigManagerDataMessage::GetValue("Network.Port".to_owned()),
+			))
+			.map(
+				|out,
+				 a: &mut NetworkManager,
+				 ctx: &mut Context<NetworkManager>| {
+					use crate::config_manager::ConfigManagerDataResponse::GotValue;
+					use crate::config_manager::ConfigValue::Number;
+
+					let recipient = ctx.address().recipient();
+					let port = out
+						.map(|inner| inner.ok())
+						.ok()
+						.unwrap_or(None)
+						.unwrap_or(GotValue(Number(5600)));
+					println!("[NetworkManager] got port: {:?}", port);
+					if let GotValue(Number(port)) = port {
+						let nl = NetworkListener::new(
+							format!("0.0.0.0:{}", port),
+							recipient,
+						);
+						nl.do_send(ListenerMessage::StartListening);
+						a.listener_addr.replace(nl);
+					}
+				},
+			);
+			ctx.spawn(fut);
+			println!("[NetworkManager] Finished Starting");
+		}
 	}
 }
 
