@@ -113,18 +113,6 @@ impl Actor for ConfigManager {
 	}
 }
 
-impl Handler<ObservableMessage<ConfigManagerOutput>> for ConfigManager {
-	type Result = ();
-
-	fn handle(
-		&mut self,
-		_msg: ObservableMessage<ConfigManagerOutput>,
-		_ctx: &mut Self::Context,
-	) -> Self::Result {
-		todo!()
-	}
-}
-
 impl Handler<ConfigManagerDataMessage> for ConfigManager {
 	type Result = Result<ConfigManagerDataResponse, ConfigError>;
 
