@@ -6,17 +6,22 @@ use std::{
 };
 
 use actix::{Actor, Addr, Context, Handler, Recipient};
+use clap::Parser;
 use toml::Value;
 
 use crate::{
 	config_manager::{
+		arg_parser::Arguments,
 		builder::Builder,
-		get_args,
 		messages::{
 			ConfigManagerDataMessage, ConfigManagerDataResponse,
 			ConfigManagerOutput,
 		},
-		types::{ConfigError, ConfigValue},
+		types::{
+			ConfigError,
+			ConfigValue::{Dict, Number, String as ConfigString},
+		},
+		ConfigValue,
 	},
 	prelude::messages::ObservableMessage,
 };
@@ -36,12 +41,8 @@ pub(crate) struct ConfigManager {
 impl ConfigManager {
 	pub fn shared() -> Addr<Self> {
 		INIT.call_once(|| {
-			let args = get_args();
-			let mut builder = Self::create();
-
-			args.get_one::<String>("config file")
-				.map(|p| builder.set_config_path(p));
-			unsafe { SHARED = Some(builder.build()) }
+			let builder = Self::create().args(Arguments::parse()).build();
+			unsafe { SHARED = Some(builder) }
 		});
 		unsafe { SHARED.clone().unwrap() }
 	}
@@ -55,7 +56,6 @@ impl ConfigManager {
 impl ConfigManager {
 	pub fn get_value(&self, key: String) -> Result<ConfigValue, ConfigError> {
 		use ConfigError::{NoKey, NoValue};
-		use ConfigValue::Dict;
 
 		if let Dict(dict) = &self.root {
 			let opt_value = dict.get(&key);
@@ -75,8 +75,6 @@ impl ConfigManager {
 	) -> Result<ConfigValue, ConfigError> {
 		use ConfigError::IncompatableValue;
 
-		use ConfigValue::Dict;
-
 		if let (Dict(stored), Dict(root)) = (&mut self.stored, &mut self.root) {
 			stored.insert(key.clone(), value.clone());
 			root.insert(key.clone(), value.clone());
@@ -93,7 +91,6 @@ impl ConfigManager {
 		value: ConfigValue,
 	) -> Result<ConfigValue, ConfigError> {
 		use ConfigError::IncompatableValue;
-		use ConfigValue::Dict;
 
 		if let Dict(root) = &mut self.root {
 			root.insert(key, value.clone());
@@ -139,6 +136,8 @@ impl Handler<ConfigManagerDataMessage> for ConfigManager {
 
 impl From<Builder> for ConfigManager {
 	fn from(builder: Builder) -> Self {
+		println!("got args: {:#?}", builder.args);
+
 		let mut file = OpenOptions::new()
 			.write(true)
 			.read(true)
@@ -155,11 +154,34 @@ impl From<Builder> for ConfigManager {
 			.parse::<Value>()
 			.map(|v| v.into())
 			.ok()
-			.unwrap_or_else(|| ConfigValue::Dict(BTreeMap::new()));
+			.unwrap_or_else(|| Dict(BTreeMap::new()));
+
+		let mut root = stored.clone();
+		if let Dict(root) = &mut root {
+			builder.args.map(|v| {
+				v.port.map(|p| {
+					root.insert("Network.Port".to_owned(), Number(p.into()))
+				});
+
+				v.name.map(|n| {
+					root.insert(
+						"Server.Name".to_owned(),
+						ConfigString(n.into()),
+					)
+				});
+
+				v.owner.map(|o| {
+					root.insert(
+						"Server.Owner".to_owned(),
+						ConfigString(o.into()),
+					)
+				});
+			});
+		}
 
 		Self {
 			file,
-			root: stored.clone(),
+			root,
 			stored,
 			subscribers: Vec::default(),
 		}
