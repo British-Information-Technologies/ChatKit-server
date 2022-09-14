@@ -1,10 +1,7 @@
-use crate::config_manager::{
-	ConfigManager, ConfigManagerDataMessage, ConfigManagerDataResponse,
-	ConfigValue,
-};
+use crate::config_manager::{ConfigManager, ConfigManagerDataMessage};
 use crate::network::listener::NetworkListener;
 use crate::network::listener::{ListenerMessage, ListenerOutput};
-use crate::network::network_manager::config::Config;
+
 use crate::network::network_manager::messages::{
 	NetworkMessage, NetworkOutput,
 };
@@ -24,7 +21,6 @@ use foundation::ClientDetails;
 /// this struct will handle all networking functionality.
 ///
 pub struct NetworkManager {
-	config: Config,
 	config_manager: WeakAddr<ConfigManager>,
 	listener_addr: Option<Addr<NetworkListener>>,
 	delegate: WeakRecipient<NetworkOutput>,
@@ -34,7 +30,6 @@ pub struct NetworkManager {
 impl NetworkManager {
 	pub fn new(delegate: WeakRecipient<NetworkOutput>) -> Addr<NetworkManager> {
 		NetworkManager {
-			config: Config { port: 5600 },
 			listener_addr: None,
 			delegate,
 			initiators: Vec::new(),
@@ -190,7 +185,7 @@ impl Handler<NetworkDataMessage> for NetworkManager {
 	fn handle(
 		&mut self,
 		msg: NetworkDataMessage,
-		ctx: &mut Self::Context,
+		_ctx: &mut Self::Context,
 	) -> Self::Result {
 		match msg {
 			NetworkDataMessage::IsListening => {
@@ -234,9 +229,6 @@ impl Handler<InitiatorOutput> for NetworkManager {
 impl From<Builder> for NetworkManager {
 	fn from(builder: Builder) -> Self {
 		Self {
-			config: Config {
-				port: builder.port.unwrap_or_else(|| 5600),
-			},
 			listener_addr: None,
 			delegate: builder.delegate,
 
