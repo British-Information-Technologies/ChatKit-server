@@ -36,10 +36,8 @@ pub struct Server {
 }
 
 impl Server {
-	pub(crate) fn create(
-		config_manager: Addr<ConfigManager>,
-	) -> builder::ServerBuilder {
-		ServerBuilder::new(config_manager)
+	pub(crate) fn create() -> builder::ServerBuilder {
+		ServerBuilder::new()
 	}
 
 	pub(crate) fn client_request(
@@ -189,7 +187,7 @@ impl Handler<ClientManagerOutput> for Server {
 }
 
 impl From<ServerBuilder> for Server {
-	fn from(builder: ServerBuilder) -> Self {
+	fn from(_builder: ServerBuilder) -> Self {
 		Server {
 			name: None,
 			owner: None,

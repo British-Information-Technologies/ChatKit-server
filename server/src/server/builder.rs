@@ -1,18 +1,15 @@
-use actix::{Actor, Addr};
-use crate::config_manager::ConfigManager;
 use super::*;
+use actix::{Actor, Addr};
 
 pub struct ServerBuilder {
-	pub(super) config: Addr<ConfigManager>,
 	pub(super) name: Option<String>,
 	pub(super) port: Option<u16>,
 	pub(super) owner: Option<String>,
 }
 
 impl<'rhai> ServerBuilder {
-	pub(super) fn new(config_manager: Addr<ConfigManager>) -> Self {
+	pub(super) fn new() -> Self {
 		Self {
-			config: config_manager,
 			name: None,
 			port: None,
 			owner: None,

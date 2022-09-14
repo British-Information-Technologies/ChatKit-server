@@ -14,12 +14,10 @@ use server::Server;
 
 use tokio::time::{sleep, Duration};
 
-use crate::config_manager::ConfigManager;
-
 /// The main function
 #[actix::main()]
 async fn main() {
-	let init = Server::create(ConfigManager::shared()).build();
+	let _init = Server::create().build();
 	loop {
 		sleep(Duration::from_millis(1000)).await;
 	}
