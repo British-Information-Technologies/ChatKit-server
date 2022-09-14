@@ -1,4 +1,3 @@
-use super::types::ConfigError;
 use crate::config_manager::types::ConfigValue;
 use actix::{Message, MessageResponse};
 
@@ -9,16 +8,16 @@ pub enum ConfigManagerOutput {
 }
 
 #[derive(Message, Debug)]
-#[rtype(result = "Result<ConfigManagerDataResponse, ConfigError>")]
+#[rtype(result = "ConfigManagerDataResponse")]
 pub enum ConfigManagerDataMessage {
 	GetValue(String),
-	SetValue(String, ConfigValue),
-	SoftSetValue(String, ConfigValue),
+	SetValue(String, Option<ConfigValue>),
+	SoftSetValue(String, Option<ConfigValue>),
 }
 
 #[derive(MessageResponse, Debug)]
 pub enum ConfigManagerDataResponse {
-	GotValue(ConfigValue),
-	SetValue(String, ConfigValue),
-	SoftSetValue(String, ConfigValue),
+	GotValue(Option<ConfigValue>),
+	SetValue(String, Option<ConfigValue>),
+	SoftSetValue(String, Option<ConfigValue>),
 }

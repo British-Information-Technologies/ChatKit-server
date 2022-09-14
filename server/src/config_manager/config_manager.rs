@@ -17,10 +17,7 @@ use crate::{
 			ConfigManagerDataMessage, ConfigManagerDataResponse,
 			ConfigManagerOutput,
 		},
-		types::{
-			ConfigError,
-			ConfigValue::{Dict, Number, String as ConfigString},
-		},
+		types::ConfigValue::{Dict, Number, String as ConfigString},
 		ConfigValue,
 	},
 	prelude::messages::ObservableMessage,
@@ -54,50 +51,46 @@ impl ConfigManager {
 
 // instance methods
 impl ConfigManager {
-	pub fn get_value(&self, key: String) -> Result<ConfigValue, ConfigError> {
-		use ConfigError::{NoKey, NoValue};
-
+	pub fn get_value(&self, key: String) -> Option<ConfigValue> {
 		if let Dict(dict) = &self.root {
-			let opt_value = dict.get(&key);
-			return if let Some(value) = opt_value {
-				Ok(value.clone())
-			} else {
-				Err(NoValue)
-			};
+			dict.get(&key).cloned()
+		} else {
+			None
 		}
-		Err(NoKey)
 	}
 
 	pub fn set_value(
 		&mut self,
 		key: String,
-		value: ConfigValue,
-	) -> Result<ConfigValue, ConfigError> {
-		use ConfigError::IncompatableValue;
-
-		if let (Dict(stored), Dict(root)) = (&mut self.stored, &mut self.root) {
-			stored.insert(key.clone(), value.clone());
-			root.insert(key.clone(), value.clone());
-			Ok(value)
-		} else {
-			Err(IncompatableValue)
-		}
+		value: Option<ConfigValue>,
+	) -> Option<ConfigValue> {
+		value.and_then(|value| {
+			if let (Dict(stored), Dict(root)) =
+				(&mut self.stored, &mut self.root)
+			{
+				stored.insert(key.clone(), value.clone());
+				root.insert(key.clone(), value.clone());
+				Some(value)
+			} else {
+				None
+			}
+		})
 	}
 
 	// this doesn't work for now
 	pub fn soft_set_value(
 		&mut self,
 		key: String,
-		value: ConfigValue,
-	) -> Result<ConfigValue, ConfigError> {
-		use ConfigError::IncompatableValue;
-
-		if let Dict(root) = &mut self.root {
-			root.insert(key, value.clone());
-			Ok(value)
-		} else {
-			Err(IncompatableValue)
-		}
+		value: Option<ConfigValue>,
+	) -> Option<ConfigValue> {
+		value.and_then(|value| {
+			if let Dict(root) = &mut self.root {
+				root.insert(key, value.clone());
+				Some(value)
+			} else {
+				None
+			}
+		})
 	}
 }
 
@@ -111,7 +104,7 @@ impl Actor for ConfigManager {
 }
 
 impl Handler<ConfigManagerDataMessage> for ConfigManager {
-	type Result = Result<ConfigManagerDataResponse, ConfigError>;
+	type Result = ConfigManagerDataResponse;
 
 	fn handle(
 		&mut self,
@@ -122,13 +115,13 @@ impl Handler<ConfigManagerDataMessage> for ConfigManager {
 
 		match msg {
 			ConfigManagerDataMessage::GetValue(val) => {
-				Ok(GotValue(self.get_value(val)?))
+				GotValue(self.get_value(val))
 			}
 			ConfigManagerDataMessage::SetValue(key, value) => {
-				Ok(SetValue(key.clone(), self.set_value(key, value)?))
+				SetValue(key.clone(), self.set_value(key, value))
 			}
 			ConfigManagerDataMessage::SoftSetValue(key, value) => {
-				Ok(SoftSetValue(key.clone(), self.soft_set_value(key, value)?))
+				SoftSetValue(key.clone(), self.soft_set_value(key, value))
 			}
 		}
 	}

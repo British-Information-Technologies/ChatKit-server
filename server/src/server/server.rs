@@ -26,8 +26,8 @@ use foundation::ClientDetails;
 /// This struct is the main actor of the server.
 /// all other actors are ran through here.
 pub struct Server {
-	name: Option<String>,
-	owner: Option<String>,
+	name: String,
+	owner: String,
 
 	network_manager: Option<Addr<NetworkManager>>,
 	client_manager: Option<Addr<ClientManager>>,
@@ -60,8 +60,8 @@ impl Server {
 		let fut = wrap_future(
 			sender.send(SendData(
 				serde_json::to_string(&GotInfo {
-					server_name: self.name.as_ref().unwrap().clone(),
-					server_owner: self.owner.as_ref().unwrap().clone(),
+					server_name: self.name.clone(),
+					server_owner: self.owner.clone(),
 				})
 				.expect("Failed to serialise"),
 			)),
@@ -106,7 +106,7 @@ impl Actor for Server {
 				);
 
 			if let GotValue(ConfigValue::String(name)) = out {
-				actor.name = Some(name);
+				actor.name = name;
 			}
 		});
 
@@ -120,7 +120,7 @@ impl Actor for Server {
 				);
 
 			if let GotValue(ConfigValue::String(owner)) = out {
-				actor.owner = Some(owner);
+				actor.owner = owner;
 			}
 		});
 
@@ -140,10 +140,10 @@ impl Handler<ServerDataMessage> for Server {
 		println!("data message");
 		match msg {
 			ServerDataMessage::Name => {
-				ServerDataResponse::Name(self.name.as_ref().unwrap().clone())
+				ServerDataResponse::Name(self.name.clone())
 			}
 			ServerDataMessage::Owner => {
-				ServerDataResponse::Owner(self.owner.as_ref().unwrap().clone())
+				ServerDataResponse::Owner(self.owner.clone())
 			}
 			ServerDataMessage::ClientManager => {
 				ServerDataResponse::ClientManager(self.client_manager.clone())
@@ -187,10 +187,10 @@ impl Handler<ClientManagerOutput> for Server {
 }
 
 impl From<ServerBuilder> for Server {
-	fn from(_builder: ServerBuilder) -> Self {
+	fn from(builder: ServerBuilder) -> Self {
 		Server {
-			name: None,
-			owner: None,
+			name: builder.name,
+			owner: builder.owner,
 
 			network_manager: None,
 			client_manager: None,

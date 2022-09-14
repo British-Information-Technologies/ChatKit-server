@@ -1,14 +1,6 @@
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
-use std::ops::Index;
-use toml::value::Value;
+use std::collections::BTreeMap;
 
-#[derive(Debug)]
-pub enum ConfigError {
-	NoKey,
-	IncompatableValue,
-	NoValue,
-}
+use toml::value::Value;
 
 /// # ConfigValue
 /// Each value type that can be used within a config file.

@@ -10,6 +10,6 @@ mod types;
 
 pub(crate) use config_manager::ConfigManager;
 pub(crate) use messages::{
-	ConfigManagerDataMessage, ConfigManagerDataResponse, ConfigManagerOutput,
+	ConfigManagerDataMessage, ConfigManagerDataResponse,
 };
 pub(crate) use types::ConfigValue;
