@@ -1,14 +1,29 @@
-use actix::{Actor, Addr, AsyncContext, Context, Handler, WeakRecipient};
-use foundation::ClientDetails;
-use crate::network::{Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage, NetworkDataOutput};
-use crate::network::listener::{ListenerMessage, ListenerOutput};
+use crate::config_manager::{
+	ConfigManager, ConfigManagerDataMessage, ConfigValue,
+};
 use crate::network::listener::NetworkListener;
-use crate::network::network_manager::Builder;
-use crate::network::network_manager::config::Config;
-use crate::network::network_manager::messages::{NetworkMessage, NetworkOutput};
+use crate::network::listener::{ListenerMessage, ListenerOutput};
 
+use crate::network::network_manager::messages::{
+	NetworkMessage, NetworkOutput,
+};
+use crate::network::network_manager::Builder;
+use crate::network::{
+	Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage,
+	NetworkDataOutput,
+};
+use actix::fut::wrap_future;
+use actix::{
+	Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, WeakAddr,
+	WeakRecipient,
+};
+use foundation::ClientDetails;
+
+/// # NetworkManager
+/// this struct will handle all networking functionality.
+///
 pub struct NetworkManager {
-	config: Config,
+	config_manager: WeakAddr<ConfigManager>,
 	listener_addr: Option<Addr<NetworkListener>>,
 	delegate: WeakRecipient<NetworkOutput>,
 	initiators: Vec<Addr<ConnectionInitiator>>,
@@ -17,14 +32,12 @@ pub struct NetworkManager {
 impl NetworkManager {
 	pub fn new(delegate: WeakRecipient<NetworkOutput>) -> Addr<NetworkManager> {
 		NetworkManager {
-			config: Config {
-				port: 5600
-			},
 			listener_addr: None,
 			delegate,
 			initiators: Vec::new(),
+			config_manager: ConfigManager::shared().downgrade(),
 		}
-			.start()
+		.start()
 	}
 
 	pub fn create(delegate: WeakRecipient<NetworkOutput>) -> Builder {
@@ -33,6 +46,9 @@ impl NetworkManager {
 
 	fn start_listener(&mut self, _ctx: &mut <Self as actix::Actor>::Context) {
 		use ListenerMessage::StartListening;
+
+		println!("[NetworkManager] got Listen message");
+
 		if let Some(addr) = self.listener_addr.as_ref() {
 			addr.do_send(StartListening);
 		}
@@ -113,10 +129,37 @@ impl Actor for NetworkManager {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		println!("[NetworkManager] started with config {:?}", self.config);
-		let recipient = ctx.address().recipient();
-		self.listener_addr
-			.replace(NetworkListener::new(format!("0.0.0.0:{}", self.config.port), recipient));
+		println!("[NetworkManager] Starting");
+		let config_mgr = self.config_manager.clone().upgrade();
+
+		if let Some(config_mgr) = config_mgr {
+			let fut = wrap_future(config_mgr.send(
+				ConfigManagerDataMessage::GetValue("Network.Port".to_owned()),
+			))
+			.map(
+				|out,
+				 actor: &mut NetworkManager,
+				 ctx: &mut Context<NetworkManager>| {
+					use crate::config_manager::ConfigManagerDataResponse::GotValue;
+
+					let recipient = ctx.address().recipient();
+
+					out.ok().map(|res| {
+						if let GotValue(Some(ConfigValue::Number(port))) = res {
+							println!("[NetworkManager] got port: {:?}", port);
+							let nl = NetworkListener::new(
+								format!("0.0.0.0:{}", port),
+								recipient,
+							);
+							nl.do_send(ListenerMessage::StartListening);
+							actor.listener_addr.replace(nl);
+						};
+					});
+				},
+			);
+			ctx.spawn(fut);
+			println!("[NetworkManager] Finished Starting");
+		}
 	}
 }
 
@@ -136,11 +179,17 @@ impl Handler<NetworkMessage> for NetworkManager {
 }
 
 impl Handler<NetworkDataMessage> for NetworkManager {
-	type Result = ();
+	type Result = NetworkDataOutput;
 
-	fn handle(&mut self, msg: NetworkDataMessage, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: NetworkDataMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		match msg {
-			NetworkDataMessage::IsListening => NetworkDataOutput::IsListening(if self.)
+			NetworkDataMessage::IsListening => {
+				NetworkDataOutput::IsListening(self.listener_addr.is_some())
+			}
 		}
 	}
 }
@@ -179,13 +228,11 @@ impl Handler<InitiatorOutput> for NetworkManager {
 impl From<Builder> for NetworkManager {
 	fn from(builder: Builder) -> Self {
 		Self {
-			config: Config {
-				port: builder.port.unwrap_or_else(|| 5600),
-			},
 			listener_addr: None,
 			delegate: builder.delegate,
 
-			initiators: Vec::default()
+			initiators: Vec::default(),
+			config_manager: ConfigManager::shared().downgrade(),
 		}
 	}
 }

@@ -5,9 +5,9 @@
 mod builder;
 mod messages;
 mod network_manager;
-mod config;
 
-use config::*;
-pub(crate) use network_manager::{NetworkManager};
 pub(crate) use builder::*;
-pub(crate) use messages::{NetworkMessage, NetworkOutput, NetworkDataMessage, NetworkDataOutput};
+pub(crate) use messages::{
+	NetworkDataMessage, NetworkDataOutput, NetworkMessage, NetworkOutput,
+};
+pub(crate) use network_manager::NetworkManager;

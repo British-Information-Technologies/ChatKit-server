@@ -1,33 +1,26 @@
-use actix::{Actor, Addr};
 use super::*;
+use actix::{Actor, Addr};
 
 pub struct ServerBuilder {
-	pub(super) name: Option<String>,
-	pub(super) port: Option<u16>,
-	pub(super) owner: Option<String>,
+	pub(super) name: String,
+	pub(super) owner: String,
 }
 
 impl<'rhai> ServerBuilder {
 	pub(super) fn new() -> Self {
 		Self {
-			name: None,
-			port: None,
-			owner: None,
+			name: "<UNKNOWN>".into(),
+			owner: "<UNKNOWN>".into(),
 		}
 	}
 
-	pub fn port(mut self, port: u16) -> Self {
-		self.port = Some(port);
-		self
-	}
-
 	pub fn name(mut self, name: String) -> Self {
-		self.name = Some(name);
+		self.name = name;
 		self
 	}
 
 	pub fn owner(mut self, owner: String) -> Self {
-		self.owner = Some(owner);
+		self.owner = owner;
 		self
 	}
 

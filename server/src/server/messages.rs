@@ -1,13 +1,11 @@
-use actix::{Addr, Message, MessageResponse};
 use crate::client_management::ClientManager;
 use crate::network::NetworkManager;
-
+use actix::{Addr, Message, MessageResponse};
 
 #[derive(Message, Clone)]
 #[rtype(result = "ServerDataResponse")]
 pub enum ServerDataMessage {
 	Name,
-	Port,
 	Owner,
 	ClientManager,
 	NetworkManager,

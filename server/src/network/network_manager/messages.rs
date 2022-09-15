@@ -18,7 +18,7 @@ pub enum NetworkOutput {
 }
 
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
-#[rtype(result = "()")]
+#[rtype(result = "NetworkDataOutput")]
 pub enum NetworkDataMessage {
 	IsListening
 }
