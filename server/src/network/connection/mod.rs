@@ -1,27 +1,14 @@
 use std::{io::Write, net::SocketAddr, pin::Pin, sync::Arc};
 
 use actix::{
-	fut::wrap_future,
-	Actor,
-	ActorContext,
-	Addr,
-	AsyncContext,
-	Context,
-	Handler,
-	Message,
-	Recipient,
-	SpawnHandle,
+	fut::wrap_future, Actor, ActorContext, Addr, AsyncContext, Context,
+	Handler, Message, Recipient, SpawnHandle,
 };
 use futures::{future::join_all, Future, FutureExt};
-use serde::Serialize;
+
 use tokio::{
 	io::{
-		split,
-		AsyncBufReadExt,
-		AsyncWriteExt,
-		BufReader,
-		ReadHalf,
-		WriteHalf,
+		split, AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf,
 	},
 	net::TcpStream,
 	sync::Mutex,
@@ -64,7 +51,7 @@ pub struct Connection {
 	write_half: Arc<Mutex<WriteHalf<TcpStream>>>,
 	address: SocketAddr,
 	observers: Vec<Recipient<ConnectionOuput>>,
-	loop_future: Option<SpawnHandle>,
+	_loop_future: Option<SpawnHandle>,
 }
 
 impl Connection {
@@ -78,7 +65,7 @@ impl Connection {
 			write_half: Arc::new(Mutex::new(write_half)),
 			address,
 			observers: Vec::new(),
-			loop_future: None,
+			_loop_future: None,
 		}
 		.start()
 	}
@@ -113,7 +100,8 @@ impl Actor for Connection {
 				}
 
 				println!("[Connection] read line");
-				addr.send(UpdateObserversWithData(buffer_string.clone()))
+				let _ = addr
+					.send(UpdateObserversWithData(buffer_string.clone()))
 					.await;
 				buffer_string.clear();
 			}
@@ -171,8 +159,8 @@ impl Handler<ConnectionMessage> for Connection {
 					println!("[Connection] sending data");
 					let mut lock = writer.lock().await;
 					let mut buffer = Vec::new();
-					writeln!(&mut buffer, "{}", d.as_str());
-					lock.write_all(&buffer).await;
+					let _ = writeln!(&mut buffer, "{}", d.as_str());
+					let _ = lock.write_all(&buffer).await;
 				}));
 			}
 			CloseConnection => ctx.stop(),
