@@ -1,14 +1,7 @@
 use std::net::SocketAddr;
 
 use actix::{
-	Actor,
-	ActorContext,
-	Addr,
-	AsyncContext,
-	Context,
-	Handler,
-	Message,
-	Recipient,
+	Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
 	WeakRecipient,
 };
 use foundation::{
@@ -24,12 +17,6 @@ use crate::{
 	network::{connection::ConnectionOuput, Connection, ConnectionMessage},
 	prelude::messages::ObservableMessage,
 };
-
-#[derive(Debug, Clone, Copy)]
-enum ConnectionPhase {
-	Started,
-	Requested,
-}
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -65,13 +52,11 @@ impl ConnectionInitiator {
 		&mut self,
 		sender: Addr<Connection>,
 		ctx: &mut <Self as Actor>::Context,
-		address: SocketAddr,
+		_address: SocketAddr,
 		data: String,
 	) {
 		use InitiatorOutput::{ClientRequest, InfoRequest};
 		use NetworkSockIn::{Connect, Info};
-		use NetworkSockOut::{Connecting, GotInfo};
-		use ObservableMessage::Unsubscribe;
 
 		let msg = from_str::<NetworkSockIn>(data.as_str());
 		if let Err(e) = msg.as_ref() {
@@ -155,8 +140,8 @@ impl Handler<ConnectionOuput> for ConnectionInitiator {
 		msg: ConnectionOuput,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
-		use ConnectionOuput::{ConnectionClosed, RecvData};
-		use ConnectionPhase::Requested;
+		use ConnectionOuput::RecvData;
+
 		if let RecvData(sender, addr, data) = msg {
 			self.handle_request(sender, ctx, addr, data)
 		}

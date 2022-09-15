@@ -1,46 +1,31 @@
 use std::collections::HashMap;
 
 use actix::{
-	Actor,
-	ActorFutureExt,
-	ActorStreamExt,
-	Addr,
-	ArbiterHandle,
-	AsyncContext,
-	Context,
-	fut::{wrap_future, wrap_stream},
-	Handler,
-	MailboxError,
-	Message,
-	MessageResponse,
-	Recipient,
-	Running,
-	StreamHandler,
-	WeakAddr,
+	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, WeakAddr,
 	WeakRecipient,
 };
-use foundation::{
-	ClientDetails,
-	messages::client::{ClientStreamIn, ClientStreamIn::SendGlobalMessage},
-};
-use futures::{SinkExt, TryStreamExt};
+use foundation::ClientDetails;
+
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
-use crate::{
-	network::NetworkOutput,
-	prelude::messages::ObservableMessage,
-};
-use crate::client_management::client::{Client, ClientDataResponse};
-use crate::client_management::client::{ClientDataMessage, ClientMessage, ClientObservableMessage};
 use crate::client_management::client::ClientDataResponse::Details;
 use crate::client_management::client::ClientMessage::SendMessage;
-use crate::client_management::messages::{ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage, ClientManagerOutput};
-use crate::client_management::messages::ClientManagerDataResponse::{ClientCount, Clients};
+use crate::client_management::client::{Client, ClientDataResponse};
+use crate::client_management::client::{
+	ClientDataMessage, ClientObservableMessage,
+};
+use crate::client_management::messages::ClientManagerDataResponse::{
+	ClientCount, Clients,
+};
+use crate::client_management::messages::{
+	ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage,
+	ClientManagerOutput,
+};
 
 pub struct ClientManager {
 	clients: HashMap<Uuid, Addr<Client>>,
-	delegate: WeakRecipient<ClientManagerOutput>,
+	_delegate: WeakRecipient<ClientManagerOutput>,
 }
 
 impl ClientManager {
@@ -48,10 +33,10 @@ impl ClientManager {
 		delegate: WeakRecipient<ClientManagerOutput>,
 	) -> Addr<Self> {
 		ClientManager {
-			delegate,
+			_delegate: delegate,
 			clients: HashMap::new(),
 		}
-			.start()
+		.start()
 	}
 
 	pub(crate) fn send_update(
@@ -61,19 +46,24 @@ impl ClientManager {
 	) {
 		println!("[ClientManager] sending update to client");
 		use crate::client_management::client::ClientMessage::SendUpdate;
-		let self_addr = ctx.address();
 		if let Some(to_send) = addr.upgrade() {
 			let client_addr: Vec<Addr<Client>> =
 				self.clients.iter().map(|(_, v)| v).cloned().collect();
 
 			let collection = tokio_stream::iter(client_addr)
 				.then(|addr| addr.send(ClientDataMessage::Details))
-				.map(|val| if let Details(details) = val.unwrap() { details } else { ClientDetails::default() })
+				.map(|val| {
+					if let Details(details) = val.unwrap() {
+						details
+					} else {
+						ClientDetails::default()
+					}
+				})
 				.collect();
 
 			let fut = wrap_future(async move {
 				let a: Vec<_> = collection.await;
-				to_send.send(SendUpdate(a)).await;
+				let _ = to_send.send(SendUpdate(a)).await;
 			});
 
 			ctx.spawn(fut);
@@ -84,7 +74,7 @@ impl ClientManager {
 		&self,
 		ctx: &mut Context<ClientManager>,
 		sender: WeakAddr<Client>,
-		uuid: Uuid,
+		_uuid: Uuid,
 		content: String,
 	) {
 		println!("[ClientManager] sending message to client");
@@ -94,10 +84,12 @@ impl ClientManager {
 		let collection = tokio_stream::iter(client_addr)
 			.then(|addr| addr.send(ClientDataMessage::Details))
 			.map(|val| val.unwrap())
-			.map(|val: ClientDataResponse| if let Details(details) = val {
-				details
-			} else {
-				ClientDetails::default()
+			.map(|val: ClientDataResponse| {
+				if let Details(details) = val {
+					details
+				} else {
+					ClientDetails::default()
+				}
 			})
 			.collect();
 
@@ -114,8 +106,11 @@ impl ClientManager {
 
 				let client_details: Vec<ClientDetails> = collection.await;
 				let pos = client_details.iter().position(|i| i.uuid == from);
-				if let Some(pos) = pos {
-					sender.send(SendMessage { content, from }).await.expect("TODO: panic message");
+				if let Some(_) = pos {
+					sender
+						.send(SendMessage { content, from })
+						.await
+						.expect("TODO: panic message");
 				}
 			}
 		});
@@ -135,7 +130,6 @@ impl ClientManager {
 
 		if let Some(sender) = sender.upgrade() {
 			let fut = wrap_future(async move {
-
 				let details: ClientDataResponse =
 					sender.send(ClientDataMessage::Details).await.unwrap();
 
@@ -153,7 +147,8 @@ impl ClientManager {
 						})
 					})
 					.collect();
-				let a: Vec<_> = collection.await;
+				// this is shit, i dont need this
+				let _: Vec<_> = collection.await;
 			});
 			ctx.spawn(fut);
 		}
@@ -185,7 +180,7 @@ impl ClientManager {
 impl Actor for ClientManager {
 	type Context = Context<Self>;
 
-	fn started(&mut self, ctx: &mut Self::Context) {
+	fn started(&mut self, _ctx: &mut Self::Context) {
 		println!("[ClientManager] started");
 	}
 }
@@ -216,9 +211,7 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use crate::client_management::client::ClientObservableMessage::{
-			SendGlobalMessageRequest,
-			SendMessageRequest,
-			UpdateRequest,
+			SendGlobalMessageRequest, SendMessageRequest, UpdateRequest,
 		};
 		match msg {
 			SendMessageRequest(addr, uuid, content) => {
@@ -228,7 +221,6 @@ impl Handler<ClientObservableMessage> for ClientManager {
 				self.send_global_message_request(ctx, addr, content)
 			}
 			UpdateRequest(addr) => self.send_update(ctx, addr),
-			_ => todo!(),
 		}
 	}
 }
@@ -236,16 +228,18 @@ impl Handler<ClientObservableMessage> for ClientManager {
 impl Handler<ClientManagerDataMessage> for ClientManager {
 	type Result = ClientManagerDataResponse;
 
-	fn handle(&mut self, msg: ClientManagerDataMessage, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientManagerDataMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		match msg {
 			ClientManagerDataMessage::ClientCount => {
 				ClientCount(self.clients.values().count())
 			}
-			ClientManagerDataMessage::Clients => Clients(
-				self.clients.values()
-					.map(|a| a.downgrade())
-					.collect()
-			)
+			ClientManagerDataMessage::Clients => {
+				Clients(self.clients.values().map(|a| a.downgrade()).collect())
+			}
 		}
 	}
 }

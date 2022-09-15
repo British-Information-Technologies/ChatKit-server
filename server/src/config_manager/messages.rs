@@ -4,6 +4,7 @@ use actix::{Message, MessageResponse};
 #[derive(Message, Debug)]
 #[rtype(result = "()")]
 pub enum ConfigManagerOutput {
+	#[allow(dead_code)]
 	ConfigUpdated(String, ConfigValue),
 }
 
@@ -11,7 +12,9 @@ pub enum ConfigManagerOutput {
 #[rtype(result = "ConfigManagerDataResponse")]
 pub enum ConfigManagerDataMessage {
 	GetValue(String),
+	#[allow(dead_code)]
 	SetValue(String, Option<ConfigValue>),
+	#[allow(dead_code)]
 	SoftSetValue(String, Option<ConfigValue>),
 }
 

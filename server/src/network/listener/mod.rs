@@ -1,23 +1,12 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
 use actix::{
-	fut::wrap_future,
-	Actor,
-	Addr,
-	AsyncContext,
-	Context,
-	Handler,
-	Message,
-	Recipient,
-	SpawnHandle,
+	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message,
+	Recipient, SpawnHandle,
 };
 use tokio::net::TcpListener;
 
-use crate::network::{
-	connection::Connection,
-	ConnectionInitiator,
-	InitiatorOutput,
-};
+use crate::network::connection::Connection;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -58,9 +47,8 @@ impl NetworkListener {
 	fn start_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
 		println!("[NetworkListener] started listening");
 		let addr = self.address.clone();
-		let self_addr = ctx.address();
 		let delegate = self.delegate.clone();
-		let loop_future = ctx.spawn(wrap_future(async move {
+		ctx.spawn(wrap_future(async move {
 			use ListenerOutput::NewConnection;
 			let listener = TcpListener::bind(addr).await.unwrap();
 			while let Ok((stream, addr)) = listener.accept().await {
