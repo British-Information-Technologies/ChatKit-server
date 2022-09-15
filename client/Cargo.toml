@@ -18,5 +18,5 @@ futures = "0.3.16"
 
 async-trait = "0.1.52"
 
-serverlib = {path = '../server'}
+server = {path = '../server'}
 foundation = {path = '../foundation'}
