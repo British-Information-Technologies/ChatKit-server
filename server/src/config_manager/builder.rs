@@ -21,17 +21,9 @@ impl Builder {
 		self
 	}
 
-	pub fn set_config_path(&mut self, path: impl Into<String>) {
-		self.file_path = path.into();
-	}
-
 	pub fn args(mut self, args: Arguments) -> Self {
 		self.args.replace(args);
 		self
-	}
-
-	pub fn set_args(&mut self, args: Arguments) {
-		self.args.replace(args);
 	}
 
 	pub(super) fn build(self) -> Addr<ConfigManager> {
