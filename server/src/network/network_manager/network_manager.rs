@@ -1,4 +1,6 @@
-use crate::config_manager::{ConfigManager, ConfigManagerDataMessage};
+use crate::config_manager::{
+	ConfigManager, ConfigManagerDataMessage, ConfigValue,
+};
 use crate::network::listener::NetworkListener;
 use crate::network::listener::{ListenerMessage, ListenerOutput};
 
@@ -136,26 +138,23 @@ impl Actor for NetworkManager {
 			))
 			.map(
 				|out,
-				 a: &mut NetworkManager,
+				 actor: &mut NetworkManager,
 				 ctx: &mut Context<NetworkManager>| {
 					use crate::config_manager::ConfigManagerDataResponse::GotValue;
-					use crate::config_manager::ConfigValue::Number;
 
 					let recipient = ctx.address().recipient();
-					let port = out
-						.map(|inner| inner.ok())
-						.ok()
-						.unwrap_or(None)
-						.unwrap_or(GotValue(Number(5600)));
-					println!("[NetworkManager] got port: {:?}", port);
-					if let GotValue(Number(port)) = port {
-						let nl = NetworkListener::new(
-							format!("0.0.0.0:{}", port),
-							recipient,
-						);
-						nl.do_send(ListenerMessage::StartListening);
-						a.listener_addr.replace(nl);
-					}
+
+					out.ok().map(|res| {
+						if let GotValue(Some(ConfigValue::Number(port))) = res {
+							println!("[NetworkManager] got port: {:?}", port);
+							let nl = NetworkListener::new(
+								format!("0.0.0.0:{}", port),
+								recipient,
+							);
+							nl.do_send(ListenerMessage::StartListening);
+							actor.listener_addr.replace(nl);
+						};
+					});
 				},
 			);
 			ctx.spawn(fut);

@@ -100,28 +100,22 @@ impl Actor for Server {
 			ConfigManager::shared().send(GetValue("Server.Name".to_owned())),
 		)
 		.map(|out, actor: &mut Server, _ctx| {
-			let out =
-				out.map(|inner| inner.ok()).ok().unwrap_or(None).unwrap_or(
-					GotValue(ConfigValue::String("<UNKNOWN>".to_owned())),
-				);
-
-			if let GotValue(ConfigValue::String(name)) = out {
-				actor.name = name;
-			}
+			out.ok().map(|res| {
+				if let GotValue(Some(ConfigValue::String(val))) = res {
+					actor.name = val
+				};
+			});
 		});
 
 		let owner_fut = wrap_future(
 			ConfigManager::shared().send(GetValue("Server.Owner".to_owned())),
 		)
 		.map(|out, actor: &mut Server, _ctx| {
-			let out =
-				out.map(|inner| inner.ok()).ok().unwrap_or(None).unwrap_or(
-					GotValue(ConfigValue::String("<UNKNOWN>".to_owned())),
-				);
-
-			if let GotValue(ConfigValue::String(owner)) = out {
-				actor.owner = owner;
-			}
+			out.ok().map(|res| {
+				if let GotValue(Some(ConfigValue::String(val))) = res {
+					actor.owner = val
+				};
+			});
 		});
 
 		ctx.spawn(name_fut);
