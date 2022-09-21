@@ -3,9 +3,7 @@ use crate::scripting::scriptable_network_manager::ScriptableNetworkManager;
 use actix::Addr;
 use mlua::{Error, UserData, UserDataMethods};
 
-use crate::server::ServerDataResponse::{
-	ClientManager, Name, NetworkManager, Owner,
-};
+use crate::server::ServerDataResponse::{ClientManager, Name, NetworkManager, Owner};
 use crate::server::*;
 
 #[derive(Clone)]
@@ -39,35 +37,29 @@ impl UserData for ScriptableServer {
 			}
 		});
 
-		methods.add_async_method(
-			"client_manager",
-			|_lua, obj, ()| async move {
-				let name: Option<ServerDataResponse> =
-					obj.addr.send(ServerDataMessage::ClientManager).await.ok();
-				if let Some(ClientManager(Some(cm))) = name {
-					Ok(ScriptableClientManager::from(cm))
-				} else {
-					Err(Error::RuntimeError(
-						"Name returned null or other value".to_string(),
-					))
-				}
-			},
-		);
+		methods.add_async_method("client_manager", |_lua, obj, ()| async move {
+			let name: Option<ServerDataResponse> =
+				obj.addr.send(ServerDataMessage::ClientManager).await.ok();
+			if let Some(ClientManager(Some(cm))) = name {
+				Ok(ScriptableClientManager::from(cm))
+			} else {
+				Err(Error::RuntimeError(
+					"Name returned null or other value".to_string(),
+				))
+			}
+		});
 
-		methods.add_async_method(
-			"network_manager",
-			|_lua, obj, ()| async move {
-				let name: Option<ServerDataResponse> =
-					obj.addr.send(ServerDataMessage::NetworkManager).await.ok();
-				if let Some(NetworkManager(Some(nm))) = name {
-					Ok(ScriptableNetworkManager::from(nm))
-				} else {
-					Err(Error::RuntimeError(
-						"Name returned null or other value".to_string(),
-					))
-				}
-			},
-		);
+		methods.add_async_method("network_manager", |_lua, obj, ()| async move {
+			let name: Option<ServerDataResponse> =
+				obj.addr.send(ServerDataMessage::NetworkManager).await.ok();
+			if let Some(NetworkManager(Some(nm))) = name {
+				Ok(ScriptableNetworkManager::from(nm))
+			} else {
+				Err(Error::RuntimeError(
+					"Name returned null or other value".to_string(),
+				))
+			}
+		});
 	}
 }
 

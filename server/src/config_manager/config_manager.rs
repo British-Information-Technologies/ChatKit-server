@@ -14,8 +14,7 @@ use crate::{
 		arg_parser::Arguments,
 		builder::Builder,
 		messages::{
-			ConfigManagerDataMessage, ConfigManagerDataResponse,
-			ConfigManagerOutput,
+			ConfigManagerDataMessage, ConfigManagerDataResponse, ConfigManagerOutput,
 		},
 		types::ConfigValue::{Dict, Number, String as ConfigString},
 		ConfigValue,
@@ -65,9 +64,7 @@ impl ConfigManager {
 		value: Option<ConfigValue>,
 	) -> Option<ConfigValue> {
 		value.and_then(|value| {
-			if let (Dict(stored), Dict(root)) =
-				(&mut self.stored, &mut self.root)
-			{
+			if let (Dict(stored), Dict(root)) = (&mut self.stored, &mut self.root) {
 				stored.insert(key.clone(), value.clone());
 				root.insert(key.clone(), value.clone());
 				Some(value)
@@ -114,9 +111,7 @@ impl Handler<ConfigManagerDataMessage> for ConfigManager {
 		use ConfigManagerDataResponse::{GotValue, SetValue, SoftSetValue};
 
 		match msg {
-			ConfigManagerDataMessage::GetValue(val) => {
-				GotValue(self.get_value(val))
-			}
+			ConfigManagerDataMessage::GetValue(val) => GotValue(self.get_value(val)),
 			ConfigManagerDataMessage::SetValue(key, value) => {
 				SetValue(key.clone(), self.set_value(key, value))
 			}
@@ -140,7 +135,8 @@ impl From<Builder> for ConfigManager {
 			.unwrap();
 
 		let mut output = String::new();
-		file.read_to_string(&mut output)
+		file
+			.read_to_string(&mut output)
 			.expect("failed to read from file");
 
 		let stored = output
@@ -152,23 +148,14 @@ impl From<Builder> for ConfigManager {
 		let mut root = stored.clone();
 		if let Dict(root) = &mut root {
 			builder.args.map(|v| {
-				v.port.map(|p| {
-					root.insert("Network.Port".to_owned(), Number(p.into()))
-				});
+				v.port
+					.map(|p| root.insert("Network.Port".to_owned(), Number(p.into())));
 
-				v.name.map(|n| {
-					root.insert(
-						"Server.Name".to_owned(),
-						ConfigString(n.into()),
-					)
-				});
+				v.name
+					.map(|n| root.insert("Server.Name".to_owned(), ConfigString(n.into())));
 
-				v.owner.map(|o| {
-					root.insert(
-						"Server.Owner".to_owned(),
-						ConfigString(o.into()),
-					)
-				});
+				v.owner
+					.map(|o| root.insert("Server.Owner".to_owned(), ConfigString(o.into())));
 			});
 		}
 

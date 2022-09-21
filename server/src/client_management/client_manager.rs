@@ -1,26 +1,35 @@
 use std::collections::HashMap;
 
 use actix::{
-	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, WeakAddr,
+	fut::wrap_future,
+	Actor,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	WeakAddr,
 	WeakRecipient,
 };
 use foundation::ClientDetails;
-
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
-use crate::client_management::client::ClientDataResponse::Details;
-use crate::client_management::client::ClientMessage::SendMessage;
-use crate::client_management::client::{Client, ClientDataResponse};
-use crate::client_management::client::{
-	ClientDataMessage, ClientObservableMessage,
-};
-use crate::client_management::messages::ClientManagerDataResponse::{
-	ClientCount, Clients,
-};
-use crate::client_management::messages::{
-	ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage,
-	ClientManagerOutput,
+use crate::client_management::{
+	client::{
+		Client,
+		ClientDataMessage,
+		ClientDataResponse,
+		ClientDataResponse::Details,
+		ClientMessage::SendMessage,
+		ClientObservableMessage,
+	},
+	messages::{
+		ClientManagerDataMessage,
+		ClientManagerDataResponse,
+		ClientManagerDataResponse::{ClientCount, Clients},
+		ClientManagerMessage,
+		ClientManagerOutput,
+	},
 };
 
 pub struct ClientManager {
@@ -29,9 +38,7 @@ pub struct ClientManager {
 }
 
 impl ClientManager {
-	pub(crate) fn new(
-		delegate: WeakRecipient<ClientManagerOutput>,
-	) -> Addr<Self> {
+	pub(crate) fn new(delegate: WeakRecipient<ClientManagerOutput>) -> Addr<Self> {
 		ClientManager {
 			_delegate: delegate,
 			clients: HashMap::new(),
@@ -39,11 +46,7 @@ impl ClientManager {
 		.start()
 	}
 
-	pub(crate) fn send_update(
-		&mut self,
-		ctx: &mut Context<Self>,
-		addr: WeakAddr<Client>,
-	) {
+	pub(crate) fn send_update(&mut self, ctx: &mut Context<Self>, addr: WeakAddr<Client>) {
 		println!("[ClientManager] sending update to client");
 		use crate::client_management::client::ClientMessage::SendUpdate;
 		if let Some(to_send) = addr.upgrade() {
@@ -211,7 +214,9 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use crate::client_management::client::ClientObservableMessage::{
-			SendGlobalMessageRequest, SendMessageRequest, UpdateRequest,
+			SendGlobalMessageRequest,
+			SendMessageRequest,
+			UpdateRequest,
 		};
 		match msg {
 			SendMessageRequest(addr, uuid, content) => {
@@ -234,9 +239,7 @@ impl Handler<ClientManagerDataMessage> for ClientManager {
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
 		match msg {
-			ClientManagerDataMessage::ClientCount => {
-				ClientCount(self.clients.values().count())
-			}
+			ClientManagerDataMessage::ClientCount => ClientCount(self.clients.values().count()),
 			ClientManagerDataMessage::Clients => {
 				Clients(self.clients.values().map(|a| a.downgrade()).collect())
 			}

@@ -26,10 +26,7 @@ impl Connection {
 		})
 	}
 
-	pub async fn connect<T: ToSocketAddrs>(
-		&self,
-		host: T,
-	) -> Result<(), Error> {
+	pub async fn connect<T: ToSocketAddrs>(&self, host: T) -> Result<(), Error> {
 		let connection = TcpStream::connect(host).await?;
 		let (rd, wd) = io::split(connection);
 

@@ -11,12 +11,7 @@ use tokio::{
 	time::sleep,
 };
 
-use crate::{
-	managers::NetworkManager,
-	worker_message::WorkerMessage,
-	Cursive,
-	TextView,
-};
+use crate::{managers::NetworkManager, worker_message::WorkerMessage, Cursive, TextView};
 
 pub type CursiveSender = CrossSender<Box<dyn FnOnce(&mut Cursive) + Send>>;
 

@@ -1,21 +1,15 @@
-use crate::config_manager::{
-	ConfigManager, ConfigManagerDataMessage, ConfigValue,
-};
+use crate::config_manager::{ConfigManager, ConfigManagerDataMessage, ConfigValue};
 use crate::network::listener::NetworkListener;
 use crate::network::listener::{ListenerMessage, ListenerOutput};
 
-use crate::network::network_manager::messages::{
-	NetworkMessage, NetworkOutput,
-};
+use crate::network::network_manager::messages::{NetworkMessage, NetworkOutput};
 use crate::network::network_manager::Builder;
 use crate::network::{
-	Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage,
-	NetworkDataOutput,
+	Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage, NetworkDataOutput,
 };
 use actix::fut::wrap_future;
 use actix::{
-	Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, WeakAddr,
-	WeakRecipient,
+	Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, WeakAddr, WeakRecipient,
 };
 use foundation::ClientDetails;
 
@@ -72,10 +66,8 @@ impl NetworkManager {
 	) {
 		println!("[NetworkManager] Got new connection");
 
-		let init = ConnectionInitiator::new(
-			ctx.address().recipient().downgrade(),
-			connection,
-		);
+		let init =
+			ConnectionInitiator::new(ctx.address().recipient().downgrade(), connection);
 		self.initiators.push(init);
 	}
 
@@ -133,13 +125,11 @@ impl Actor for NetworkManager {
 		let config_mgr = self.config_manager.clone().upgrade();
 
 		if let Some(config_mgr) = config_mgr {
-			let fut = wrap_future(config_mgr.send(
-				ConfigManagerDataMessage::GetValue("Network.Port".to_owned()),
-			))
+			let fut = wrap_future(config_mgr.send(ConfigManagerDataMessage::GetValue(
+				"Network.Port".to_owned(),
+			)))
 			.map(
-				|out,
-				 actor: &mut NetworkManager,
-				 ctx: &mut Context<NetworkManager>| {
+				|out, actor: &mut NetworkManager, ctx: &mut Context<NetworkManager>| {
 					use crate::config_manager::ConfigManagerDataResponse::GotValue;
 
 					let recipient = ctx.address().recipient();
@@ -147,10 +137,7 @@ impl Actor for NetworkManager {
 					out.ok().map(|res| {
 						if let GotValue(Some(ConfigValue::Number(port))) = res {
 							println!("[NetworkManager] got port: {:?}", port);
-							let nl = NetworkListener::new(
-								format!("0.0.0.0:{}", port),
-								recipient,
-							);
+							let nl = NetworkListener::new(format!("0.0.0.0:{}", port), recipient);
 							nl.do_send(ListenerMessage::StartListening);
 							actor.listener_addr.replace(nl);
 						};
@@ -196,11 +183,7 @@ impl Handler<NetworkDataMessage> for NetworkManager {
 
 impl Handler<ListenerOutput> for NetworkManager {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: ListenerOutput,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
+	fn handle(&mut self, msg: ListenerOutput, ctx: &mut Self::Context) -> Self::Result {
 		use ListenerOutput::NewConnection;
 		match msg {
 			NewConnection(connection) => self.new_connection(ctx, connection),
@@ -210,11 +193,7 @@ impl Handler<ListenerOutput> for NetworkManager {
 
 impl Handler<InitiatorOutput> for NetworkManager {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: InitiatorOutput,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
+	fn handle(&mut self, msg: InitiatorOutput, ctx: &mut Self::Context) -> Self::Result {
 		use InitiatorOutput::{ClientRequest, InfoRequest};
 		match msg {
 			ClientRequest(sender, addr, client_details) => {

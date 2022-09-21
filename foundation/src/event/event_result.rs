@@ -33,10 +33,7 @@ pub struct EventResultBuilder {
 }
 
 impl EventResultBuilder {
-	pub(self) fn new(
-		result_type: EventResultType,
-		sender: Sender<EventResult>,
-	) -> Self {
+	pub(self) fn new(result_type: EventResultType, sender: Sender<EventResult>) -> Self {
 		Self {
 			code: result_type,
 			args: HashMap::default(),
@@ -50,7 +47,8 @@ impl EventResultBuilder {
 	}
 
 	pub fn send(self) {
-		self.sender
+		self
+			.sender
 			.send(EventResult {
 				code: self.code,
 				args: self.args,

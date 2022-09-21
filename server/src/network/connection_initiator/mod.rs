@@ -1,8 +1,7 @@
 use std::net::SocketAddr;
 
 use actix::{
-	Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
-	WeakRecipient,
+	Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, WeakRecipient,
 };
 use foundation::{
 	messages::{
@@ -89,15 +88,10 @@ impl ConnectionInitiator {
 		}
 	}
 
-	fn error(
-		&mut self,
-		ctx: &mut <Self as Actor>::Context,
-		sender: Addr<Connection>,
-	) {
+	fn error(&mut self, ctx: &mut <Self as Actor>::Context, sender: Addr<Connection>) {
 		use ConnectionMessage::{CloseConnection, SendData};
 		sender.do_send(SendData(
-			to_string::<ClientStreamOut>(&Error)
-				.expect("failed to convert error to string"),
+			to_string::<ClientStreamOut>(&Error).expect("failed to convert error to string"),
 		));
 		sender.do_send(CloseConnection);
 		ctx.stop()
@@ -117,10 +111,12 @@ impl Actor for ConnectionInitiator {
 
 		println!("[ConnectionInitiator] started");
 
-		self.connection
+		self
+			.connection
 			.do_send(Subscribe(ctx.address().recipient()));
 
-		self.connection
+		self
+			.connection
 			.do_send(SendData(to_string(&Request).unwrap()));
 	}
 
@@ -128,18 +124,15 @@ impl Actor for ConnectionInitiator {
 	fn stopped(&mut self, ctx: &mut Self::Context) {
 		use ObservableMessage::Unsubscribe;
 		println!("[ConnectionInitiator] stopped");
-		self.connection
+		self
+			.connection
 			.do_send(Unsubscribe(ctx.address().recipient()));
 	}
 }
 
 impl Handler<ConnectionOuput> for ConnectionInitiator {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: ConnectionOuput,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
+	fn handle(&mut self, msg: ConnectionOuput, ctx: &mut Self::Context) -> Self::Result {
 		use ConnectionOuput::RecvData;
 
 		if let RecvData(sender, addr, data) = msg {

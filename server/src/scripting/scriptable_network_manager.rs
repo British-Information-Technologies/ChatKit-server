@@ -1,11 +1,11 @@
+use crate::network::NetworkDataOutput::IsListening;
+use crate::network::{NetworkDataMessage, NetworkManager};
 use actix::Addr;
 use mlua::{Error, UserData, UserDataMethods};
-use crate::network::{NetworkDataMessage, NetworkManager};
-use crate::network::NetworkDataOutput::IsListening;
 
 #[derive(Clone)]
 pub(crate) struct ScriptableNetworkManager {
-	addr: Addr<NetworkManager>
+	addr: Addr<NetworkManager>,
 }
 
 impl UserData for ScriptableNetworkManager {
@@ -15,7 +15,9 @@ impl UserData for ScriptableNetworkManager {
 			if let Some(IsListening(is_listening)) = is_listening {
 				Ok(is_listening)
 			} else {
-				Err(Error::RuntimeError("Uuid returned null or other value".to_string()))
+				Err(Error::RuntimeError(
+					"Uuid returned null or other value".to_string(),
+				))
 			}
 		});
 	}
@@ -23,8 +25,6 @@ impl UserData for ScriptableNetworkManager {
 
 impl From<Addr<NetworkManager>> for ScriptableNetworkManager {
 	fn from(addr: Addr<NetworkManager>) -> Self {
-		Self {
-			addr
-		}
+		Self { addr }
 	}
 }

@@ -1,8 +1,8 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
 use actix::{
-	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message,
-	Recipient, SpawnHandle,
+	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message, Recipient,
+	SpawnHandle,
 };
 use tokio::net::TcpListener;
 

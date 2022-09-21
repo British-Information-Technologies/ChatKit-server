@@ -33,7 +33,8 @@ impl Actor for RhaiManager {
 	type Context = Context<Self>;
 
 	fn started(&mut self, _ctx: &mut Self::Context) {
-		self.engine
+		self
+			.engine
 			.run(
 				r#"
 			print("hello rhai")

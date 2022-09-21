@@ -1,15 +1,13 @@
 use std::{io::Write, net::SocketAddr, pin::Pin, sync::Arc};
 
 use actix::{
-	fut::wrap_future, Actor, ActorContext, Addr, AsyncContext, Context,
-	Handler, Message, Recipient, SpawnHandle,
+	fut::wrap_future, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
+	Recipient, SpawnHandle,
 };
 use futures::{future::join_all, Future, FutureExt};
 
 use tokio::{
-	io::{
-		split, AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf,
-	},
+	io::{split, AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf},
 	net::TcpStream,
 	sync::Mutex,
 };
@@ -93,9 +91,10 @@ impl Actor for Connection {
 				use SelfMessage::UpdateObserversWithData;
 				if len == 0 {
 					println!("[Connection] connection closed");
-					addr.send(CloseConnection).await.expect(
-						"[Connection] failed to send close message to self",
-					);
+					addr
+						.send(CloseConnection)
+						.await
+						.expect("[Connection] failed to send close message to self");
 					return;
 				}
 
@@ -145,11 +144,7 @@ impl Handler<ObservableMessage<ConnectionOuput>> for Connection {
 
 impl Handler<ConnectionMessage> for Connection {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: ConnectionMessage,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
+	fn handle(&mut self, msg: ConnectionMessage, ctx: &mut Self::Context) -> Self::Result {
 		use ConnectionMessage::{CloseConnection, SendData};
 		let writer = self.write_half.clone();
 
@@ -170,11 +165,7 @@ impl Handler<ConnectionMessage> for Connection {
 
 impl Handler<SelfMessage> for Connection {
 	type Result = ();
-	fn handle(
-		&mut self,
-		msg: SelfMessage,
-		ctx: &mut Self::Context,
-	) -> Self::Result {
+	fn handle(&mut self, msg: SelfMessage, ctx: &mut Self::Context) -> Self::Result {
 		use ConnectionOuput::RecvData;
 		use SelfMessage::UpdateObserversWithData;
 		match msg {

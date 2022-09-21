@@ -7,6 +7,7 @@
 //! - to handle server to client communication.
 //! - to handler client lifecycle events such as dicconection.
 
+mod chat_manager;
 pub mod client;
 mod client_manager;
 mod messages;

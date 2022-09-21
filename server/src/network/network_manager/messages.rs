@@ -1,7 +1,7 @@
-use actix::Addr;
-use foundation::ClientDetails;
 use crate::network::Connection;
+use actix::Addr;
 use actix::{Message, MessageResponse};
+use foundation::ClientDetails;
 
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[rtype(result = "()")]
@@ -20,7 +20,7 @@ pub enum NetworkOutput {
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[rtype(result = "NetworkDataOutput")]
 pub enum NetworkDataMessage {
-	IsListening
+	IsListening,
 }
 
 #[derive(MessageResponse)]

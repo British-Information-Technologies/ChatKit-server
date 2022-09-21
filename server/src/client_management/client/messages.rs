@@ -1,7 +1,7 @@
-use actix::{WeakAddr, Message, MessageResponse};
-use uuid::Uuid;
-use foundation::ClientDetails;
 use crate::client_management::client::client::Client;
+use actix::{Message, MessageResponse, WeakAddr};
+use foundation::ClientDetails;
+use uuid::Uuid;
 
 /// Message sent ot the clients delegate
 #[derive(Message)]

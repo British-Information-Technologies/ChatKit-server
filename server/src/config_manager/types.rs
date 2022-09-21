@@ -18,9 +18,9 @@ pub enum ConfigValue {
 impl From<ConfigValue> for Value {
 	fn from(v: ConfigValue) -> Self {
 		match v {
-			ConfigValue::Dict(dict) => Value::Table(
-				dict.into_iter().map(|(k, v)| (k, v.into())).collect(),
-			),
+			ConfigValue::Dict(dict) => {
+				Value::Table(dict.into_iter().map(|(k, v)| (k, v.into())).collect())
+			}
 			ConfigValue::Array(arr) => {
 				Value::Array(arr.into_iter().map(|v| v.into()).collect())
 			}
@@ -35,9 +35,9 @@ impl From<ConfigValue> for Value {
 impl From<Value> for ConfigValue {
 	fn from(v: Value) -> Self {
 		match v {
-			Value::Table(dict) => ConfigValue::Dict(
-				dict.into_iter().map(|(k, v)| (k, v.into())).collect(),
-			),
+			Value::Table(dict) => {
+				ConfigValue::Dict(dict.into_iter().map(|(k, v)| (k, v.into())).collect())
+			}
 			Value::Array(arr) => {
 				ConfigValue::Array(arr.into_iter().map(|v| v.into()).collect())
 			}

@@ -41,8 +41,7 @@ impl PartialEq for NetworkManagerMessage {
 					server_name: other_name,
 				} = other
 				{
-					return server_owner == other_owner
-						&& server_name == other_name;
+					return server_owner == other_owner && server_name == other_name;
 				}
 				false
 			}
