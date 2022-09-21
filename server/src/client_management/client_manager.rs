@@ -15,6 +15,7 @@ use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 use crate::client_management::{
+	chat_manager::ChatManager,
 	client::{
 		Client,
 		ClientDataMessage,
@@ -34,6 +35,7 @@ use crate::client_management::{
 
 pub struct ClientManager {
 	clients: HashMap<Uuid, Addr<Client>>,
+	chat_manager: Addr<ChatManager>,
 	_delegate: WeakRecipient<ClientManagerOutput>,
 }
 
@@ -42,6 +44,7 @@ impl ClientManager {
 		ClientManager {
 			_delegate: delegate,
 			clients: HashMap::new(),
+			chat_manager: ChatManager::new(),
 		}
 		.start()
 	}

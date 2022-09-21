@@ -12,8 +12,11 @@ pub mod client;
 mod client_manager;
 mod messages;
 
+use chat_manager::ChatManager;
 pub(crate) use client_manager::ClientManager;
 pub(crate) use messages::{
-	ClientManagerDataMessage, ClientManagerDataResponse, ClientManagerMessage,
+	ClientManagerDataMessage,
+	ClientManagerDataResponse,
+	ClientManagerMessage,
 	ClientManagerOutput,
 };

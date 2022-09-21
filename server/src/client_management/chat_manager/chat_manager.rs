@@ -1,24 +1,38 @@
-use actix::{Actor, Context, Handler};
+use actix::{Actor, Addr, Context, Handler};
 use uuid::Uuid;
 
 use crate::client_management::chat_manager::{
-	message_type::Message, messages::ChatManagerMessage,
+	message_type::Message,
+	messages::{ChatManagerDataMessage, ChatManagerDataResponse, ChatManagerMessage},
 };
 
-struct ChatManager {
+pub(crate) struct ChatManager {
 	messages: Vec<Message>,
 }
 
 impl ChatManager {
-	pub fn new() -> Self {
+	pub fn new() -> Addr<Self> {
 		Self {
 			messages: Vec::new(),
 		}
+		.start()
 	}
 
 	// no need for a remove methods because this is a read only system
-	pub fn add_message(&mut self, id: Uuid, content: String) {
+	fn add_message(&mut self, _ctx: &mut Context<Self>, id: Uuid, content: String) {
 		self.messages.push(Message::new(id, content))
+	}
+
+	fn get_messages(&self, _ctx: &mut Context<Self>) -> ChatManagerDataResponse {
+		ChatManagerDataResponse::GotMessages(self.messages.clone())
+	}
+
+	fn get_message(
+		&self,
+		_ctx: &mut Context<Self>,
+		index: usize,
+	) -> ChatManagerDataResponse {
+		ChatManagerDataResponse::GotMessage(self.messages.get(index).cloned())
 	}
 }
 
@@ -29,13 +43,24 @@ impl Actor for ChatManager {
 impl Handler<ChatManagerMessage> for ChatManager {
 	type Result = ();
 
+	fn handle(&mut self, msg: ChatManagerMessage, ctx: &mut Self::Context) -> Self::Result {
+		match msg {
+			ChatManagerMessage::AddMessage(id, content) => self.add_message(ctx, id, content),
+		}
+	}
+}
+
+impl Handler<ChatManagerDataMessage> for ChatManager {
+	type Result = ChatManagerDataResponse;
+
 	fn handle(
 		&mut self,
-		msg: ChatManagerMessage,
-		_ctx: &mut Self::Context,
+		msg: ChatManagerDataMessage,
+		ctx: &mut Self::Context,
 	) -> Self::Result {
 		match msg {
-			ChatManagerMessage::AddMessage(id, content) => self.add_message(id, content),
+			ChatManagerDataMessage::GetMessages => self.get_messages(ctx),
+			ChatManagerDataMessage::GetMessage(index) => self.get_message(ctx, index),
 		}
 	}
 }
