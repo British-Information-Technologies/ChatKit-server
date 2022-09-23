@@ -12,7 +12,13 @@ pub mod client;
 mod client_manager;
 mod messages;
 
-use chat_manager::ChatManager;
+#[allow(unused_imports)]
+use chat_manager::{
+	ChatManager,
+	ChatManagerDataMessage,
+	ChatManagerDataResponse,
+	ChatManagerMessage,
+};
 pub(crate) use client_manager::ClientManager;
 pub(crate) use messages::{
 	ClientManagerDataMessage,

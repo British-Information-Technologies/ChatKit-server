@@ -3,19 +3,19 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Message {
-	id: Uuid,
-	from: Uuid,
-	content: String,
-	time: DateTime<Local>,
+	_id: Uuid,
+	_from: Uuid,
+	_content: String,
+	_time: DateTime<Local>,
 }
 
 impl Message {
 	pub fn new(from: Uuid, content: String) -> Self {
 		Self {
-			id: Uuid::new(),
-			from,
-			content,
-			time: Local::now(),
+			_id: Uuid::new_v4(),
+			_from: from,
+			_content: content,
+			_time: Local::now(),
 		}
 	}
 }

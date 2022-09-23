@@ -15,7 +15,7 @@ use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 use crate::client_management::{
-	chat_manager::ChatManager,
+	chat_manager::{ChatManager, ChatManagerMessage},
 	client::{
 		Client,
 		ClientDataMessage,
@@ -112,7 +112,7 @@ impl ClientManager {
 
 				let client_details: Vec<ClientDetails> = collection.await;
 				let pos = client_details.iter().position(|i| i.uuid == from);
-				if let Some(_) = pos {
+				if pos.is_some() {
 					sender
 						.send(SendMessage { content, from })
 						.await
@@ -131,13 +131,22 @@ impl ClientManager {
 		content: String,
 	) {
 		use crate::client_management::client::ClientMessage::SendGlobalMessage;
+
 		let client_addr: Vec<Addr<Client>> =
 			self.clients.iter().map(|(_, v)| v).cloned().collect();
 
 		if let Some(sender) = sender.upgrade() {
+			let cm = self.chat_manager.clone();
+
+			let snd1 = sender.clone();
+			let snd2 = sender;
+
+			let cont1 = content.clone();
+			let cont2 = content;
+
 			let fut = wrap_future(async move {
 				let details: ClientDataResponse =
-					sender.send(ClientDataMessage::Details).await.unwrap();
+					snd1.send(ClientDataMessage::Details).await.unwrap();
 
 				let from = if let Details(details) = details {
 					details.uuid
@@ -148,15 +157,28 @@ impl ClientManager {
 				let collection = tokio_stream::iter(client_addr)
 					.then(move |addr| {
 						addr.send(SendGlobalMessage {
-							content: content.clone(),
+							content: cont1.clone(),
 							from,
 						})
 					})
 					.collect();
-				// this is shit, i dont need this
 				let _: Vec<_> = collection.await;
 			});
+
+			let chat_manager_fut = wrap_future(async move {
+				let details: ClientDataResponse =
+					snd2.send(ClientDataMessage::Details).await.unwrap();
+
+				let from = if let Details(details) = details {
+					details.uuid
+				} else {
+					ClientDetails::default().uuid
+				};
+
+				let _ = cm.send(ChatManagerMessage::AddMessage(from, cont2)).await;
+			});
 			ctx.spawn(fut);
+			ctx.spawn(chat_manager_fut);
 		}
 	}
 

@@ -9,6 +9,7 @@ pub enum ChatManagerMessage {
 	AddMessage(Uuid, String),
 }
 
+#[allow(dead_code)]
 #[derive(ActixMessage, Debug)]
 #[rtype(result = "ChatManagerDataResponse")]
 pub enum ChatManagerDataMessage {

@@ -4,9 +4,14 @@
 //! - Messages
 //! - Mesage type
 
-mod chat_manager;
+mod actor;
 mod message_type;
 mod messages;
 
-pub(crate) use chat_manager::ChatManager;
+pub(crate) use actor::ChatManager;
 use message_type::Message;
+pub(crate) use messages::{
+	ChatManagerDataMessage,
+	ChatManagerDataResponse,
+	ChatManagerMessage,
+};
