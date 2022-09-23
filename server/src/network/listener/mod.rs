@@ -1,7 +1,14 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
 use actix::{
-	fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message, Recipient,
+	fut::wrap_future,
+	Actor,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	Recipient,
 	SpawnHandle,
 };
 use tokio::net::TcpListener;
@@ -46,7 +53,7 @@ impl NetworkListener {
 	/// called when the actor is to start listening
 	fn start_listening(&mut self, ctx: &mut <Self as Actor>::Context) {
 		println!("[NetworkListener] started listening");
-		let addr = self.address.clone();
+		let addr = self.address;
 		let delegate = self.delegate.clone();
 		ctx.spawn(wrap_future(async move {
 			use ListenerOutput::NewConnection;

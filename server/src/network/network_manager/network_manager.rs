@@ -1,17 +1,31 @@
-use crate::config_manager::{ConfigManager, ConfigManagerDataMessage, ConfigValue};
-use crate::network::listener::NetworkListener;
-use crate::network::listener::{ListenerMessage, ListenerOutput};
-
-use crate::network::network_manager::messages::{NetworkMessage, NetworkOutput};
-use crate::network::network_manager::Builder;
-use crate::network::{
-	Connection, ConnectionInitiator, InitiatorOutput, NetworkDataMessage, NetworkDataOutput,
-};
-use actix::fut::wrap_future;
 use actix::{
-	Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler, WeakAddr, WeakRecipient,
+	fut::wrap_future,
+	Actor,
+	ActorFutureExt,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	WeakAddr,
+	WeakRecipient,
 };
 use foundation::ClientDetails;
+
+use crate::{
+	config_manager::{ConfigManager, ConfigManagerDataMessage, ConfigValue},
+	network::{
+		listener::{ListenerMessage, ListenerOutput, NetworkListener},
+		network_manager::{
+			messages::{NetworkMessage, NetworkOutput},
+			Builder,
+		},
+		Connection,
+		ConnectionInitiator,
+		InitiatorOutput,
+		NetworkDataMessage,
+		NetworkDataOutput,
+	},
+};
 
 /// # NetworkManager
 /// this struct will handle all networking functionality.
@@ -132,16 +146,19 @@ impl Actor for NetworkManager {
 				|out, actor: &mut NetworkManager, ctx: &mut Context<NetworkManager>| {
 					use crate::config_manager::ConfigManagerDataResponse::GotValue;
 
+					println!("[NetworkManager] got config manager value {:?}", out);
+
 					let recipient = ctx.address().recipient();
 
-					out.ok().map(|res| {
-						if let GotValue(Some(ConfigValue::Number(port))) = res {
-							println!("[NetworkManager] got port: {:?}", port);
-							let nl = NetworkListener::new(format!("0.0.0.0:{}", port), recipient);
-							nl.do_send(ListenerMessage::StartListening);
-							actor.listener_addr.replace(nl);
-						};
-					});
+					let port = if let Ok(GotValue(Some(ConfigValue::Number(port)))) = out {
+						port
+					} else {
+						5600
+					};
+					println!("[NetworkManager] got port: {:?}", port);
+					let nl = NetworkListener::new(format!("0.0.0.0:{}", port), recipient);
+					nl.do_send(ListenerMessage::StartListening);
+					actor.listener_addr.replace(nl);
 				},
 			);
 			ctx.spawn(fut);

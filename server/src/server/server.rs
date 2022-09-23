@@ -1,24 +1,42 @@
 //! This crate holds the implementations and functions for the server
 //! including server boot procedures
 
-use crate::client_management::client::Client;
-use crate::client_management::ClientManagerMessage::AddClient;
-use crate::client_management::{ClientManager, ClientManagerOutput};
-use crate::config_manager::{
-	ConfigManager, ConfigManagerDataMessage, ConfigManagerDataResponse, ConfigValue,
+use actix::{
+	fut::wrap_future,
+	Actor,
+	ActorFutureExt,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
 };
-use crate::lua::LuaManager;
-use crate::network::ConnectionMessage::{CloseConnection, SendData};
-use crate::network::NetworkOutput::{InfoRequested, NewClient};
-use crate::network::{Connection, NetworkManager, NetworkOutput};
-use crate::rhai::RhaiManager;
+use foundation::{messages::network::NetworkSockOut::GotInfo, ClientDetails};
 
-use crate::server::{builder, ServerBuilder, ServerDataMessage, ServerDataResponse};
-
-use actix::fut::wrap_future;
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, Context, Handler};
-use foundation::messages::network::NetworkSockOut::GotInfo;
-use foundation::ClientDetails;
+use crate::{
+	client_management::{
+		client::Client,
+		ClientManager,
+		ClientManagerMessage::AddClient,
+		ClientManagerOutput,
+	},
+	config_manager::{
+		ConfigManager,
+		ConfigManagerDataMessage,
+		ConfigManagerDataResponse,
+		ConfigValue,
+	},
+	lua::LuaManager,
+	network::{
+		Connection,
+		ConnectionMessage::{CloseConnection, SendData},
+		NetworkManager,
+		NetworkOutput,
+		NetworkOutput::{InfoRequested, NewClient},
+	},
+	prelude::messages::NetworkMessage,
+	rhai::RhaiManager,
+	server::{builder, ServerBuilder, ServerDataMessage, ServerDataResponse},
+};
 
 /// This struct is the main actor of the server.
 /// all other actors are ran through here.
@@ -81,9 +99,10 @@ impl Actor for Server {
 		let addr = ctx.address().downgrade();
 
 		let nm = NetworkManager::create(addr.clone().recipient()).build();
+		nm.do_send(NetworkMessage::StartListening);
 		self.network_manager.replace(nm.clone());
 
-		let cm = ClientManager::new(addr.clone().recipient());
+		let cm = ClientManager::new(addr.recipient());
 		self.client_manager.replace(cm.clone());
 
 		let rm = RhaiManager::create(ctx.address(), nm.clone(), cm.clone()).build();
@@ -96,22 +115,18 @@ impl Actor for Server {
 			ConfigManager::shared().send(GetValue("Server.Name".to_owned())),
 		)
 		.map(|out, actor: &mut Server, _ctx| {
-			out.ok().map(|res| {
-				if let GotValue(Some(ConfigValue::String(val))) = res {
-					actor.name = val
-				};
-			});
+			if let Ok(GotValue(Some(ConfigValue::String(val)))) = out {
+				actor.name = val
+			}
 		});
 
 		let owner_fut = wrap_future(
 			ConfigManager::shared().send(GetValue("Server.Owner".to_owned())),
 		)
 		.map(|out, actor: &mut Server, _ctx| {
-			out.ok().map(|res| {
-				if let GotValue(Some(ConfigValue::String(val))) = res {
-					actor.owner = val
-				};
-			});
+			if let Ok(GotValue(Some(ConfigValue::String(val)))) = out {
+				actor.owner = val
+			}
 		});
 
 		ctx.spawn(name_fut);
@@ -123,7 +138,7 @@ impl Handler<ServerDataMessage> for Server {
 	type Result = ServerDataResponse;
 
 	fn handle(&mut self, msg: ServerDataMessage, _ctx: &mut Self::Context) -> Self::Result {
-		println!("data message");
+		println!("[Server] got data message");
 		match msg {
 			ServerDataMessage::Name => ServerDataResponse::Name(self.name.clone()),
 			ServerDataMessage::Owner => ServerDataResponse::Owner(self.owner.clone()),
