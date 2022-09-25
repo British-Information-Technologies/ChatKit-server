@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ClientDetails;
+use crate::{models::message::Message, ClientDetails};
 
 /// This enum defined the message that the server will receive from a client
 /// This uses the serde library to transform to and from json.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientStreamIn {
-	Connected,
-	Update,
+	GetClients,
+	GetMessages,
 
 	SendMessage { to: Uuid, content: String },
 	SendGlobalMessage { content: String },
@@ -22,24 +22,21 @@ pub enum ClientStreamIn {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientStreamOut {
+	Connected,
+
+	// get reequest messages
 	ConnectedClients { clients: Vec<ClientDetails> },
+	GlobalChatMessages { messages: Vec<Message> },
+
+	// event messges
 	UserMessage { from: Uuid, content: String },
 	GlobalMessage { from: Uuid, content: String },
-	Disconnected,
 
-	Connected,
+	ClientConnected { id: Uuid, username: String },
+	ClientRemoved { id: Uuid },
+
+	Disconnected,
 
 	// error cases
 	Error,
-}
-
-impl PartialEq for ClientStreamOut {
-	fn eq(&self, other: &Self) -> bool {
-		use ClientStreamOut::{Connected, Disconnected};
-		match (self, other) {
-			(Connected, Connected) => true,
-			(Disconnected, Disconnected) => true,
-			_ => false,
-		}
-	}
 }

@@ -50,15 +50,15 @@ impl Client {
 	) {
 		use foundation::messages::client::ClientStreamIn::{
 			Disconnect,
+			GetClients,
 			SendGlobalMessage,
 			SendMessage,
-			Update,
 		};
 		use serde_json::from_str;
 		let msg = from_str::<ClientStreamIn>(data.as_str())
 			.expect("[Client] failed to decode incoming message");
 		match msg {
-			Update => self.handle_update(ctx),
+			GetClients => self.handle_update(ctx),
 			SendMessage { to, content } => self.handle_send(ctx, to, content),
 			SendGlobalMessage { content } => self.handle_global_send(ctx, content),
 			Disconnect => self.handle_disconnect(ctx),
