@@ -130,6 +130,7 @@ impl ClientManager {
 		sender: WeakAddr<Client>,
 		content: String,
 	) {
+		println!("[ClientManager] sending message to client");
 		use crate::client_management::client::ClientMessage::SendGlobalMessage;
 
 		let client_addr: Vec<Addr<Client>> =
@@ -145,6 +146,7 @@ impl ClientManager {
 			let cont2 = content;
 
 			let fut = wrap_future(async move {
+				println!("[ClientManager] sending to all clients");
 				let details: ClientDataResponse =
 					snd1.send(ClientDataMessage::Details).await.unwrap();
 
@@ -166,6 +168,7 @@ impl ClientManager {
 			});
 
 			let chat_manager_fut = wrap_future(async move {
+				println!("[ClientManager] storing in chat manager");
 				let details: ClientDataResponse =
 					snd2.send(ClientDataMessage::Details).await.unwrap();
 
