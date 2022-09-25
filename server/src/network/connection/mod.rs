@@ -1,11 +1,18 @@
 use std::{io::Write, net::SocketAddr, pin::Pin, sync::Arc};
 
 use actix::{
-	fut::wrap_future, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
-	Recipient, SpawnHandle,
+	fut::wrap_future,
+	Actor,
+	ActorContext,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	Recipient,
+	SpawnHandle,
 };
 use futures::{future::join_all, Future, FutureExt};
-
 use tokio::{
 	io::{split, AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf},
 	net::TcpStream,
@@ -171,7 +178,7 @@ impl Handler<SelfMessage> for Connection {
 		match msg {
 			UpdateObserversWithData(data) => {
 				let send = ctx.address();
-				let addr = self.address.clone();
+				let addr = self.address;
 				// this is a mess
 				let futs: Vec<Pin<Box<dyn Future<Output = ()> + Send>>> = self
 					.observers
