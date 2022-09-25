@@ -21,7 +21,7 @@ use crate::client_management::{
 		ClientDataMessage,
 		ClientDataResponse,
 		ClientDataResponse::Details,
-		ClientMessage::SendMessage,
+		ClientMessage::Message,
 		ClientObservableMessage,
 	},
 	messages::{
@@ -51,7 +51,7 @@ impl ClientManager {
 
 	pub(crate) fn send_update(&mut self, ctx: &mut Context<Self>, addr: WeakAddr<Client>) {
 		println!("[ClientManager] sending update to client");
-		use crate::client_management::client::ClientMessage::SendUpdate;
+		use crate::client_management::client::ClientMessage::Update;
 		if let Some(to_send) = addr.upgrade() {
 			let client_addr: Vec<Addr<Client>> =
 				self.clients.iter().map(|(_, v)| v).cloned().collect();
@@ -69,7 +69,7 @@ impl ClientManager {
 
 			let fut = wrap_future(async move {
 				let a: Vec<_> = collection.await;
-				let _ = to_send.send(SendUpdate(a)).await;
+				let _ = to_send.send(Update(a)).await;
 			});
 
 			ctx.spawn(fut);
@@ -114,7 +114,7 @@ impl ClientManager {
 				let pos = client_details.iter().position(|i| i.uuid == from);
 				if pos.is_some() {
 					sender
-						.send(SendMessage { content, from })
+						.send(Message { content, from })
 						.await
 						.expect("TODO: panic message");
 				}
@@ -131,7 +131,7 @@ impl ClientManager {
 		content: String,
 	) {
 		println!("[ClientManager] sending message to client");
-		use crate::client_management::client::ClientMessage::SendGlobalMessage;
+		use crate::client_management::client::ClientMessage::GlobalMessage;
 
 		let client_addr: Vec<Addr<Client>> =
 			self.clients.iter().map(|(_, v)| v).cloned().collect();
@@ -158,7 +158,7 @@ impl ClientManager {
 
 				let collection = tokio_stream::iter(client_addr)
 					.then(move |addr| {
-						addr.send(SendGlobalMessage {
+						addr.send(GlobalMessage {
 							content: cont1.clone(),
 							from,
 						})
@@ -242,18 +242,16 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use crate::client_management::client::ClientObservableMessage::{
-			SendGlobalMessageRequest,
-			SendMessageRequest,
-			UpdateRequest,
+			GlobalMessage,
+			Message,
+			Update,
 		};
 		match msg {
-			SendMessageRequest(addr, uuid, content) => {
-				self.send_message_request(ctx, addr, uuid, content)
-			}
-			SendGlobalMessageRequest(addr, content) => {
+			Message(addr, uuid, content) => self.send_message_request(ctx, addr, uuid, content),
+			GlobalMessage(addr, content) => {
 				self.send_global_message_request(ctx, addr, content)
 			}
-			UpdateRequest(addr) => self.send_update(ctx, addr),
+			Update(addr) => self.send_update(ctx, addr),
 		}
 	}
 }

@@ -1,5 +1,5 @@
-mod client;
+mod actor;
 mod messages;
 
-pub use client::Client;
+pub use actor::Client;
 pub use messages::*;

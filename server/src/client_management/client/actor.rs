@@ -1,16 +1,20 @@
-use crate::client_management::client::messages::ClientObservableMessage::{
-	SendGlobalMessageRequest, SendMessageRequest, UpdateRequest,
-};
-use crate::client_management::client::messages::{
-	ClientDataMessage, ClientDataResponse, ClientMessage, ClientObservableMessage,
-};
-use crate::network::{Connection, ConnectionOuput};
-use crate::prelude::messages::ObservableMessage;
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Recipient};
-use foundation::messages::client::ClientStreamIn;
-use foundation::ClientDetails;
 use std::net::SocketAddr;
+
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Recipient};
+use foundation::{messages::client::ClientStreamIn, ClientDetails};
 use uuid::Uuid;
+
+use crate::{
+	client_management::client::messages::{
+		ClientDataMessage,
+		ClientDataResponse,
+		ClientMessage,
+		ClientObservableMessage,
+		ClientObservableMessage::{GlobalMessage, Message, Update},
+	},
+	network::{Connection, ConnectionOuput},
+	prelude::messages::ObservableMessage,
+};
 
 /// messages the client will send to itself
 #[allow(dead_code)]
@@ -45,7 +49,10 @@ impl Client {
 		data: String,
 	) {
 		use foundation::messages::client::ClientStreamIn::{
-			Disconnect, SendGlobalMessage, SendMessage, Update,
+			Disconnect,
+			SendGlobalMessage,
+			SendMessage,
+			Update,
 		};
 		use serde_json::from_str;
 		let msg = from_str::<ClientStreamIn>(data.as_str())
@@ -61,17 +68,17 @@ impl Client {
 
 	#[inline]
 	fn handle_update(&self, ctx: &mut Context<Client>) {
-		self.broadcast(UpdateRequest(ctx.address().downgrade()));
+		self.broadcast(Update(ctx.address().downgrade()));
 	}
 
 	#[inline]
 	fn handle_send(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
-		self.broadcast(SendMessageRequest(ctx.address().downgrade(), to, content));
+		self.broadcast(Message(ctx.address().downgrade(), to, content));
 	}
 
 	#[inline]
 	fn handle_global_send(&self, ctx: &mut Context<Client>, content: String) {
-		self.broadcast(SendGlobalMessageRequest(ctx.address().downgrade(), content));
+		self.broadcast(GlobalMessage(ctx.address().downgrade(), content));
 	}
 
 	#[inline]
@@ -92,11 +99,13 @@ impl Actor for Client {
 
 	// tells the client that it has been connected.
 	fn started(&mut self, ctx: &mut Self::Context) {
-		use crate::network::ConnectionMessage::SendData;
-		use crate::prelude::messages::ObservableMessage::Subscribe;
-		use foundation::messages::client::ClientStreamOut;
-		use foundation::messages::client::ClientStreamOut::Connected;
+		use foundation::messages::client::{ClientStreamOut, ClientStreamOut::Connected};
 		use serde_json::to_string;
+
+		use crate::{
+			network::ConnectionMessage::SendData,
+			prelude::messages::ObservableMessage::Subscribe,
+		};
 		println!("[Client] started");
 		self
 			.connection
@@ -109,11 +118,13 @@ impl Actor for Client {
 	}
 
 	fn stopped(&mut self, ctx: &mut Self::Context) {
-		use crate::network::ConnectionMessage::SendData;
-		use crate::prelude::messages::ObservableMessage::Unsubscribe;
-		use foundation::messages::client::ClientStreamOut;
-		use foundation::messages::client::ClientStreamOut::Disconnected;
+		use foundation::messages::client::{ClientStreamOut, ClientStreamOut::Disconnected};
 		use serde_json::to_string;
+
+		use crate::{
+			network::ConnectionMessage::SendData,
+			prelude::messages::ObservableMessage::Unsubscribe,
+		};
 		self
 			.connection
 			.do_send::<ObservableMessage<ConnectionOuput>>(Unsubscribe(
@@ -139,26 +150,31 @@ impl Handler<ClientDataMessage> for Client {
 impl Handler<ClientMessage> for Client {
 	type Result = ();
 	fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) -> Self::Result {
-		use crate::client_management::client::messages::ClientMessage::{
-			SendGlobalMessage, SendMessage, SendUpdate,
-		};
-		use crate::network::ConnectionMessage::SendData;
-		use foundation::messages::client::ClientStreamOut;
-		use foundation::messages::client::ClientStreamOut::{
-			ConnectedClients, GlobalMessage, UserMessage,
+		use foundation::messages::client::{
+			ClientStreamOut,
+			ClientStreamOut::{ConnectedClients, GlobalMessage, UserMessage},
 		};
 		use serde_json::to_string;
 
+		use crate::{
+			client_management::client::messages::ClientMessage::{
+				GlobalMessage as ClientGlobalMessage,
+				Message,
+				Update,
+			},
+			network::ConnectionMessage::SendData,
+		};
+
 		match msg {
-			SendUpdate(clients) => self.connection.do_send(SendData(
+			Update(clients) => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&ConnectedClients { clients })
 					.expect("[Client] Failed to encode string"),
 			)),
-			SendMessage { content, from } => self.connection.do_send(SendData(
+			Message { content, from } => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&UserMessage { from, content })
 					.expect("[Client] Failed to encode string"),
 			)),
-			SendGlobalMessage { from, content } => self.connection.do_send(SendData(
+			ClientGlobalMessage { from, content } => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&GlobalMessage { from, content })
 					.expect("[Client] Failed to encode string"),
 			)),
