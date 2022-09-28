@@ -1,7 +1,6 @@
 use actix::{Message as ActixMessage, MessageResponse};
+use foundation::models::message::Message;
 use uuid::Uuid;
-
-use super::Message;
 
 #[derive(ActixMessage, Debug)]
 #[rtype(result = "()")]

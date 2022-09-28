@@ -1,9 +1,11 @@
 use actix::{Actor, Addr, Context, Handler};
+use foundation::models::message::Message;
 use uuid::Uuid;
 
-use crate::client_management::chat_manager::{
-	message_type::Message,
-	messages::{ChatManagerDataMessage, ChatManagerDataResponse, ChatManagerMessage},
+use crate::client_management::chat_manager::messages::{
+	ChatManagerDataMessage,
+	ChatManagerDataResponse,
+	ChatManagerMessage,
 };
 
 pub(crate) struct ChatManager {

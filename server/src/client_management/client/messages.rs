@@ -1,5 +1,5 @@
 use actix::{Message, MessageResponse, WeakAddr};
-use foundation::ClientDetails;
+use foundation::{models::message::Message as StoredMessage, ClientDetails};
 use uuid::Uuid;
 
 use crate::client_management::client::Client;
@@ -8,9 +8,11 @@ use crate::client_management::client::Client;
 #[derive(Message)]
 #[rtype(result = "()")]
 pub enum ClientMessage {
-	Update(Vec<ClientDetails>),
-	Message { from: Uuid, content: String },
-	GlobalMessage { from: Uuid, content: String },
+	ClientList(Vec<ClientDetails>),
+	MessageList(Vec<StoredMessage>),
+
+	ClientlySentMessage { from: Uuid, content: String },
+	GloballySentMessage { from: Uuid, content: String },
 }
 
 #[derive(Message)]
@@ -36,5 +38,6 @@ pub enum ClientDataResponse {
 pub enum ClientObservableMessage {
 	Message(WeakAddr<Client>, Uuid, String),
 	GlobalMessage(WeakAddr<Client>, String),
-	Update(WeakAddr<Client>),
+	GetClients(WeakAddr<Client>),
+	GetGlobalMessages(WeakAddr<Client>),
 }

@@ -1,8 +1,14 @@
-use crate::client_management::ClientManagerDataResponse::Clients;
-use crate::client_management::{ClientManager, ClientManagerDataMessage};
-use crate::scripting::scriptable_client::ScriptableClient;
 use actix::Addr;
 use mlua::{Error, UserData, UserDataMethods};
+
+use crate::{
+	client_management::{
+		ClientManager,
+		ClientManagerDataMessage,
+		ClientManagerDataResponse::Clients,
+	},
+	scripting::scriptable_client::ScriptableClient,
+};
 
 #[derive(Clone)]
 pub(crate) struct ScriptableClientManager {
@@ -16,10 +22,8 @@ impl UserData for ScriptableClientManager {
 			if let Ok(Clients(clients)) = res {
 				let clients: Vec<ScriptableClient> = clients
 					.into_iter()
-					.map(|a| a.upgrade())
-					.filter(|o| o.is_some())
-					.map(|o| o.unwrap())
-					.map(|a| ScriptableClient::from(a))
+					.filter_map(|a| a.upgrade())
+					.map(ScriptableClient::from)
 					.collect();
 
 				Ok(clients)

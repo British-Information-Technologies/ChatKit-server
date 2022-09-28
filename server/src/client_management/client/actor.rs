@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use actix::{Actor, Addr, AsyncContext, Context, Handler, Recipient};
 use foundation::{messages::client::ClientStreamIn, ClientDetails};
 use uuid::Uuid;
@@ -10,17 +8,10 @@ use crate::{
 		ClientDataResponse,
 		ClientMessage,
 		ClientObservableMessage,
-		ClientObservableMessage::{GlobalMessage, Message, Update},
 	},
 	network::{Connection, ConnectionOuput},
 	prelude::messages::ObservableMessage,
 };
-
-/// messages the client will send to itself
-#[allow(dead_code)]
-enum SelfMessage {
-	ReceivedMessage(ClientStreamIn),
-}
 
 /// # Client
 /// This represents a connected client.
@@ -41,48 +32,33 @@ impl Client {
 		.start()
 	}
 
-	fn handle_request(
-		&mut self,
-		ctx: &mut Context<Client>,
-		_sender: Addr<Connection>,
-		_addr: SocketAddr,
-		data: String,
-	) {
-		use foundation::messages::client::ClientStreamIn::{
-			Disconnect,
-			GetClients,
-			SendGlobalMessage,
-			SendMessage,
-		};
-		use serde_json::from_str;
-		let msg = from_str::<ClientStreamIn>(data.as_str())
-			.expect("[Client] failed to decode incoming message");
-		match msg {
-			GetClients => self.handle_update(ctx),
-			SendMessage { to, content } => self.handle_send(ctx, to, content),
-			SendGlobalMessage { content } => self.handle_global_send(ctx, content),
-			Disconnect => self.handle_disconnect(ctx),
-			_ => todo!(),
-		}
+	#[inline]
+	fn get_clients(&self, ctx: &mut Context<Client>) {
+		use ClientObservableMessage::GetClients;
+		self.broadcast(GetClients(ctx.address().downgrade()));
 	}
 
 	#[inline]
-	fn handle_update(&self, ctx: &mut Context<Client>) {
-		self.broadcast(Update(ctx.address().downgrade()));
+	fn get_messages(&self, ctx: &mut Context<Client>) {
+		use ClientObservableMessage::GetGlobalMessages;
+		self.broadcast(GetGlobalMessages(ctx.address().downgrade()));
+		todo!()
 	}
 
 	#[inline]
-	fn handle_send(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
+	fn send_message(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
+		use ClientObservableMessage::Message;
 		self.broadcast(Message(ctx.address().downgrade(), to, content));
 	}
 
 	#[inline]
-	fn handle_global_send(&self, ctx: &mut Context<Client>, content: String) {
+	fn send_gloal_message(&self, ctx: &mut Context<Client>, content: String) {
+		use ClientObservableMessage::GlobalMessage;
 		self.broadcast(GlobalMessage(ctx.address().downgrade(), content));
 	}
 
 	#[inline]
-	fn handle_disconnect(&self, _ctx: &mut Context<Client>) {
+	fn disconnect(&self, _ctx: &mut Context<Client>) {
 		todo!()
 	}
 
@@ -125,6 +101,9 @@ impl Actor for Client {
 			network::ConnectionMessage::SendData,
 			prelude::messages::ObservableMessage::Unsubscribe,
 		};
+
+		println!("[Client] stopped");
+
 		self
 			.connection
 			.do_send::<ObservableMessage<ConnectionOuput>>(Unsubscribe(
@@ -152,29 +131,42 @@ impl Handler<ClientMessage> for Client {
 	fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) -> Self::Result {
 		use foundation::messages::client::{
 			ClientStreamOut,
-			ClientStreamOut::{ConnectedClients, GlobalMessage, UserMessage},
+			ClientStreamOut::{
+				ConnectedClients,
+				GlobalChatMessages,
+				GlobalMessage,
+				UserMessage,
+			},
 		};
 		use serde_json::to_string;
 
 		use crate::{
 			client_management::client::messages::ClientMessage::{
-				GlobalMessage as ClientGlobalMessage,
-				Message,
-				Update,
+				ClientList,
+				ClientlySentMessage,
+				GloballySentMessage,
+				MessageList,
 			},
 			network::ConnectionMessage::SendData,
 		};
 
 		match msg {
-			Update(clients) => self.connection.do_send(SendData(
+			ClientList(clients) => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&ConnectedClients { clients })
 					.expect("[Client] Failed to encode string"),
 			)),
-			Message { content, from } => self.connection.do_send(SendData(
+
+			MessageList(messages) => self.connection.do_send(SendData(
+				to_string::<ClientStreamOut>(&GlobalChatMessages { messages })
+					.expect("[Client] Failed to encode string"),
+			)),
+
+			ClientlySentMessage { content, from } => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&UserMessage { from, content })
 					.expect("[Client] Failed to encode string"),
 			)),
-			ClientGlobalMessage { from, content } => self.connection.do_send(SendData(
+
+			GloballySentMessage { from, content } => self.connection.do_send(SendData(
 				to_string::<ClientStreamOut>(&GlobalMessage { from, content })
 					.expect("[Client] Failed to encode string"),
 			)),
@@ -188,9 +180,24 @@ impl Handler<ConnectionOuput> for Client {
 
 	fn handle(&mut self, msg: ConnectionOuput, ctx: &mut Self::Context) -> Self::Result {
 		use crate::network::ConnectionOuput::RecvData;
-		match msg {
-			RecvData(sender, addr, data) => self.handle_request(ctx, sender, addr, data),
-			_ => todo!(),
+		if let RecvData(_sender, _addr, data) = msg {
+			use foundation::messages::client::ClientStreamIn::{
+				Disconnect,
+				GetClients,
+				GetMessages,
+				SendGlobalMessage,
+				SendMessage,
+			};
+			use serde_json::from_str;
+			let msg = from_str::<ClientStreamIn>(data.as_str())
+				.expect("[Client] failed to decode incoming message");
+			match msg {
+				GetClients => self.get_clients(ctx),
+				GetMessages => self.get_messages(ctx),
+				SendMessage { to, content } => self.send_message(ctx, to, content),
+				SendGlobalMessage { content } => self.send_gloal_message(ctx, content),
+				Disconnect => self.disconnect(ctx),
+			}
 		}
 	}
 }
