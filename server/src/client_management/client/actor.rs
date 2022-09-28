@@ -42,7 +42,6 @@ impl Client {
 	fn get_messages(&self, ctx: &mut Context<Client>) {
 		use ClientObservableMessage::GetGlobalMessages;
 		self.broadcast(GetGlobalMessages(ctx.address().downgrade()));
-		todo!()
 	}
 
 	#[inline]
