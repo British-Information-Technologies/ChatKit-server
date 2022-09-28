@@ -58,11 +58,11 @@ impl ClientManager {
 	pub(crate) fn send_client_list(
 		&mut self,
 		ctx: &mut Context<Self>,
-		addr: WeakAddr<Client>,
+		sender: WeakAddr<Client>,
 	) {
 		println!("[ClientManager] sending update to client");
 		use crate::client_management::client::ClientMessage::ClientList;
-		if let Some(to_send) = addr.upgrade() {
+		if let Some(to_send) = sender.upgrade() {
 			let client_addr: Vec<Addr<Client>> =
 				self.clients.iter().map(|(_, v)| v).cloned().collect();
 
@@ -89,9 +89,9 @@ impl ClientManager {
 	pub(crate) fn send_global_messages(
 		&self,
 		ctx: &mut Context<ClientManager>,
-		addr: WeakAddr<Client>,
+		sender: WeakAddr<Client>,
 	) {
-		if let Some(to_send) = addr.upgrade() {
+		if let Some(to_send) = sender.upgrade() {
 			let fut = wrap_future(self.chat_manager.send(ChatManagerDataMessage::GetMessages))
 				.map(move |out, _a, _ctx| {
 					if let Ok(ChatManagerDataResponse::GotMessages(res)) = out {
@@ -106,14 +106,14 @@ impl ClientManager {
 		&self,
 		ctx: &mut Context<ClientManager>,
 		sender: WeakAddr<Client>,
-		_uuid: Uuid,
+		to: Uuid,
 		content: String,
 	) {
 		println!("[ClientManager] sending message to client");
 		let client_addr: Vec<Addr<Client>> =
 			self.clients.iter().map(|(_, v)| v).cloned().collect();
 
-		let collection = tokio_stream::iter(client_addr)
+		let collection = tokio_stream::iter(client_addr.clone())
 			.then(|addr| addr.send(ClientDataMessage::Details))
 			.map(|val| val.unwrap())
 			.map(|val: ClientDataResponse| {
@@ -127,19 +127,19 @@ impl ClientManager {
 
 		let fut = wrap_future(async move {
 			if let Some(sender) = sender.upgrade() {
-				let details: ClientDataResponse =
+				let sender_details: ClientDataResponse =
 					sender.send(ClientDataMessage::Details).await.unwrap();
 
-				let from = if let Details(details) = details {
+				let from = if let Details(details) = sender_details {
 					details.uuid
 				} else {
 					ClientDetails::default().uuid
 				};
 
 				let client_details: Vec<ClientDetails> = collection.await;
-				let pos = client_details.iter().position(|i| i.uuid == from);
-				if pos.is_some() {
-					sender
+				let pos = client_details.iter().position(|i| i.uuid == to);
+				if let Some(pos) = pos {
+					client_addr[pos]
 						.send(ClientMessage::ClientlySentMessage { content, from })
 						.await
 						.expect("TODO: panic message");
@@ -274,12 +274,12 @@ impl Handler<ClientObservableMessage> for ClientManager {
 			Message,
 		};
 		match msg {
-			Message(addr, uuid, content) => self.send_message_request(ctx, addr, uuid, content),
-			GlobalMessage(addr, content) => {
-				self.send_global_message_request(ctx, addr, content)
+			Message(sender, to, content) => self.send_message_request(ctx, sender, to, content),
+			GlobalMessage(sender, content) => {
+				self.send_global_message_request(ctx, sender, content)
 			}
-			GetClients(addr) => self.send_client_list(ctx, addr),
-			GetGlobalMessages(addr) => self.send_global_messages(ctx, addr),
+			GetClients(sender) => self.send_client_list(ctx, sender),
+			GetGlobalMessages(sender) => self.send_global_messages(ctx, sender),
 		}
 	}
 }
