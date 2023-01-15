@@ -86,10 +86,12 @@ impl NetworkManager {
 	}
 
 	#[inline]
-	fn remove_initiator(&mut self, sender: Addr<ConnectionInitiator>) {
-		let index = self.initiators.iter().position(|i| *i == sender).unwrap();
-		println!("[NetworkManager] removed initiator at:{}", index);
-		self.initiators.remove(index);
+	fn remove_initiator(&mut self, sender: WeakAddr<ConnectionInitiator>) {
+		if let Some(sender) = sender.upgrade() {
+			let index = self.initiators.iter().position(|i| *i == sender).unwrap();
+			println!("[NetworkManager] removed initiator at:{}", index);
+			let _ = self.initiators.remove(index);
+		}
 	}
 
 	/// handles a initiator client request
@@ -100,7 +102,7 @@ impl NetworkManager {
 	fn client_request(
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
-		sender: Addr<ConnectionInitiator>,
+		sender: WeakAddr<ConnectionInitiator>,
 		connection: Addr<Connection>,
 		client_details: ClientDetails,
 	) {
@@ -119,7 +121,7 @@ impl NetworkManager {
 	fn info_request(
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
-		sender: Addr<ConnectionInitiator>,
+		sender: WeakAddr<ConnectionInitiator>,
 		connection: Addr<Connection>,
 	) {
 		use NetworkOutput::InfoRequested;

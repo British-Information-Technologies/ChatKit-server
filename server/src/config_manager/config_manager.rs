@@ -14,7 +14,9 @@ use crate::{
 		arg_parser::Arguments,
 		builder::Builder,
 		messages::{
-			ConfigManagerDataMessage, ConfigManagerDataResponse, ConfigManagerOutput,
+			ConfigManagerDataMessage,
+			ConfigManagerDataResponse,
+			ConfigManagerOutput,
 		},
 		types::ConfigValue::{Dict, Number, String as ConfigString},
 		ConfigValue,
@@ -144,6 +146,8 @@ impl From<Builder> for ConfigManager {
 			.map(|v| v.into())
 			.ok()
 			.unwrap_or_else(|| Dict(BTreeMap::new()));
+
+		println!("[ConfigManager] got stored: {:?}", stored);
 
 		let mut root = stored.clone();
 		if let Dict(root) = &mut root {

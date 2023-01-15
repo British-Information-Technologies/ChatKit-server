@@ -1,7 +1,15 @@
 use std::net::SocketAddr;
 
 use actix::{
-	Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, WeakRecipient,
+	Actor,
+	ActorContext,
+	Addr,
+	AsyncContext,
+	Context,
+	Handler,
+	Message,
+	WeakAddr,
+	WeakRecipient,
 };
 use foundation::{
 	messages::{
@@ -13,15 +21,19 @@ use foundation::{
 use serde_json::{from_str, to_string};
 
 use crate::{
-	network::{connection::ConnectionOuput, Connection, ConnectionMessage},
+	network::{connection::ConnectionObservableOutput, Connection, ConnectionMessage},
 	prelude::messages::ObservableMessage,
 };
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub(crate) enum InitiatorOutput {
-	InfoRequest(Addr<ConnectionInitiator>, Addr<Connection>),
-	ClientRequest(Addr<ConnectionInitiator>, Addr<Connection>, ClientDetails),
+	InfoRequest(WeakAddr<ConnectionInitiator>, Addr<Connection>),
+	ClientRequest(
+		WeakAddr<ConnectionInitiator>,
+		Addr<Connection>,
+		ClientDetails,
+	),
 }
 
 /// # ConnectionInitiator
@@ -49,7 +61,7 @@ impl ConnectionInitiator {
 
 	fn handle_request(
 		&mut self,
-		sender: Addr<Connection>,
+		sender: WeakAddr<Connection>,
 		ctx: &mut <Self as Actor>::Context,
 		_address: SocketAddr,
 		data: String,
@@ -66,15 +78,15 @@ impl ConnectionInitiator {
 		let msg = msg.unwrap();
 
 		println!("[ConnectionInitiator] matching request");
-		if let Some(delegate) = self.delegate.upgrade() {
+		if let (Some(delegate), Some(sender)) = (self.delegate.upgrade(), sender.upgrade()) {
 			match msg {
-				Info => delegate.do_send(InfoRequest(ctx.address(), sender)),
+				Info => delegate.do_send(InfoRequest(ctx.address().downgrade(), sender)),
 				Connect {
 					uuid,
 					username,
 					address,
 				} => delegate.do_send(ClientRequest(
-					ctx.address(),
+					ctx.address().downgrade(),
 					sender,
 					ClientDetails {
 						uuid,
@@ -88,12 +100,17 @@ impl ConnectionInitiator {
 		}
 	}
 
-	fn error(&mut self, ctx: &mut <Self as Actor>::Context, sender: Addr<Connection>) {
+	fn error(&mut self, ctx: &mut <Self as Actor>::Context, sender: WeakAddr<Connection>) {
 		use ConnectionMessage::{CloseConnection, SendData};
-		sender.do_send(SendData(
-			to_string::<ClientStreamOut>(&Error).expect("failed to convert error to string"),
-		));
-		sender.do_send(CloseConnection);
+		if let Some(sender) = sender.upgrade() {
+			sender.do_send(SendData(
+				to_string::<ClientStreamOut>(&Error {
+					msg: "Error in connection initiator?".to_owned(),
+				})
+				.unwrap(),
+			));
+			sender.do_send(CloseConnection);
+		}
 		ctx.stop()
 	}
 }
@@ -113,7 +130,7 @@ impl Actor for ConnectionInitiator {
 
 		self
 			.connection
-			.do_send(Subscribe(ctx.address().recipient()));
+			.do_send(Subscribe(ctx.address().recipient().downgrade()));
 
 		self
 			.connection
@@ -126,17 +143,27 @@ impl Actor for ConnectionInitiator {
 		println!("[ConnectionInitiator] stopped");
 		self
 			.connection
-			.do_send(Unsubscribe(ctx.address().recipient()));
+			.do_send(Unsubscribe(ctx.address().recipient().downgrade()));
 	}
 }
 
-impl Handler<ConnectionOuput> for ConnectionInitiator {
+impl Handler<ConnectionObservableOutput> for ConnectionInitiator {
 	type Result = ();
-	fn handle(&mut self, msg: ConnectionOuput, ctx: &mut Self::Context) -> Self::Result {
-		use ConnectionOuput::RecvData;
+	fn handle(
+		&mut self,
+		msg: ConnectionObservableOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
+		use ConnectionObservableOutput::RecvData;
 
 		if let RecvData(sender, addr, data) = msg {
 			self.handle_request(sender, ctx, addr, data)
 		}
+	}
+}
+
+impl Drop for ConnectionInitiator {
+	fn drop(&mut self) {
+		println!("[ConnectionInitiator] Dropping value")
 	}
 }

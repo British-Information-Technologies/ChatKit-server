@@ -220,7 +220,7 @@ impl ClientManager {
 		println!("[ClientManager] adding client");
 		use crate::prelude::messages::ObservableMessage::Subscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
-		addr.do_send(Subscribe(recp));
+		addr.do_send(Subscribe(recp.downgrade()));
 		self.clients.insert(uuid, addr);
 	}
 
@@ -229,7 +229,16 @@ impl ClientManager {
 		use crate::prelude::messages::ObservableMessage::Unsubscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
 		if let Some(addr) = self.clients.remove(&uuid) {
-			addr.do_send(Unsubscribe(recp));
+			addr.do_send(Unsubscribe(recp.downgrade()));
+		}
+	}
+
+	fn disconnect_client(&mut self, ctx: &mut Context<ClientManager>, uuid: Uuid) {
+		println!("[ClientManager] disconnecting client");
+		use crate::prelude::messages::ObservableMessage::Unsubscribe;
+		let recp = ctx.address().recipient::<ClientObservableMessage>();
+		if let Some(addr) = self.clients.remove(&uuid) {
+			addr.do_send(Unsubscribe(recp.downgrade()));
 		}
 	}
 }
@@ -268,6 +277,7 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use crate::client_management::client::ClientObservableMessage::{
+			Disconnecting,
 			GetClients,
 			GetGlobalMessages,
 			GlobalMessage,
@@ -280,6 +290,7 @@ impl Handler<ClientObservableMessage> for ClientManager {
 			}
 			GetClients(sender) => self.send_client_list(ctx, sender),
 			GetGlobalMessages(sender) => self.send_global_messages(ctx, sender),
+			Disconnecting(uuid) => self.disconnect_client(ctx, uuid),
 		}
 	}
 }

@@ -45,7 +45,6 @@ pub trait IManager {
 				if let Some(manager) = Weak::upgrade(&weak_self) {
 					manager.run().await
 				}
-				()
 			}
 		});
 	}
