@@ -73,7 +73,7 @@ impl Actor for Connection {
 	/// then eneters loop readling lines from the tcp stream
 	fn started(&mut self, ctx: &mut Self::Context) {
 		println!("[Connection] started");
-		let addr = ctx.address().downgrade();
+		let weak_addr = ctx.address().downgrade();
 
 		let read_half = self
 			.read_half
@@ -84,40 +84,38 @@ impl Actor for Connection {
 		let mut buffer_string = String::new();
 		let address = self.address;
 
-		self.loop_future = Some(
-			ctx.spawn(
-				wrap_future(async move {
-					while let Ok(len) = reader.read_line(&mut buffer_string).await {
-						if len == 0 {
-							println!("[Connection] readline returned 0");
-							break;
-						}
-
-						if let Some(addr) = addr.upgrade() {
-							let _ = addr
-								.send(ConnectionPrivateMessage::Broadcast(
-									ConnectionObservableOutput::RecvData(
-										addr.downgrade(),
-										address,
-										buffer_string.clone(),
-									),
-								))
-								.await;
-						}
-						buffer_string.clear();
-
-						println!("[Connection] send data to observers");
-					}
-				})
-				.map(|_out, _a: &mut Connection, ctx| {
+		let reader_fut = wrap_future(async move {
+			while let Ok(len) = reader.read_line(&mut buffer_string).await {
+				if len == 0 {
 					println!("[Connection] readline returned 0");
-					let addr = ctx.address();
-					addr.do_send(ConnectionPrivateMessage::Broadcast(
-						ConnectionObservableOutput::ConnectionClosed(addr.downgrade()),
-					));
-				}),
-			),
-		);
+					break;
+				}
+
+				if let Some(addr) = weak_addr.upgrade() {
+					let _ = addr
+						.send(ConnectionPrivateMessage::Broadcast(
+							ConnectionObservableOutput::RecvData(
+								addr.downgrade(),
+								address,
+								buffer_string.clone(),
+							),
+						))
+						.await;
+				}
+				buffer_string.clear();
+
+				println!("[Connection] send data to observers");
+			}
+		})
+		.map(|_out, _a: &mut Connection, ctx| {
+			println!("[Connection] readline returned 0");
+			let addr = ctx.address();
+			addr.do_send(ConnectionPrivateMessage::Broadcast(
+				ConnectionObservableOutput::ConnectionClosed(addr.downgrade()),
+			));
+		});
+
+		self.loop_future = Some(ctx.spawn(reader_fut));
 	}
 
 	fn stopped(&mut self, ctx: &mut Self::Context) {

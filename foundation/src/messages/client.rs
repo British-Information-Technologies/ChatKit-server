@@ -38,5 +38,5 @@ pub enum ClientStreamOut {
 	Disconnected,
 
 	// error cases
-	Error,
+	Error { msg: String },
 }
