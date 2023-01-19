@@ -1,10 +1,6 @@
 use std::net::SocketAddr;
 
-use actix::{Addr, Message, WeakAddr};
-use tokio::{
-	io::BufReader,
-	net::{tcp::ReadHalf, TcpStream},
-};
+use actix::{Message, WeakAddr};
 
 use crate::prelude::actors::Connection;
 

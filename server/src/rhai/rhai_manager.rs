@@ -1,4 +1,4 @@
-use actix::{Actor, Addr, Context, WeakAddr};
+use actix::{Actor, Context, WeakAddr};
 use rhai::{Engine, Scope};
 
 use crate::{

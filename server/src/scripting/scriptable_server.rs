@@ -1,16 +1,7 @@
-use actix::{Addr, WeakAddr};
-use mlua::{Error, UserData, UserDataMethods, Value::Nil};
+use actix::WeakAddr;
+use mlua::{Error, UserData, UserDataMethods};
 
-use crate::{
-	scripting::{
-		scriptable_client_manager::ScriptableClientManager,
-		scriptable_network_manager::ScriptableNetworkManager,
-	},
-	server::{
-		ServerDataResponse::{ClientManager, Name, NetworkManager, Owner},
-		*,
-	},
-};
+use crate::server::{ServerDataResponse::Name, *};
 
 #[derive(Clone)]
 pub(crate) struct ScriptableServer {

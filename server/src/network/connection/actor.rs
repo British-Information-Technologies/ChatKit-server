@@ -1,9 +1,4 @@
-use std::{
-	io::Write,
-	net::SocketAddr,
-	pin::Pin,
-	sync::{Arc, Weak},
-};
+use std::{io::Write, net::SocketAddr, pin::Pin, sync::Arc};
 
 use actix::{
 	fut::wrap_future,
@@ -14,7 +9,6 @@ use actix::{
 	AsyncContext,
 	Context,
 	Handler,
-	Running,
 	SpawnHandle,
 	WeakRecipient,
 };
@@ -135,7 +129,7 @@ impl Handler<ObservableMessage<ConnectionObservableOutput>> for Connection {
 		&mut self,
 		msg: ObservableMessage<ConnectionObservableOutput>,
 		_ctx: &mut Self::Context,
-	) -> <Self as actix::Handler<ObservableMessage<ConnectionObservableOutput>>>::Result {
+	) -> <Self as actix::Handler<ObservableMessage<ConnectionObservableOutput>>>::Result{
 		use ObservableMessage::{Subscribe, Unsubscribe};
 		match msg {
 			Subscribe(r) => {
@@ -158,7 +152,11 @@ impl Handler<ObservableMessage<ConnectionObservableOutput>> for Connection {
 
 impl Handler<super::messages::ConnectionMessage> for Connection {
 	type Result = ();
-	fn handle(&mut self, msg: ConnectionMessage, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ConnectionMessage,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		use ConnectionMessage::{CloseConnection, SendData};
 		let writer = Arc::downgrade(&self.write_half);
 
