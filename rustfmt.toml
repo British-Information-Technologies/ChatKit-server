@@ -1,4 +1,4 @@
-max_width = 90
+max_width = 80
 hard_tabs = true
 tab_spaces = 2
 imports_layout = "HorizontalVertical"

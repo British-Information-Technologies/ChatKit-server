@@ -1,20 +1,23 @@
-use crate::client_management::ClientManager;
-use crate::lua::lua_manager::LuaManager;
-use crate::network::NetworkManager;
-use crate::Server;
-use actix::Addr;
+use actix::{Addr, WeakAddr};
+
+use crate::{
+	client_management::ClientManager,
+	lua::lua_manager::LuaManager,
+	network::NetworkManager,
+	Server,
+};
 
 pub struct Builder {
-	pub(super) server: Addr<Server>,
-	pub(super) network_manager: Addr<NetworkManager>,
-	pub(super) client_manager: Addr<ClientManager>,
+	pub(super) server: WeakAddr<Server>,
+	pub(super) network_manager: WeakAddr<NetworkManager>,
+	pub(super) client_manager: WeakAddr<ClientManager>,
 }
 
 impl Builder {
 	pub(super) fn new(
-		server: Addr<Server>,
-		network_manager: Addr<NetworkManager>,
-		client_manager: Addr<ClientManager>,
+		server: WeakAddr<Server>,
+		network_manager: WeakAddr<NetworkManager>,
+		client_manager: WeakAddr<ClientManager>,
 	) -> Self {
 		Builder {
 			server,
