@@ -8,8 +8,8 @@ use actix::{
 	Context,
 	Handler,
 	Message,
-	Recipient,
 	SpawnHandle,
+	WeakRecipient,
 };
 use tokio::net::TcpListener;
 
@@ -30,14 +30,14 @@ pub(super) enum ListenerOutput {
 
 pub(super) struct NetworkListener {
 	address: SocketAddr,
-	delegate: Recipient<ListenerOutput>,
+	delegate: WeakRecipient<ListenerOutput>,
 	looper: Option<SpawnHandle>,
 }
 
 impl NetworkListener {
 	pub(crate) fn new<T: ToSocketAddrs>(
 		address: T,
-		delegate: Recipient<ListenerOutput>,
+		delegate: WeakRecipient<ListenerOutput>,
 	) -> Addr<NetworkListener> {
 		NetworkListener {
 			address: address
@@ -61,7 +61,12 @@ impl NetworkListener {
 			while let Ok((stream, addr)) = listener.accept().await {
 				println!("[NetworkListener] accepted socket");
 				let conn = Connection::new(stream, addr);
-				delegate.do_send(NewConnection(conn));
+
+				let Some(delegate) = delegate.upgrade() else {
+					break;
+				};
+
+				delegate.do_send(NewConnection(conn))
 			}
 		}));
 	}

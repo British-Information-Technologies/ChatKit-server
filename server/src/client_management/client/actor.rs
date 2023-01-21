@@ -26,7 +26,10 @@ pub struct Client {
 }
 
 impl Client {
-	pub(crate) fn new(connection: Addr<Connection>, details: ClientDetails) -> Addr<Self> {
+	pub(crate) fn new(
+		connection: Addr<Connection>,
+		details: ClientDetails,
+	) -> Addr<Self> {
 		Client {
 			connection,
 			details,
@@ -139,9 +142,15 @@ impl Actor for Client {
 
 impl Handler<ClientDataMessage> for Client {
 	type Result = ClientDataResponse;
-	fn handle(&mut self, msg: ClientDataMessage, _ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientDataMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		match msg {
-			ClientDataMessage::Details => ClientDataResponse::Details(self.details.clone()),
+			ClientDataMessage::Details => {
+				ClientDataResponse::Details(self.details.clone())
+			}
 			_ => todo!(),
 		}
 	}
@@ -150,7 +159,11 @@ impl Handler<ClientDataMessage> for Client {
 // Handles incoming messages to the client.
 impl Handler<ClientMessage> for Client {
 	type Result = ();
-	fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		use foundation::messages::client::ClientStreamOut::{
 			ConnectedClients,
 			GlobalChatMessages,
@@ -180,15 +193,19 @@ impl Handler<ClientMessage> for Client {
 					.expect("[Client] Failed to encode string"),
 			)),
 
-			ClientlySentMessage { content, from } => self.connection.do_send(SendData(
-				to_string::<ClientStreamOut>(&UserMessage { from, content })
-					.expect("[Client] Failed to encode string"),
-			)),
+			ClientlySentMessage { content, from } => {
+				self.connection.do_send(SendData(
+					to_string::<ClientStreamOut>(&UserMessage { from, content })
+						.expect("[Client] Failed to encode string"),
+				))
+			}
 
-			GloballySentMessage { from, content } => self.connection.do_send(SendData(
-				to_string::<ClientStreamOut>(&GlobalMessage { from, content })
-					.expect("[Client] Failed to encode string"),
-			)),
+			GloballySentMessage { from, content } => {
+				self.connection.do_send(SendData(
+					to_string::<ClientStreamOut>(&GlobalMessage { from, content })
+						.expect("[Client] Failed to encode string"),
+				))
+			}
 		}
 	}
 }
@@ -217,7 +234,9 @@ impl Handler<ConnectionObservableOutput> for Client {
 					GetClients => self.get_clients(ctx),
 					GetMessages => self.get_messages(ctx),
 					SendMessage { to, content } => self.send_message(ctx, to, content),
-					SendGlobalMessage { content } => self.send_gloal_message(ctx, content),
+					SendGlobalMessage { content } => {
+						self.send_gloal_message(ctx, content)
+					}
 					Disconnect => self.disconnect(ctx),
 				}
 			} else {

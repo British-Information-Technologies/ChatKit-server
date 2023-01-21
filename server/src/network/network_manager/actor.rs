@@ -80,8 +80,10 @@ impl NetworkManager {
 	) {
 		println!("[NetworkManager] Got new connection");
 
-		let init =
-			ConnectionInitiator::new(ctx.address().recipient().downgrade(), connection);
+		let init = ConnectionInitiator::new(
+			ctx.address().recipient().downgrade(),
+			connection,
+		);
 		self.initiators.push(init);
 	}
 
@@ -141,9 +143,9 @@ impl Actor for NetworkManager {
 		let config_mgr = self.config_manager.clone().upgrade();
 
 		if let Some(config_mgr) = config_mgr {
-			let fut = wrap_future(config_mgr.send(ConfigManagerDataMessage::GetValue(
-				"Network.Port".to_owned(),
-			)))
+			let fut = wrap_future(config_mgr.send(
+				ConfigManagerDataMessage::GetValue("Network.Port".to_owned()),
+			))
 			.map(
 				|out, actor: &mut NetworkManager, ctx: &mut Context<NetworkManager>| {
 					use crate::config_manager::ConfigManagerDataResponse::GotValue;
@@ -152,13 +154,17 @@ impl Actor for NetworkManager {
 
 					let recipient = ctx.address().recipient();
 
-					let port = if let Ok(GotValue(Some(ConfigValue::Number(port)))) = out {
+					let port = if let Ok(GotValue(Some(ConfigValue::Number(port)))) = out
+					{
 						port
 					} else {
 						5600
 					};
 					println!("[NetworkManager] got port: {:?}", port);
-					let nl = NetworkListener::new(format!("0.0.0.0:{}", port), recipient);
+					let nl = NetworkListener::new(
+						format!("0.0.0.0:{}", port),
+						recipient.downgrade(),
+					);
 					nl.do_send(ListenerMessage::StartListening);
 					actor.listener_addr.replace(nl);
 				},
@@ -202,7 +208,11 @@ impl Handler<NetworkDataMessage> for NetworkManager {
 
 impl Handler<ListenerOutput> for NetworkManager {
 	type Result = ();
-	fn handle(&mut self, msg: ListenerOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ListenerOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		use ListenerOutput::NewConnection;
 		match msg {
 			NewConnection(connection) => self.new_connection(ctx, connection),
@@ -212,7 +222,11 @@ impl Handler<ListenerOutput> for NetworkManager {
 
 impl Handler<InitiatorOutput> for NetworkManager {
 	type Result = ();
-	fn handle(&mut self, msg: InitiatorOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: InitiatorOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		use InitiatorOutput::{ClientRequest, InfoRequest};
 		match msg {
 			ClientRequest(sender, addr, client_details) => {
