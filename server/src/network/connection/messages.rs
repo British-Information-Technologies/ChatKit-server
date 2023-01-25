@@ -1,6 +1,10 @@
 use std::net::SocketAddr;
 
 use actix::{Message, WeakAddr};
+use tokio::{
+	io::{BufReader, ReadHalf},
+	net::TcpStream,
+};
 
 use crate::prelude::actors::Connection;
 
@@ -23,4 +27,5 @@ pub(crate) enum ConnectionObservableOutput {
 #[rtype(result = "()")]
 pub(super) enum ConnectionPrivateMessage {
 	Broadcast(ConnectionObservableOutput),
+	DoRead(BufReader<ReadHalf<TcpStream>>),
 }
