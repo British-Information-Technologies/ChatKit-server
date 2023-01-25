@@ -1,5 +1,8 @@
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Recipient};
-use foundation::{messages::client::ClientStreamIn, ClientDetails};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, WeakRecipient};
+use foundation::{
+	messages::client::{ClientStreamIn, ClientStreamOut},
+	ClientDetails,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -9,8 +12,8 @@ use crate::{
 		ClientMessage,
 		ClientObservableMessage,
 	},
-	network::{Connection, ConnectionOuput},
-	prelude::messages::ObservableMessage,
+	network::{Connection, ConnectionObservableOutput},
+	prelude::messages::{ConnectionMessage, ObservableMessage},
 };
 
 /// # Client
@@ -19,11 +22,14 @@ use crate::{
 pub struct Client {
 	connection: Addr<Connection>,
 	details: ClientDetails,
-	observers: Vec<Recipient<ClientObservableMessage>>,
+	observers: Vec<WeakRecipient<ClientObservableMessage>>,
 }
 
 impl Client {
-	pub(crate) fn new(connection: Addr<Connection>, details: ClientDetails) -> Addr<Self> {
+	pub(crate) fn new(
+		connection: Addr<Connection>,
+		details: ClientDetails,
+	) -> Addr<Self> {
 		Client {
 			connection,
 			details,
@@ -34,38 +40,58 @@ impl Client {
 
 	#[inline]
 	fn get_clients(&self, ctx: &mut Context<Client>) {
+		println!("[Client] getting clients");
 		use ClientObservableMessage::GetClients;
 		self.broadcast(GetClients(ctx.address().downgrade()));
 	}
 
 	#[inline]
 	fn get_messages(&self, ctx: &mut Context<Client>) {
+		println!("[Client] getting messages");
 		use ClientObservableMessage::GetGlobalMessages;
 		self.broadcast(GetGlobalMessages(ctx.address().downgrade()));
 	}
 
 	#[inline]
 	fn send_message(&self, ctx: &mut Context<Client>, to: Uuid, content: String) {
+		println!("[Client] sending message");
 		use ClientObservableMessage::Message;
 		self.broadcast(Message(ctx.address().downgrade(), to, content));
 	}
 
 	#[inline]
 	fn send_gloal_message(&self, ctx: &mut Context<Client>, content: String) {
+		println!("[Client] sending global message");
 		use ClientObservableMessage::GlobalMessage;
 		self.broadcast(GlobalMessage(ctx.address().downgrade(), content));
 	}
 
 	#[inline]
 	fn disconnect(&self, _ctx: &mut Context<Client>) {
-		todo!()
+		println!("[Client] disconnecting");
+		use ClientObservableMessage::Disconnecting;
+		self.broadcast(Disconnecting(self.details.uuid));
 	}
 
 	#[inline]
 	fn broadcast(&self, message: ClientObservableMessage) {
+		println!("[Client] broadcasting message");
 		for recp in &self.observers {
-			recp.do_send(message.clone());
+			if let Some(upgraded) = recp.upgrade() {
+				upgraded.do_send(message.clone());
+			}
 		}
+	}
+
+	pub(crate) fn error(&self, msg: String) {
+		println!("[Client] sending error: {}", msg);
+		use serde_json::to_string;
+		use ConnectionMessage::SendData;
+
+		let msg = to_string::<ClientStreamOut>(&ClientStreamOut::Error { msg })
+			.expect("[Client] This should not fail");
+
+		self.connection.do_send(SendData(msg));
 	}
 }
 
@@ -74,7 +100,7 @@ impl Actor for Client {
 
 	// tells the client that it has been connected.
 	fn started(&mut self, ctx: &mut Self::Context) {
-		use foundation::messages::client::{ClientStreamOut, ClientStreamOut::Connected};
+		use foundation::messages::client::ClientStreamOut::Connected;
 		use serde_json::to_string;
 
 		use crate::{
@@ -84,8 +110,8 @@ impl Actor for Client {
 		println!("[Client] started");
 		self
 			.connection
-			.do_send::<ObservableMessage<ConnectionOuput>>(Subscribe(
-				ctx.address().recipient(),
+			.do_send::<ObservableMessage<ConnectionObservableOutput>>(Subscribe(
+				ctx.address().recipient().downgrade(),
 			));
 		self
 			.connection
@@ -93,7 +119,7 @@ impl Actor for Client {
 	}
 
 	fn stopped(&mut self, ctx: &mut Self::Context) {
-		use foundation::messages::client::{ClientStreamOut, ClientStreamOut::Disconnected};
+		use foundation::messages::client::ClientStreamOut::Disconnected;
 		use serde_json::to_string;
 
 		use crate::{
@@ -105,8 +131,8 @@ impl Actor for Client {
 
 		self
 			.connection
-			.do_send::<ObservableMessage<ConnectionOuput>>(Unsubscribe(
-				ctx.address().recipient(),
+			.do_send::<ObservableMessage<ConnectionObservableOutput>>(Unsubscribe(
+				ctx.address().recipient().downgrade(),
 			));
 		self.connection.do_send(SendData(
 			to_string::<ClientStreamOut>(&Disconnected).unwrap(),
@@ -116,9 +142,15 @@ impl Actor for Client {
 
 impl Handler<ClientDataMessage> for Client {
 	type Result = ClientDataResponse;
-	fn handle(&mut self, msg: ClientDataMessage, _ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ClientDataMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		match msg {
-			ClientDataMessage::Details => ClientDataResponse::Details(self.details.clone()),
+			ClientDataMessage::Details => {
+				ClientDataResponse::Details(self.details.clone())
+			}
 			_ => todo!(),
 		}
 	}
@@ -127,15 +159,16 @@ impl Handler<ClientDataMessage> for Client {
 // Handles incoming messages to the client.
 impl Handler<ClientMessage> for Client {
 	type Result = ();
-	fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) -> Self::Result {
-		use foundation::messages::client::{
-			ClientStreamOut,
-			ClientStreamOut::{
-				ConnectedClients,
-				GlobalChatMessages,
-				GlobalMessage,
-				UserMessage,
-			},
+	fn handle(
+		&mut self,
+		msg: ClientMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
+		use foundation::messages::client::ClientStreamOut::{
+			ConnectedClients,
+			GlobalChatMessages,
+			GlobalMessage,
+			UserMessage,
 		};
 		use serde_json::to_string;
 
@@ -160,25 +193,33 @@ impl Handler<ClientMessage> for Client {
 					.expect("[Client] Failed to encode string"),
 			)),
 
-			ClientlySentMessage { content, from } => self.connection.do_send(SendData(
-				to_string::<ClientStreamOut>(&UserMessage { from, content })
-					.expect("[Client] Failed to encode string"),
-			)),
+			ClientlySentMessage { content, from } => {
+				self.connection.do_send(SendData(
+					to_string::<ClientStreamOut>(&UserMessage { from, content })
+						.expect("[Client] Failed to encode string"),
+				))
+			}
 
-			GloballySentMessage { from, content } => self.connection.do_send(SendData(
-				to_string::<ClientStreamOut>(&GlobalMessage { from, content })
-					.expect("[Client] Failed to encode string"),
-			)),
+			GloballySentMessage { from, content } => {
+				self.connection.do_send(SendData(
+					to_string::<ClientStreamOut>(&GlobalMessage { from, content })
+						.expect("[Client] Failed to encode string"),
+				))
+			}
 		}
 	}
 }
 
 // Handles outputs from the connection.
-impl Handler<ConnectionOuput> for Client {
+impl Handler<ConnectionObservableOutput> for Client {
 	type Result = ();
 
-	fn handle(&mut self, msg: ConnectionOuput, ctx: &mut Self::Context) -> Self::Result {
-		use crate::network::ConnectionOuput::RecvData;
+	fn handle(
+		&mut self,
+		msg: ConnectionObservableOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
+		use crate::network::ConnectionObservableOutput::RecvData;
 		if let RecvData(_sender, _addr, data) = msg {
 			use foundation::messages::client::ClientStreamIn::{
 				Disconnect,
@@ -188,14 +229,18 @@ impl Handler<ConnectionOuput> for Client {
 				SendMessage,
 			};
 			use serde_json::from_str;
-			let msg = from_str::<ClientStreamIn>(data.as_str())
-				.expect("[Client] failed to decode incoming message");
-			match msg {
-				GetClients => self.get_clients(ctx),
-				GetMessages => self.get_messages(ctx),
-				SendMessage { to, content } => self.send_message(ctx, to, content),
-				SendGlobalMessage { content } => self.send_gloal_message(ctx, content),
-				Disconnect => self.disconnect(ctx),
+			if let Ok(msg) = from_str::<ClientStreamIn>(data.as_str()) {
+				match msg {
+					GetClients => self.get_clients(ctx),
+					GetMessages => self.get_messages(ctx),
+					SendMessage { to, content } => self.send_message(ctx, to, content),
+					SendGlobalMessage { content } => {
+						self.send_gloal_message(ctx, content)
+					}
+					Disconnect => self.disconnect(ctx),
+				}
+			} else {
+				self.error(format!("Failed to parse Message: {}", data));
 			}
 		}
 	}
@@ -217,13 +262,20 @@ impl Handler<ObservableMessage<ClientObservableMessage>> for Client {
 			}
 			Unsubscribe(r) => {
 				println!("[Client] removing subscriber");
+				let r = r.upgrade();
 				self.observers = self
 					.observers
 					.clone()
 					.into_iter()
-					.filter(|a| a != &r)
+					.filter(|a| a.upgrade() != r)
 					.collect();
 			}
 		}
+	}
+}
+
+impl Drop for Client {
+	fn drop(&mut self) {
+		println!("[Client] Dropping value")
 	}
 }

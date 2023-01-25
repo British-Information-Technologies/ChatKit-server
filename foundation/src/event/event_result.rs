@@ -33,7 +33,10 @@ pub struct EventResultBuilder {
 }
 
 impl EventResultBuilder {
-	pub(self) fn new(result_type: EventResultType, sender: Sender<EventResult>) -> Self {
+	pub(self) fn new(
+		result_type: EventResultType,
+		sender: Sender<EventResult>,
+	) -> Self {
 		Self {
 			code: result_type,
 			args: HashMap::default(),

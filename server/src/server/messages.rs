@@ -1,6 +1,6 @@
-use crate::client_management::ClientManager;
-use crate::network::NetworkManager;
 use actix::{Addr, Message, MessageResponse};
+
+use crate::{client_management::ClientManager, network::NetworkManager};
 
 #[derive(Message, Clone)]
 #[rtype(result = "ServerDataResponse")]

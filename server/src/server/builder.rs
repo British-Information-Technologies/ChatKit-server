@@ -1,5 +1,6 @@
-use super::*;
 use actix::{Actor, Addr};
+
+use super::*;
 
 pub struct ServerBuilder {
 	pub(super) name: String,

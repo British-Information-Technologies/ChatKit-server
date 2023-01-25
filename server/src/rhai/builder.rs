@@ -1,24 +1,26 @@
-use actix::{Actor, Addr};
-
-use crate::client_management::ClientManager;
-use crate::network::NetworkManager;
-use crate::rhai::rhai_manager::RhaiManager;
-use crate::Server;
+use actix::{Actor, Addr, WeakAddr};
 use rhai::{Engine, Scope};
+
+use crate::{
+	client_management::ClientManager,
+	network::NetworkManager,
+	rhai::rhai_manager::RhaiManager,
+	Server,
+};
 
 pub struct Builder {
 	engine: Engine,
-	server: Addr<Server>,
-	network_manager: Addr<NetworkManager>,
-	client_manager: Addr<ClientManager>,
+	server: WeakAddr<Server>,
+	network_manager: WeakAddr<NetworkManager>,
+	client_manager: WeakAddr<ClientManager>,
 	scope: Scope<'static>,
 }
 
 impl Builder {
 	pub(super) fn new(
-		server: Addr<Server>,
-		network_manager: Addr<NetworkManager>,
-		client_manager: Addr<ClientManager>,
+		server: WeakAddr<Server>,
+		network_manager: WeakAddr<NetworkManager>,
+		client_manager: WeakAddr<ClientManager>,
 	) -> Self {
 		Builder {
 			engine: Engine::new(),

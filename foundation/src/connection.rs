@@ -44,23 +44,19 @@ impl Connection {
 		T: Serialize,
 	{
 		let mut out_buffer = Vec::new();
-
 		let out = serde_json::to_string(&message).unwrap();
-
+		let mut writer_lock = self.stream_tx.lock().await;
+		let old = mem::replace(&mut *writer_lock, None);
 		writeln!(&mut out_buffer, "{}", out)?;
 
-		let mut writer_lock = self.stream_tx.lock().await;
-
-		let old = mem::replace(&mut *writer_lock, None);
-
-		return if let Some(mut writer) = old {
-			writer.write_all(&out_buffer).await?;
-			writer.flush().await?;
-			let _ = mem::replace(&mut *writer_lock, Some(writer));
-			Ok(())
-		} else {
-			Err(Error::new(ErrorKind::Interrupted, "Writer does not exist"))
+		let Some(mut writer) = old else {
+			return Err(Error::new(ErrorKind::Interrupted, "Writer does not exist"));
 		};
+
+		writer.write_all(&out_buffer).await?;
+		writer.flush().await?;
+		let _ = mem::replace(&mut *writer_lock, Some(writer));
+		Ok(())
 	}
 
 	pub async fn read<T>(&self) -> Result<T, Error>

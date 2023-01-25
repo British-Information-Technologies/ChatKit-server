@@ -99,17 +99,26 @@ impl Actor for Server {
 		let addr = ctx.address().downgrade();
 
 		let nm = NetworkManager::create(addr.clone().recipient()).build();
-		nm.do_send(NetworkMessage::StartListening);
-		self.network_manager.replace(nm.clone());
-
 		let cm = ClientManager::new(addr.recipient());
+		let rm = RhaiManager::create(
+			ctx.address().downgrade(),
+			nm.downgrade(),
+			cm.downgrade(),
+		)
+		.build();
+		let lm = LuaManager::create(
+			ctx.address().downgrade(),
+			nm.downgrade(),
+			cm.downgrade(),
+		)
+		.build();
+
+		self.network_manager.replace(nm.clone());
 		self.client_manager.replace(cm.clone());
-
-		let rm = RhaiManager::create(ctx.address(), nm.clone(), cm.clone()).build();
 		self.rhai_manager.replace(rm);
-
-		let lm = LuaManager::create(ctx.address(), nm, cm).build();
 		self.lua_manager.replace(lm);
+
+		nm.do_send(NetworkMessage::StartListening);
 
 		let name_fut = wrap_future(
 			ConfigManager::shared().send(GetValue("Server.Name".to_owned())),
@@ -137,7 +146,11 @@ impl Actor for Server {
 impl Handler<ServerDataMessage> for Server {
 	type Result = ServerDataResponse;
 
-	fn handle(&mut self, msg: ServerDataMessage, _ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ServerDataMessage,
+		_ctx: &mut Self::Context,
+	) -> Self::Result {
 		println!("[Server] got data message");
 		match msg {
 			ServerDataMessage::Name => ServerDataResponse::Name(self.name.clone()),
@@ -154,7 +167,11 @@ impl Handler<ServerDataMessage> for Server {
 
 impl Handler<NetworkOutput> for Server {
 	type Result = ();
-	fn handle(&mut self, msg: NetworkOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: NetworkOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		println!("[ServerActor] received message");
 		match msg {
 			// This uses promise like funcionality to queue

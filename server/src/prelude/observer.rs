@@ -1,7 +1,7 @@
 //! # observer.rs
 //! crates a message type for the observer pattern.
 
-use actix::{Message, Recipient};
+use actix::{Message, WeakRecipient};
 
 /// # ObservableMessage
 /// represents common messages for observers
@@ -12,6 +12,6 @@ where
 	M: Message + Send,
 	M::Result: Send,
 {
-	Subscribe(Recipient<M>),
-	Unsubscribe(Recipient<M>),
+	Subscribe(WeakRecipient<M>),
+	Unsubscribe(WeakRecipient<M>),
 }

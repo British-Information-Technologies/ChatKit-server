@@ -21,7 +21,12 @@ impl ChatManager {
 	}
 
 	// no need for a remove methods because this is a read only system
-	fn add_message(&mut self, _ctx: &mut Context<Self>, id: Uuid, content: String) {
+	fn add_message(
+		&mut self,
+		_ctx: &mut Context<Self>,
+		id: Uuid,
+		content: String,
+	) {
 		println!(
 			"[ChatManager] add_message id: {:?} content: {:?}",
 			id, content
@@ -51,10 +56,16 @@ impl Actor for ChatManager {
 impl Handler<ChatManagerMessage> for ChatManager {
 	type Result = ();
 
-	fn handle(&mut self, msg: ChatManagerMessage, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ChatManagerMessage,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		println!("[ChatManager] got message: {:?}", msg);
 		match msg {
-			ChatManagerMessage::AddMessage(id, content) => self.add_message(ctx, id, content),
+			ChatManagerMessage::AddMessage(id, content) => {
+				self.add_message(ctx, id, content)
+			}
 		}
 	}
 }

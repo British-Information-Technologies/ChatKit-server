@@ -1,7 +1,11 @@
-use crate::network::NetworkDataOutput::IsListening;
-use crate::network::{NetworkDataMessage, NetworkManager};
 use actix::Addr;
 use mlua::{Error, UserData, UserDataMethods};
+
+use crate::network::{
+	NetworkDataMessage,
+	NetworkDataOutput::IsListening,
+	NetworkManager,
+};
 
 #[derive(Clone)]
 pub(crate) struct ScriptableNetworkManager {
@@ -11,7 +15,8 @@ pub(crate) struct ScriptableNetworkManager {
 impl UserData for ScriptableNetworkManager {
 	fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
 		methods.add_async_method("Listening", |_lua, obj, ()| async move {
-			let is_listening = obj.addr.send(NetworkDataMessage::IsListening).await.ok();
+			let is_listening =
+				obj.addr.send(NetworkDataMessage::IsListening).await.ok();
 			if let Some(IsListening(is_listening)) = is_listening {
 				Ok(is_listening)
 			} else {

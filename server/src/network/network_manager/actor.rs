@@ -80,16 +80,20 @@ impl NetworkManager {
 	) {
 		println!("[NetworkManager] Got new connection");
 
-		let init =
-			ConnectionInitiator::new(ctx.address().recipient().downgrade(), connection);
+		let init = ConnectionInitiator::new(
+			ctx.address().recipient().downgrade(),
+			connection,
+		);
 		self.initiators.push(init);
 	}
 
 	#[inline]
-	fn remove_initiator(&mut self, sender: Addr<ConnectionInitiator>) {
-		let index = self.initiators.iter().position(|i| *i == sender).unwrap();
-		println!("[NetworkManager] removed initiator at:{}", index);
-		self.initiators.remove(index);
+	fn remove_initiator(&mut self, sender: WeakAddr<ConnectionInitiator>) {
+		if let Some(sender) = sender.upgrade() {
+			let index = self.initiators.iter().position(|i| *i == sender).unwrap();
+			println!("[NetworkManager] removed initiator at:{}", index);
+			let _ = self.initiators.remove(index);
+		}
 	}
 
 	/// handles a initiator client request
@@ -100,7 +104,7 @@ impl NetworkManager {
 	fn client_request(
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
-		sender: Addr<ConnectionInitiator>,
+		sender: WeakAddr<ConnectionInitiator>,
 		connection: Addr<Connection>,
 		client_details: ClientDetails,
 	) {
@@ -119,7 +123,7 @@ impl NetworkManager {
 	fn info_request(
 		&mut self,
 		_ctx: &mut <Self as Actor>::Context,
-		sender: Addr<ConnectionInitiator>,
+		sender: WeakAddr<ConnectionInitiator>,
 		connection: Addr<Connection>,
 	) {
 		use NetworkOutput::InfoRequested;
@@ -139,9 +143,9 @@ impl Actor for NetworkManager {
 		let config_mgr = self.config_manager.clone().upgrade();
 
 		if let Some(config_mgr) = config_mgr {
-			let fut = wrap_future(config_mgr.send(ConfigManagerDataMessage::GetValue(
-				"Network.Port".to_owned(),
-			)))
+			let fut = wrap_future(config_mgr.send(
+				ConfigManagerDataMessage::GetValue("Network.Port".to_owned()),
+			))
 			.map(
 				|out, actor: &mut NetworkManager, ctx: &mut Context<NetworkManager>| {
 					use crate::config_manager::ConfigManagerDataResponse::GotValue;
@@ -150,13 +154,17 @@ impl Actor for NetworkManager {
 
 					let recipient = ctx.address().recipient();
 
-					let port = if let Ok(GotValue(Some(ConfigValue::Number(port)))) = out {
+					let port = if let Ok(GotValue(Some(ConfigValue::Number(port)))) = out
+					{
 						port
 					} else {
 						5600
 					};
 					println!("[NetworkManager] got port: {:?}", port);
-					let nl = NetworkListener::new(format!("0.0.0.0:{}", port), recipient);
+					let nl = NetworkListener::new(
+						format!("0.0.0.0:{}", port),
+						recipient.downgrade(),
+					);
 					nl.do_send(ListenerMessage::StartListening);
 					actor.listener_addr.replace(nl);
 				},
@@ -200,7 +208,11 @@ impl Handler<NetworkDataMessage> for NetworkManager {
 
 impl Handler<ListenerOutput> for NetworkManager {
 	type Result = ();
-	fn handle(&mut self, msg: ListenerOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: ListenerOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		use ListenerOutput::NewConnection;
 		match msg {
 			NewConnection(connection) => self.new_connection(ctx, connection),
@@ -210,7 +222,11 @@ impl Handler<ListenerOutput> for NetworkManager {
 
 impl Handler<InitiatorOutput> for NetworkManager {
 	type Result = ();
-	fn handle(&mut self, msg: InitiatorOutput, ctx: &mut Self::Context) -> Self::Result {
+	fn handle(
+		&mut self,
+		msg: InitiatorOutput,
+		ctx: &mut Self::Context,
+	) -> Self::Result {
 		use InitiatorOutput::{ClientRequest, InfoRequest};
 		match msg {
 			ClientRequest(sender, addr, client_details) => {

@@ -14,7 +14,9 @@ use crate::{
 		arg_parser::Arguments,
 		builder::Builder,
 		messages::{
-			ConfigManagerDataMessage, ConfigManagerDataResponse, ConfigManagerOutput,
+			ConfigManagerDataMessage,
+			ConfigManagerDataResponse,
+			ConfigManagerOutput,
 		},
 		types::ConfigValue::{Dict, Number, String as ConfigString},
 		ConfigValue,
@@ -145,17 +147,21 @@ impl From<Builder> for ConfigManager {
 			.ok()
 			.unwrap_or_else(|| Dict(BTreeMap::new()));
 
+		println!("[ConfigManager] got stored: {:?}", stored);
+
 		let mut root = stored.clone();
 		if let Dict(root) = &mut root {
 			builder.args.map(|v| {
 				v.port
 					.map(|p| root.insert("Network.Port".to_owned(), Number(p.into())));
 
-				v.name
-					.map(|n| root.insert("Server.Name".to_owned(), ConfigString(n.into())));
+				v.name.map(|n| {
+					root.insert("Server.Name".to_owned(), ConfigString(n.into()))
+				});
 
-				v.owner
-					.map(|o| root.insert("Server.Owner".to_owned(), ConfigString(o.into())));
+				v.owner.map(|o| {
+					root.insert("Server.Owner".to_owned(), ConfigString(o.into()))
+				});
 			});
 		}
 

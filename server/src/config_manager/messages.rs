@@ -1,5 +1,6 @@
-use crate::config_manager::types::ConfigValue;
 use actix::{Message, MessageResponse};
+
+use crate::config_manager::types::ConfigValue;
 
 #[derive(Message, Debug)]
 #[rtype(result = "()")]

@@ -1,6 +1,9 @@
-use crate::network::network_manager::messages::NetworkOutput;
-use crate::network::NetworkManager;
 use actix::{Actor, Addr, WeakRecipient};
+
+use crate::network::{
+	network_manager::messages::NetworkOutput,
+	NetworkManager,
+};
 
 pub struct Builder {
 	pub(super) delegate: WeakRecipient<NetworkOutput>,

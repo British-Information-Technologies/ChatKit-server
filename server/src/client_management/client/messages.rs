@@ -40,4 +40,5 @@ pub enum ClientObservableMessage {
 	GlobalMessage(WeakAddr<Client>, String),
 	GetClients(WeakAddr<Client>),
 	GetGlobalMessages(WeakAddr<Client>),
+	Disconnecting(Uuid),
 }

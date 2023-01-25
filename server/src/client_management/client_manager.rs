@@ -46,7 +46,9 @@ pub struct ClientManager {
 }
 
 impl ClientManager {
-	pub(crate) fn new(delegate: WeakRecipient<ClientManagerOutput>) -> Addr<Self> {
+	pub(crate) fn new(
+		delegate: WeakRecipient<ClientManagerOutput>,
+	) -> Addr<Self> {
 		ClientManager {
 			_delegate: delegate,
 			clients: HashMap::new(),
@@ -92,12 +94,14 @@ impl ClientManager {
 		sender: WeakAddr<Client>,
 	) {
 		if let Some(to_send) = sender.upgrade() {
-			let fut = wrap_future(self.chat_manager.send(ChatManagerDataMessage::GetMessages))
-				.map(move |out, _a, _ctx| {
-					if let Ok(ChatManagerDataResponse::GotMessages(res)) = out {
-						to_send.do_send(ClientMessage::MessageList(res));
-					}
-				});
+			let fut = wrap_future(
+				self.chat_manager.send(ChatManagerDataMessage::GetMessages),
+			)
+			.map(move |out, _a, _ctx| {
+				if let Ok(ChatManagerDataResponse::GotMessages(res)) = out {
+					to_send.do_send(ClientMessage::MessageList(res));
+				}
+			});
 			ctx.spawn(fut);
 		};
 	}
@@ -220,7 +224,8 @@ impl ClientManager {
 		println!("[ClientManager] adding client");
 		use crate::prelude::messages::ObservableMessage::Subscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
-		addr.do_send(Subscribe(recp));
+		println!("[ClientManager] sending subscribe message to client");
+		addr.do_send(Subscribe(recp.downgrade()));
 		self.clients.insert(uuid, addr);
 	}
 
@@ -229,7 +234,21 @@ impl ClientManager {
 		use crate::prelude::messages::ObservableMessage::Unsubscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
 		if let Some(addr) = self.clients.remove(&uuid) {
-			addr.do_send(Unsubscribe(recp));
+			println!("[ClientManager] sending unsubscribe message to client");
+			addr.do_send(Unsubscribe(recp.downgrade()));
+		}
+	}
+
+	fn disconnect_client(
+		&mut self,
+		ctx: &mut Context<ClientManager>,
+		uuid: Uuid,
+	) {
+		println!("[ClientManager] disconnecting client");
+		use crate::prelude::messages::ObservableMessage::Unsubscribe;
+		let recp = ctx.address().recipient::<ClientObservableMessage>();
+		if let Some(addr) = self.clients.remove(&uuid) {
+			addr.do_send(Unsubscribe(recp.downgrade()));
 		}
 	}
 }
@@ -268,18 +287,22 @@ impl Handler<ClientObservableMessage> for ClientManager {
 		ctx: &mut Self::Context,
 	) -> Self::Result {
 		use crate::client_management::client::ClientObservableMessage::{
+			Disconnecting,
 			GetClients,
 			GetGlobalMessages,
 			GlobalMessage,
 			Message,
 		};
 		match msg {
-			Message(sender, to, content) => self.send_message_request(ctx, sender, to, content),
+			Message(sender, to, content) => {
+				self.send_message_request(ctx, sender, to, content)
+			}
 			GlobalMessage(sender, content) => {
 				self.send_global_message_request(ctx, sender, content)
 			}
 			GetClients(sender) => self.send_client_list(ctx, sender),
 			GetGlobalMessages(sender) => self.send_global_messages(ctx, sender),
+			Disconnecting(uuid) => self.disconnect_client(ctx, uuid),
 		}
 	}
 }
@@ -293,7 +316,9 @@ impl Handler<ClientManagerDataMessage> for ClientManager {
 		_ctx: &mut Self::Context,
 	) -> Self::Result {
 		match msg {
-			ClientManagerDataMessage::ClientCount => ClientCount(self.clients.values().count()),
+			ClientManagerDataMessage::ClientCount => {
+				ClientCount(self.clients.values().count())
+			}
 			ClientManagerDataMessage::Clients => {
 				Clients(self.clients.values().map(|a| a.downgrade()).collect())
 			}
