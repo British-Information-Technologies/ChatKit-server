@@ -11,7 +11,6 @@ pub(crate) mod scripting;
 pub(crate) mod server;
 
 use server::Server;
-
 use tokio::time::{sleep, Duration};
 
 /// The main function

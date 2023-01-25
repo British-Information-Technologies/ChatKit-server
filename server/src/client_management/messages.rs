@@ -1,7 +1,7 @@
-use crate::client_management::client::Client;
-use crate::client_management::ClientManager;
 use actix::{Addr, Message, MessageResponse, WeakAddr};
 use uuid::Uuid;
+
+use crate::client_management::{client::Client, ClientManager};
 
 #[derive(Message)]
 #[rtype(result = "()")]

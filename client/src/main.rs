@@ -6,7 +6,8 @@ use cursive::{
 	menu::{Item, Tree},
 	traits::Nameable,
 	views::{Dialog, TextView},
-	Cursive, CursiveExt,
+	Cursive,
+	CursiveExt,
 };
 use worker::Worker;
 

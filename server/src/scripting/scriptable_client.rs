@@ -1,8 +1,12 @@
-use crate::client_management::client::Client;
-use crate::client_management::client::ClientDataResponse::{Username, Uuid};
-use crate::client_management::client::{ClientDataMessage, ClientDataResponse};
 use actix::Addr;
 use mlua::{Error, UserData, UserDataMethods};
+
+use crate::client_management::client::{
+	Client,
+	ClientDataMessage,
+	ClientDataResponse,
+	ClientDataResponse::{Username, Uuid},
+};
 
 #[derive(Clone)]
 pub(crate) struct ScriptableClient {

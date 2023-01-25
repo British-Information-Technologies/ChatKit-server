@@ -2,7 +2,11 @@ use std::collections::HashMap;
 
 use futures::channel::oneshot::{channel, Receiver, Sender};
 
-use crate::event::{event_result::EventResultBuilder, EventResult, EventResultType};
+use crate::event::{
+	event_result::EventResultBuilder,
+	EventResult,
+	EventResultType,
+};
 
 /// # Eventw
 /// Object that holds details about an event being passed through the application.
@@ -69,7 +73,11 @@ impl<T> EventBuilder<T> {
 		}
 	}
 
-	pub fn add_arg<K: Into<String>, V: Into<String>>(mut self, key: K, value: V) -> Self {
+	pub fn add_arg<K: Into<String>, V: Into<String>>(
+		mut self,
+		key: K,
+		value: V,
+	) -> Self {
 		self.args.insert(key.into(), value.into());
 		self
 	}

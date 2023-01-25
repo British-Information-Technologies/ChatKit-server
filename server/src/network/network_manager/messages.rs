@@ -1,7 +1,7 @@
-use crate::network::Connection;
-use actix::Addr;
-use actix::{Message, MessageResponse};
+use actix::{Addr, Message, MessageResponse};
 use foundation::ClientDetails;
+
+use crate::network::Connection;
 
 #[derive(Message, Debug, Ord, PartialOrd, Eq, PartialEq)]
 #[rtype(result = "()")]

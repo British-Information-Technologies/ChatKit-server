@@ -155,11 +155,13 @@ impl From<Builder> for ConfigManager {
 				v.port
 					.map(|p| root.insert("Network.Port".to_owned(), Number(p.into())));
 
-				v.name
-					.map(|n| root.insert("Server.Name".to_owned(), ConfigString(n.into())));
+				v.name.map(|n| {
+					root.insert("Server.Name".to_owned(), ConfigString(n.into()))
+				});
 
-				v.owner
-					.map(|o| root.insert("Server.Owner".to_owned(), ConfigString(o.into())));
+				v.owner.map(|o| {
+					root.insert("Server.Owner".to_owned(), ConfigString(o.into()))
+				});
 			});
 		}
 
