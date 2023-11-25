@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = "0.4"
-clap = {version = "3.2.5", features = ["derive"]}
+clap = {version = "4.4.8", features = ["derive"]}
 uuid = {version = "1.1.2", features = ["serde", "v4"]}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -33,10 +33,10 @@ futures = "0.3.16"
 async-trait = "0.1.52"
 actix = "0.13"
 rhai = {version = "1.7.0"}
-mlua = { version = "0.8.1", features=["lua54", "async", "serde", "macros", "vendored"] }
-libloading = "0.7"
-toml = "0.5.9"
-aquamarine = "0.1.11"
+mlua = { version = "0.9.2", features=["lua54", "async", "serde", "macros", "vendored"] }
+libloading = "0.8.1"
+toml = "0.8.8"
+aquamarine = "0.3.2"
 tokio-stream = "0.1.9"
 
 foundation = {path = '../foundation'}

@@ -1,0 +1,7 @@
+.gitignore
+
+/target
+/docs
+/.vscode
+/.idea
+/.github
