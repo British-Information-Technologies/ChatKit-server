@@ -1,31 +1,42 @@
-use crate::ClientDetails;
 use serde::{Deserialize, Serialize};
-
 use uuid::Uuid;
 
-/// # ClientMessage
-/// This enum defined the message that a client can receive from the server
-/// This uses the serde library to transform to and from json.
-///
-#[derive(Serialize, Deserialize)]
-pub enum ClientStreamIn {
-	Connected,
+use crate::{models::message::Message, ClientDetails};
 
-	Update,
+/// This enum defined the message that the server will receive from a client
+/// This uses the serde library to transform to and from json.
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClientStreamIn {
+	GetClients,
+	GetMessages,
+
 	SendMessage { to: Uuid, content: String },
 	SendGlobalMessage { content: String },
 
 	Disconnect,
 }
 
-#[derive(Serialize, Deserialize)]
+/// This enum defined the message that the server will send to a client
+/// This uses the serde library to transform to and from json.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
 pub enum ClientStreamOut {
 	Connected,
 
-	UserMessage { from: Uuid, content: String },
-	GlobalMessage { content: String },
+	// get reequest messages
+	ConnectedClients { clients: Vec<ClientDetails> },
+	GlobalChatMessages { messages: Vec<Message> },
 
-	ConnectedClients {clients: Vec<ClientDetails>},
+	// event messges
+	UserMessage { from: Uuid, content: String },
+	GlobalMessage { from: Uuid, content: String },
+
+	ClientConnected { id: Uuid, username: String },
+	ClientRemoved { id: Uuid },
 
 	Disconnected,
+
+	// error cases
+	Error { msg: String },
 }
