@@ -59,7 +59,6 @@ impl NetworkListener {
 			use ListenerOutput::NewConnection;
 
 			let listener = TcpListener::bind(addr).await.unwrap();
-
 			while let Ok((stream, addr)) = listener.accept().await {
 				println!("[NetworkListener] accepted socket");
 				let conn = Connection::new(stream, addr);

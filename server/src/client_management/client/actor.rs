@@ -83,6 +83,7 @@ impl Client {
 		}
 	}
 
+
 	pub(crate) fn _error(&self, msg: String) {
 		println!("[Client] sending error: {}", msg);
 		use serde_json::to_string;
@@ -246,6 +247,7 @@ impl Handler<ConnectionObservableOutput> for Client {
 			}
 			ConnectionObservableOutput::ConnectionClosed(_) => self
 				.broadcast(ClientObservableMessage::Disconnecting(self.details.uuid)),
+
 		}
 	}
 }
