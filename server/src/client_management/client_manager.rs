@@ -58,7 +58,7 @@ impl ClientManager {
 	}
 
 	pub(crate) fn send_client_list(
-		&mut self,
+		&self,
 		ctx: &mut Context<Self>,
 		sender: WeakAddr<Client>,
 	) {
@@ -66,7 +66,7 @@ impl ClientManager {
 		use crate::client_management::client::ClientMessage::ClientList;
 		if let Some(to_send) = sender.upgrade() {
 			let client_addr: Vec<Addr<Client>> =
-				self.clients.iter().map(|(_, v)| v).cloned().collect();
+				self.clients.values().cloned().collect();
 
 			let collection = tokio_stream::iter(client_addr)
 				.then(|addr| addr.send(ClientDataMessage::Details))
@@ -115,7 +115,7 @@ impl ClientManager {
 	) {
 		println!("[ClientManager] sending message to client");
 		let client_addr: Vec<Addr<Client>> =
-			self.clients.iter().map(|(_, v)| v).cloned().collect();
+			self.clients.values().cloned().collect();
 
 		let collection = tokio_stream::iter(client_addr.clone())
 			.then(|addr| addr.send(ClientDataMessage::Details))
@@ -164,7 +164,7 @@ impl ClientManager {
 		use crate::client_management::client::ClientMessage::GloballySentMessage;
 
 		let client_addr: Vec<Addr<Client>> =
-			self.clients.iter().map(|(_, v)| v).cloned().collect();
+			self.clients.values().cloned().collect();
 
 		if let Some(sender) = sender.upgrade() {
 			let cm = self.chat_manager.clone();
@@ -227,15 +227,23 @@ impl ClientManager {
 		println!("[ClientManager] sending subscribe message to client");
 		addr.do_send(Subscribe(recp.downgrade()));
 		self.clients.insert(uuid, addr);
+		for (_k, v) in self.clients.clone() {
+			self.send_client_list(ctx, v.downgrade())
+		}
 	}
 
 	fn remove_client(&mut self, ctx: &mut Context<ClientManager>, uuid: Uuid) {
 		println!("[ClientManager] removing client");
 		use crate::prelude::messages::ObservableMessage::Unsubscribe;
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
-		if let Some(addr) = self.clients.remove(&uuid) {
+		let addr = self.clients.remove(&uuid);
+		if let Some(addr) = addr {
 			println!("[ClientManager] sending unsubscribe message to client");
 			addr.do_send(Unsubscribe(recp.downgrade()));
+		}
+		println!("[ClientManager] sending client list to other clients");
+		for (_k, v) in self.clients.iter() {
+			self.send_client_list(ctx, v.downgrade())
 		}
 	}
 
@@ -249,6 +257,7 @@ impl ClientManager {
 		let recp = ctx.address().recipient::<ClientObservableMessage>();
 		if let Some(addr) = self.clients.remove(&uuid) {
 			addr.do_send(Unsubscribe(recp.downgrade()));
+			self.remove_client(ctx, uuid);
 		}
 	}
 }

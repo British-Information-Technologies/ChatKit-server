@@ -58,7 +58,6 @@ impl ConnectionInitiator {
 		&mut self,
 		sender: WeakAddr<Connection>,
 		ctx: &mut <Self as Actor>::Context,
-		_address: SocketAddr,
 		data: String,
 	) {
 		use InitiatorOutput::{ClientRequest, InfoRequest};
@@ -158,8 +157,8 @@ impl Handler<ConnectionObservableOutput> for ConnectionInitiator {
 	) -> Self::Result {
 		use ConnectionObservableOutput::RecvData;
 
-		if let RecvData(sender, addr, data) = msg {
-			self.handle_request(sender, ctx, addr, data)
+		if let RecvData(sender, data) = msg {
+			self.handle_request(sender, ctx, data)
 		}
 	}
 }

@@ -83,7 +83,8 @@ impl Client {
 		}
 	}
 
-	pub(crate) fn error(&self, msg: String) {
+
+	pub(crate) fn _error(&self, msg: String) {
 		println!("[Client] sending error: {}", msg);
 		use serde_json::to_string;
 		use ConnectionMessage::SendData;
@@ -219,29 +220,34 @@ impl Handler<ConnectionObservableOutput> for Client {
 		msg: ConnectionObservableOutput,
 		ctx: &mut Self::Context,
 	) -> Self::Result {
+		use foundation::messages::client::ClientStreamIn::{
+			Disconnect,
+			GetClients,
+			GetMessages,
+			SendGlobalMessage,
+			SendMessage,
+		};
+		use serde_json::from_str;
+
 		use crate::network::ConnectionObservableOutput::RecvData;
-		if let RecvData(_sender, _addr, data) = msg {
-			use foundation::messages::client::ClientStreamIn::{
-				Disconnect,
-				GetClients,
-				GetMessages,
-				SendGlobalMessage,
-				SendMessage,
-			};
-			use serde_json::from_str;
-			if let Ok(msg) = from_str::<ClientStreamIn>(data.as_str()) {
-				match msg {
-					GetClients => self.get_clients(ctx),
-					GetMessages => self.get_messages(ctx),
-					SendMessage { to, content } => self.send_message(ctx, to, content),
-					SendGlobalMessage { content } => {
-						self.send_gloal_message(ctx, content)
+
+		match msg {
+			RecvData(_sender, data) => {
+				if let Ok(msg) = from_str::<ClientStreamIn>(data.as_str()) {
+					match msg {
+						GetClients => self.get_clients(ctx),
+						GetMessages => self.get_messages(ctx),
+						SendMessage { to, content } => self.send_message(ctx, to, content),
+						SendGlobalMessage { content } => {
+							self.send_gloal_message(ctx, content)
+						}
+						Disconnect => self.disconnect(ctx),
 					}
-					Disconnect => self.disconnect(ctx),
 				}
-			} else {
-				self.error(format!("Failed to parse Message: {}", data));
 			}
+			ConnectionObservableOutput::ConnectionClosed(_) => self
+				.broadcast(ClientObservableMessage::Disconnecting(self.details.uuid)),
+
 		}
 	}
 }
