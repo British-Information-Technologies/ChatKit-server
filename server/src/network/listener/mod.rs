@@ -57,7 +57,9 @@ impl NetworkListener {
 		let delegate = self.delegate.clone();
 		ctx.spawn(wrap_future(async move {
 			use ListenerOutput::NewConnection;
+
 			let listener = TcpListener::bind(addr).await.unwrap();
+
 			while let Ok((stream, addr)) = listener.accept().await {
 				println!("[NetworkListener] accepted socket");
 				let conn = Connection::new(stream, addr);
@@ -66,6 +68,7 @@ impl NetworkListener {
 					break;
 				};
 
+				println!("[NetworkListener] sending connection to delegate");
 				delegate.do_send(NewConnection(conn))
 			}
 		}));

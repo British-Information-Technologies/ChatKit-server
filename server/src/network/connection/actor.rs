@@ -5,15 +5,13 @@ use actix::{
 	fut::wrap_future,
 	Actor,
 	ActorContext,
-	ActorFutureExt,
 	Addr,
 	AsyncContext,
 	Context,
 	Handler,
-	SpawnHandle,
 	WeakRecipient,
 };
-use futures::{future::join_all, stream::Buffered, Future, FutureExt};
+use futures::{future::join_all, Future, FutureExt};
 use tokio::{
 	io::{split, AsyncBufReadExt, AsyncWriteExt, BufReader, ReadHalf, WriteHalf},
 	net::TcpStream,
@@ -37,7 +35,7 @@ use crate::{
 /// - loop_future: the future holding the receiving loop.
 pub struct Connection {
 	write_half: Arc<Mutex<WriteHalf<TcpStream>>>,
-	address: SocketAddr,
+	_address: SocketAddr,
 	observers: Vec<WeakRecipient<ConnectionObservableOutput>>,
 }
 
@@ -49,7 +47,7 @@ impl Connection {
 		let (read_half, write_half) = split(stream);
 		let addr = Connection {
 			write_half: Arc::new(Mutex::new(write_half)),
-			address,
+			_address: address,
 			observers: Vec::new(),
 		}
 		.start();
@@ -88,7 +86,6 @@ impl Connection {
 		ctx: &mut <Self as Actor>::Context,
 		mut buf_reader: BufReader<ReadHalf<TcpStream>>,
 	) {
-		let address = self.address;
 		let weak_addr = ctx.address().downgrade();
 
 		let read_fut = async move {
@@ -97,7 +94,6 @@ impl Connection {
 
 			let read_fut = buf_reader.read_line(&mut buffer_string);
 			let Ok(Ok(len)) = timeout(dur, read_fut).await else {
-				println!("[Connection] timeout reached");
 				if let Some(addr) = weak_addr.upgrade() {
 					addr.do_send(ConnectionPrivateMessage::DoRead(buf_reader));
 				}
@@ -106,6 +102,9 @@ impl Connection {
 
 			if len == 0 {
 				println!("[Connection] readline returned 0");
+				if let Some(addr) = weak_addr.upgrade() {
+					addr.do_send(ConnectionPrivateMessage::Close);
+				}
 				return;
 			}
 
@@ -114,7 +113,6 @@ impl Connection {
 					.send(ConnectionPrivateMessage::Broadcast(
 						ConnectionObservableOutput::RecvData(
 							addr.downgrade(),
-							address,
 							buffer_string.clone(),
 						),
 					))
@@ -127,6 +125,11 @@ impl Connection {
 		};
 		ctx.spawn(wrap_future(read_fut));
 	}
+
+	fn close_connection(&self, ctx: &mut <Self as Actor>::Context) {
+		use ConnectionObservableOutput::ConnectionClosed;
+		self.broadcast(ctx, ConnectionClosed(ctx.address().downgrade()))
+	}
 }
 
 impl Actor for Connection {
@@ -135,7 +138,7 @@ impl Actor for Connection {
 	/// runs when the actor is started.
 	/// takes out eh read_half ad turns it into a buffered reader
 	/// then eneters loop readling lines from the tcp stream
-	fn started(&mut self, ctx: &mut Self::Context) {
+	fn started(&mut self, _ctx: &mut Self::Context) {
 		println!("[Connection] started");
 	}
 
@@ -251,6 +254,7 @@ impl Handler<ConnectionPrivateMessage> for Connection {
 			ConnectionPrivateMessage::DoRead(buf_reader) => {
 				self.do_read(ctx, buf_reader)
 			}
+			ConnectionPrivateMessage::Close => self.close_connection(ctx),
 		};
 	}
 }

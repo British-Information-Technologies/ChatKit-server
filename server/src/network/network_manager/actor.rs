@@ -170,8 +170,11 @@ impl Actor for NetworkManager {
 				},
 			);
 			ctx.spawn(fut);
-			println!("[NetworkManager] Finished Starting");
 		}
+	}
+
+	fn stopped(&mut self, ctx: &mut Self::Context) {
+		println!("[NetworkManager] network manager stopped");
 	}
 }
 
@@ -215,7 +218,10 @@ impl Handler<ListenerOutput> for NetworkManager {
 	) -> Self::Result {
 		use ListenerOutput::NewConnection;
 		match msg {
-			NewConnection(connection) => self.new_connection(ctx, connection),
+			NewConnection(connection) => {
+				println!("new connection");
+				self.new_connection(ctx, connection)
+			}
 		};
 	}
 }
