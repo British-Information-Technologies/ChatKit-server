@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+// Network messages from the client.
+message NetoworkClientMessage {
+	oneof message {
+		GetInfo get_info = 1;
+		Connect connect = 2;
+	}
+}
+
+message GetInfo {}
+
+message Connect {
+	string username = 1;
+	string uuid = 2;
+}
+
+// Network messages from the server.
+message NetworkServerMessage {
+	oneof message {
+		Request request = 1;
+	}
+}
+
+message Request {}
+
+message Info {
+	string server_name = 1;
+	string owner = 2;
+}
+
+message Connected {}
