@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /**
- * #ClientDetails.
+ * # ClientDetails.
  * This defines the fileds a client would want to send when connecitng
  * uuid:          the unique id of the user.
  * username:      the users user name.

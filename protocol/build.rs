@@ -1,11 +1,7 @@
-use protobuf_codegen::Codegen;
+use std::io::Result;
 
 // Use this in build.rs
-fn main() {
-	Codegen::new()
-		.includes(["src/proto"])
-		.input("src/proto/messages.proto")
-		.input("src/proto/network.proto")
-		.cargo_out_dir("proto")
-		.run_from_script();
+fn main() -> Result<()> {
+	prost_build::compile_protos(&["src/proto/network.proto"], &["src/proto"])?;
+	Ok(())
 }

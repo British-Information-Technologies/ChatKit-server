@@ -1,7 +1,9 @@
 syntax = "proto3";
 
+package chatkit.messages;
+
 // Network messages from the client.
-message NetoworkClientMessage {
+message NetworkClientMessage {
 	oneof message {
 		GetInfo get_info = 1;
 		Connect connect = 2;

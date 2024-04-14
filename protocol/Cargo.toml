@@ -18,7 +18,11 @@ tokio = { version = "1.9.0", features = ["full"] }
 futures = "0.3.16"
 async-trait = "0.1.52"
 toml = "0.8.8"
-protobuf = "3.4.0"
+
+# prost setup
+bytes.workspace = true
+prost.workspace = true
 
 [build-dependencies]
-protobuf-codegen.workspace = true
+prost-build.workspace = true
+
