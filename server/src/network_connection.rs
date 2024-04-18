@@ -17,12 +17,15 @@ use tokio::net::TcpStream;
 
 pub struct NetworkConnection {
 	stream: TcpStream,
-	addr: SocketAddr,
+	_addr: SocketAddr,
 }
 
 impl NetworkConnection {
 	pub fn new(stream: TcpStream, addr: SocketAddr) -> Self {
-		Self { stream, addr }
+		Self {
+			stream,
+			_addr: addr,
+		}
 	}
 
 	pub async fn get_request(&mut self) -> io::Result<ServerRequest> {
