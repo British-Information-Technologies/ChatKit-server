@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 
-use bytes::{BufMut, BytesMut};
 use foundation::{
 	networking::{read_message, write_message},
 	prelude::{
@@ -13,7 +12,6 @@ use foundation::{
 		Request,
 	},
 };
-use prost::Message as pMessage;
 use tokio::{
 	io::AsyncWriteExt,
 	net::TcpStream,
@@ -61,7 +59,7 @@ impl Server {
 	async fn handle_protobuf_connection(
 		&self,
 		mut stream: TcpStream,
-		addr: SocketAddr,
+		_addr: SocketAddr,
 	) {
 		let message = NetworkServerMessage {
 			message: Some(network_server_message::Message::Request(Request {
