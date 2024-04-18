@@ -19,6 +19,7 @@ pub struct ListenerManager {
 impl ListenerManager {
 	/// Binds listeners and stores them in the ListenerManager
 	pub async fn new(channel: UnboundedSender<ServerMessages>) -> Self {
+		println!("[ListenerManager] setting up listeners");
 		let protobuf_listener = TcpListener::bind("0.0.0.0:6500")
 			.await
 			.expect("[ListenerManager] failed to bind to 0.0.0.0:6500");
@@ -31,6 +32,7 @@ impl ListenerManager {
 
 	pub async fn run(&self) {
 		loop {
+			println!("[ListenerManager] waiting for connection");
 			let accept_protobuf = self.protobuf_listener.accept();
 
 			let msg = select! {
@@ -41,7 +43,6 @@ impl ListenerManager {
 			};
 			println!("[ListenerManager] passing message to server");
 			self.sender.send(msg).unwrap();
-			println!("[ListenerManager] looping to accept new");
 		}
 	}
 }

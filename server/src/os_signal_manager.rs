@@ -15,7 +15,9 @@ impl OSSignalManager {
 
 	pub async fn run(&self) {
 		loop {
+			println!("[OSSignalManager] waiting for ctrl+c");
 			tokio::signal::ctrl_c().await.unwrap();
+			println!("[OSSignalManager] ctrl+c received, closing down server");
 			self
 				.server_channel
 				.send(ServerMessages::Exit)
