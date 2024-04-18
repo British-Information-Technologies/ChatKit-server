@@ -1,20 +1,4 @@
-use std::net::SocketAddr;
-
-use foundation::{
-	networking::{read_message, write_message},
-	prelude::{
-		network_client_message,
-		network_server_message,
-		GetInfo,
-		Info,
-		NetworkClientMessage,
-		NetworkServerMessage,
-		Request,
-	},
-};
 use tokio::{
-	io::AsyncWriteExt,
-	net::TcpStream,
 	sync::{
 		mpsc::{unbounded_channel, UnboundedReceiver},
 		Mutex,
@@ -24,6 +8,7 @@ use tokio::{
 
 use crate::{
 	listener_manager::{ConnectionType, ListenerManager},
+	network_connection::{NetworkConnection, ServerRequest},
 	os_signal_manager::OSSignalManager,
 };
 
@@ -49,49 +34,29 @@ impl Server {
 				Some(ServerMessages::NewConnection(
 					ConnectionType::ProtobufConnection(stream, addr),
 				)) => {
+					let conn = NetworkConnection::new(stream, addr);
 					println!("[Server] New protobuf connection");
-					self.handle_protobuf_connection(stream, addr).await;
+					self.handle_protobuf_connection(conn).await;
 				}
 			};
 		}
 	}
 
-	async fn handle_protobuf_connection(
-		&self,
-		mut stream: TcpStream,
-		_addr: SocketAddr,
-	) {
-		let message = NetworkServerMessage {
-			message: Some(network_server_message::Message::Request(Request {
-				a: true,
-			})),
-		};
+	async fn handle_protobuf_connection(&self, mut conn: NetworkConnection) {
+		let req = conn.get_request().await.unwrap();
 
-		println!("[Server] made message {:?}", message);
-		write_message(&mut stream, message).await.unwrap();
-
-		let request = read_message::<NetworkClientMessage>(&mut stream)
-			.await
-			.unwrap();
-
-		match request {
-			NetworkClientMessage {
-				message: Some(network_client_message::Message::GetInfo(GetInfo {})),
-			} => {
-				let message = NetworkServerMessage {
-					message: Some(network_server_message::Message::GotInfo(Info {
-						server_name: "Test server".into(),
-						owner: "mickyb18a@gmail.com".into(),
-					})),
-				};
-				write_message(&mut stream, message).await.unwrap();
+		match req {
+			ServerRequest::GetInfo => {
+				conn
+					.send_info("test server".into(), "mickyb18a@gmail.com".into())
+					.await
 			}
-			_ => {
-				println!("[Server] message not supported");
-			}
+			ServerRequest::Connect {
+				username: _,
+				uuid: _,
+			} => todo!(),
+			ServerRequest::Ignore => todo!(),
 		}
-
-		let _ = stream.flush().await;
 	}
 
 	fn shutdown(&self) {

@@ -11,8 +11,8 @@ pub(crate) mod scripting;
 pub(crate) mod server;
 
 pub mod listener_manager;
+pub mod network_connection;
 pub mod os_signal_manager;
-pub mod protobuf_listener;
 pub mod server_va;
 
 use crate::server_va::Server;
