@@ -35,13 +35,15 @@ impl NetworkConnection {
 			})),
 		};
 
-		println!("[NetworkConnection] made message {:?}", message);
+		println!("[NetworkConnection] sending request");
 		write_message(&mut self.stream, message).await.unwrap();
 
+		println!("[NetworkConnection] waiting for response");
 		let request = read_message::<NetworkClientMessage>(&mut self.stream)
 			.await
 			.unwrap();
 
+		println!("[NetworkConnection] returning request");
 		match request {
 			NetworkClientMessage {
 				message: Some(network_client_message::Message::GetInfo(GetInfo {})),
@@ -67,8 +69,9 @@ impl NetworkConnection {
 				owner,
 			})),
 		};
-
+		println!("[NetworkConnection] Sending info to client");
 		write_message(&mut self.stream, message).await.unwrap();
+		println!("[NetworkConnection] droping connection");
 	}
 }
 
