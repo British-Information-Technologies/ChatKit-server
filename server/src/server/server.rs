@@ -25,7 +25,6 @@ use crate::{
 		ConfigManagerDataResponse,
 		ConfigValue,
 	},
-	lua::LuaManager,
 	network::{
 		Connection,
 		ConnectionMessage::{CloseConnection, SendData},
@@ -34,7 +33,6 @@ use crate::{
 		NetworkOutput::{InfoRequested, NewClient},
 	},
 	prelude::messages::NetworkMessage,
-	rhai::RhaiManager,
 	server::{builder, ServerBuilder, ServerDataMessage, ServerDataResponse},
 };
 
@@ -46,8 +44,6 @@ pub struct Server {
 
 	network_manager: Option<Addr<NetworkManager>>,
 	client_manager: Option<Addr<ClientManager>>,
-	rhai_manager: Option<Addr<RhaiManager>>,
-	lua_manager: Option<Addr<LuaManager>>,
 }
 
 impl Server {
@@ -100,23 +96,9 @@ impl Actor for Server {
 
 		let nm = NetworkManager::create(addr.clone().recipient()).build();
 		let cm = ClientManager::new(addr.recipient());
-		let rm = RhaiManager::create(
-			ctx.address().downgrade(),
-			nm.downgrade(),
-			cm.downgrade(),
-		)
-		.build();
-		let lm = LuaManager::create(
-			ctx.address().downgrade(),
-			nm.downgrade(),
-			cm.downgrade(),
-		)
-		.build();
 
 		self.network_manager.replace(nm.clone());
 		self.client_manager.replace(cm.clone());
-		self.rhai_manager.replace(rm);
-		self.lua_manager.replace(lm);
 
 		nm.do_send(NetworkMessage::StartListening);
 
@@ -204,8 +186,6 @@ impl From<ServerBuilder> for Server {
 
 			network_manager: None,
 			client_manager: None,
-			rhai_manager: None,
-			lua_manager: None,
 		}
 	}
 }
