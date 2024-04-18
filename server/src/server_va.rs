@@ -7,8 +7,10 @@ use tokio::{
 };
 
 use crate::{
-	listener_manager::{ConnectionType, ListenerManager},
-	network_connection::{NetworkConnection, ServerRequest},
+	network::{
+		listener_manager::{ConnectionType, ListenerManager},
+		network_connection::{NetworkConnection, ServerRequest},
+	},
 	os_signal_manager::OSSignalManager,
 };
 
