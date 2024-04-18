@@ -44,18 +44,13 @@ where
 	T: Message + Default,
 {
 	let size = stream.read_u32().await?;
-	println!("need to read: {}", size);
+
 	let mut buffer = BytesMut::with_capacity(size as usize);
 	unsafe { buffer.set_len(size as usize) };
 
-	println!("buffer size: {}", buffer.len());
-
 	stream.read_exact(&mut buffer).await?;
-	println!("buffer size after read: {}", buffer.len());
-	println!("buffer content: {:?}", buffer);
 
 	let message = decode_message::<T>(buffer.into())?;
-	println!("decoded message: {:?}", message);
 
 	Ok(message)
 }
