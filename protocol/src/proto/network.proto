@@ -21,10 +21,13 @@ message Connect {
 message NetworkServerMessage {
 	oneof message {
 		Request request = 1;
+		Info got_info = 2;
 	}
 }
 
-message Request {}
+message Request {
+	bool a = 1;
+}
 
 message Info {
 	string server_name = 1;

@@ -1,5 +1,6 @@
 pub mod messages;
 pub mod models;
+pub mod networking;
 pub mod prelude;
 
 use serde::{Deserialize, Serialize};
