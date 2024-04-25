@@ -1,38 +1,31 @@
-mod info_dialogue;
-mod select_operation;
+pub mod network;
+pub mod screens;
+
+pub mod segues;
 mod settings;
 pub mod state;
 
-use cursive::{
-	event::Event,
-	menu::Tree,
-	views::{Menubar, Panel, TextView},
-	Cursive,
-};
+use cursive::{event::Event, menu::Tree, views::Menubar, Cursive};
 
 use crate::{
-	select_operation::methods_view,
+	screens::main_screen::select_operation::methods_view,
 	settings::settings_panel,
 	state::State,
 };
 
 enum MethodSelection {
 	GetInfo,
+	Connect,
 }
 
 fn menu_bar(menu_bar: &mut Menubar) {
-	menu_bar
-		.add_subtree(
-			"Chat Kit",
-			Tree::new()
-				.leaf("Settings", open_settings)
-				.delimiter()
-				.leaf("Quit", exit),
-		)
-		.add_subtree(
-			"File",
-			Tree::new().leaf("Main View", |s| s.add_layer(methods_view())),
-		);
+	menu_bar.add_subtree(
+		"Chat Kit",
+		Tree::new()
+			.leaf("Settings", open_settings)
+			.delimiter()
+			.leaf("Quit", exit),
+	);
 }
 
 fn main() {
@@ -48,7 +41,7 @@ fn main() {
 		s.select_menubar()
 	});
 
-	scr.add_layer(methods_view());
+	scr.add_layer(methods_view("127.0.0.1:6500".into()));
 
 	scr.run()
 }

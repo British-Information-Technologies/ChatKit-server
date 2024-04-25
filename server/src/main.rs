@@ -3,6 +3,7 @@
 
 pub(crate) mod network;
 
+pub mod connection;
 pub mod os_signal_manager;
 pub mod server_va;
 

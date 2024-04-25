@@ -1,4 +1,4 @@
-pub mod client_connection;
-pub mod connection_manager;
+pub mod client_reader_connection;
+pub mod client_writer_connection;
 pub mod listener_manager;
 pub mod network_connection;

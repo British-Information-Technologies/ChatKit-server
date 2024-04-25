@@ -1,12 +1,16 @@
 use tokio::{
 	sync::{
-		mpsc::{unbounded_channel, UnboundedReceiver},
+		mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 		Mutex,
 	},
 	task::JoinHandle,
 };
 
 use crate::{
+	connection::connection_manager::{
+		ConnectionManager,
+		ConnectionManagerMessage,
+	},
 	network::{
 		listener_manager::{ConnectionType, ListenerManager},
 		network_connection::{NetworkConnection, ServerRequest},
@@ -14,13 +18,20 @@ use crate::{
 	os_signal_manager::OSSignalManager,
 };
 
+/// # Server
+/// Manages communication between components in the server
+/// Main functions being the handling of new connections, and setting them up.
 pub struct Server {
-	os_event_manager_task: JoinHandle<()>,
+	connection_manager_sender: UnboundedSender<ConnectionManagerMessage>,
+	connection_manager_task: JoinHandle<()>,
 	listener_task: JoinHandle<()>,
+	os_event_manager_task: JoinHandle<()>,
 	receiver: Mutex<UnboundedReceiver<ServerMessages>>,
 }
 
 impl Server {
+	/// Loops the future, reading messages from the servers channel.
+	/// if exit is received, deconstructs all sub-tasks and exits the loop.
 	pub async fn run(&self) {
 		loop {
 			let mut lock = self.receiver.lock().await;
@@ -45,6 +56,7 @@ impl Server {
 	}
 
 	async fn handle_protobuf_connection(&self, mut conn: NetworkConnection) {
+		println!("[Server] Getting request");
 		let req = conn.get_request().await.unwrap();
 
 		match req {
@@ -54,15 +66,27 @@ impl Server {
 					.await
 			}
 			ServerRequest::Connect {
-				username: _,
-				uuid: _,
-			} => todo!(),
+				username,
+				uuid,
+				addr,
+			} => {
+				println!("[Server] sending connectionn and info to conneciton manager");
+				self.connection_manager_sender.send(
+					ConnectionManagerMessage::AddClient {
+						conn,
+						uuid,
+						username,
+						addr,
+					},
+				);
+			}
 			ServerRequest::Ignore => todo!(),
 		}
 	}
 
 	fn shutdown(&self) {
 		self.os_event_manager_task.abort();
+		self.connection_manager_task.abort();
 		self.listener_task.abort();
 	}
 }
@@ -81,14 +105,24 @@ impl Default for Server {
 			ListenerManager::new(tx2).await.run().await;
 		});
 
+		let mut connection_manager = ConnectionManager::new();
+		let connection_manager_sender = connection_manager.get_sender();
+		let connection_manager_task = tokio::spawn(async move {
+			connection_manager.run().await;
+		});
+
 		Self {
 			os_event_manager_task,
+			connection_manager_task,
+			connection_manager_sender,
 			receiver: Mutex::new(rx),
 			listener_task,
 		}
 	}
 }
 
+/// # ServerMessage
+/// enum describing all messages that the server can handle
 pub enum ServerMessages {
 	Exit,
 	NewConnection(ConnectionType),

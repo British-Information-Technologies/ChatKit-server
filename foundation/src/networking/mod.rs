@@ -5,16 +5,14 @@ use prost::{
 	Message,
 };
 use tokio::{
-	io::{AsyncReadExt, AsyncWriteExt},
+	io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
 	net::TcpStream,
 };
 
-pub async fn write_message<T>(
-	stream: &mut TcpStream,
-	message: T,
-) -> io::Result<()>
+pub async fn write_message<T, S>(stream: &mut S, message: T) -> io::Result<()>
 where
 	T: Message + Default,
+	S: AsyncWrite + AsyncWriteExt + Unpin,
 {
 	let message = encode_message::<T>(&message)?;
 	stream.write_all(&message).await?;
@@ -39,9 +37,10 @@ where
 	Ok(buffer.into())
 }
 
-pub async fn read_message<T>(stream: &mut TcpStream) -> io::Result<T>
+pub async fn read_message<T, S>(stream: &mut S) -> io::Result<T>
 where
 	T: Message + Default,
+	S: AsyncRead + AsyncReadExt + Unpin,
 {
 	let size = stream.read_u32().await?;
 
