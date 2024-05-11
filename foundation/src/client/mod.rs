@@ -1,9 +1,6 @@
 use tokio::task::JoinHandle;
 
-use crate::network::{
-	network_connection::NetworkConnection,
-	server_writer_connection::ServerWriterConnection,
-};
+use crate::client::server_writer_connection::ServerWriterConnection;
 
 pub mod network_connection;
 pub mod server_reader_connection;

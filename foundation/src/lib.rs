@@ -1,3 +1,4 @@
+pub mod client;
 pub mod messages;
 pub mod models;
 pub mod networking;

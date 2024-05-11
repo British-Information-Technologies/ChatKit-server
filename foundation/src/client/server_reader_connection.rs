@@ -1,7 +1,9 @@
 use std::io;
 
-use foundation::{networking::read_message, prelude::ConnectedServerMessage};
+use protocol::prelude::ConnectedServerMessage;
 use tokio::{io::ReadHalf, net::TcpStream};
+
+use crate::networking::protobuf::read_message;
 
 pub struct ServerReaderConnection {
 	reader: ReadHalf<TcpStream>,

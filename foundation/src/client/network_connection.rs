@@ -1,23 +1,24 @@
 use std::{io, net::SocketAddr};
 
-use foundation::{
-	networking::{read_message, write_message},
-	prelude::{
-		network_server_message,
-		Connect,
-		GetInfo,
-		Info,
-		NetworkClientMessage,
-		NetworkServerMessage,
-		Request,
-	},
+use protocol::prelude::{
+	network_client_message,
+	network_server_message,
+	Connect,
+	GetInfo,
+	Info,
+	NetworkClientMessage,
+	NetworkServerMessage,
+	Request,
 };
 use tokio::{io::split, net::TcpStream};
 use uuid::Uuid;
 
-use crate::network::{
-	server_reader_connection::ServerReaderConnection,
-	server_writer_connection::ServerWriterConnection,
+use crate::{
+	client::{
+		server_reader_connection::ServerReaderConnection,
+		server_writer_connection::ServerWriterConnection,
+	},
+	networking::protobuf::{read_message, write_message},
 };
 
 /// # NetworkConnection
@@ -54,11 +55,7 @@ impl NetworkConnection {
 		_ = write_message(
 			&mut self.stream,
 			NetworkClientMessage {
-				message: Some(
-					foundation::prelude::network_client_message::Message::GetInfo(
-						GetInfo {},
-					),
-				),
+				message: Some(network_client_message::Message::GetInfo(GetInfo {})),
 			},
 		)
 		.await;
@@ -88,14 +85,10 @@ impl NetworkConnection {
 		_ = write_message(
 			&mut self.stream,
 			NetworkClientMessage {
-				message: Some(
-					foundation::prelude::network_client_message::Message::Connect(
-						Connect {
-							username,
-							uuid: uuid.to_string(),
-						},
-					),
-				),
+				message: Some(network_client_message::Message::Connect(Connect {
+					username,
+					uuid: uuid.to_string(),
+				})),
 			},
 		)
 		.await;
