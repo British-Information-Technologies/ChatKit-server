@@ -1,10 +1,5 @@
 use async_trait::async_trait;
-use tokio::{
-	net::TcpListener,
-	select,
-	sync::mpsc::UnboundedSender,
-	task::JoinHandle,
-};
+use tokio::{net::TcpListener, sync::mpsc::UnboundedSender, task::JoinHandle};
 
 use crate::{
 	network::{ConnectionType, NetworkListener},
@@ -37,16 +32,18 @@ impl NetworkListener for ProtobufListener {
 	async fn run(&self) {
 		loop {
 			println!("[ProtobufListener] waiting for connection");
-			let accept_protobuf = self.protobuf_listener.accept();
-
-			let msg = select! {
-				Ok((stream, addr)) = accept_protobuf => {
-					println!("[ProtobufListener] accepted connection");
-					ServerMessages::NewConnection(ConnectionType::ProtobufConnection(stream, addr))
-				}
+			let accept_protobuf = self.protobuf_listener.accept().await;
+			let Ok((stream, addr)) = accept_protobuf else {
+				println!("[ProtobufListener] accept failed");
+				continue;
 			};
+
+			let msg = ServerMessages::NewConnection(
+				ConnectionType::ProtobufConnection(stream, addr),
+			);
+
 			println!("[ProtobufListener] passing message to server");
-			self.sender.send(msg).unwrap();
+			_ = self.sender.send(msg);
 		}
 	}
 
