@@ -1,8 +1,9 @@
 //! This is the main module of the actix server.
 //! It starts the server and sleeps for the remainder of the program
 
-pub(crate) mod network;
+pub mod network;
 
+pub mod chat;
 pub mod connection;
 pub mod os_signal_manager;
 pub mod server_va;

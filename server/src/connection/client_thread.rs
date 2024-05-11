@@ -1,17 +1,5 @@
-use foundation::prelude::{
-	connected_client_message,
-	ClientDetails,
-	ConnectedClientMessage,
-	Disconnect,
-	GetClients,
-	GetGlobalMessages,
-	SendGlobalMessage,
-	SendPrivateMessage,
-};
-use tokio::{
-	sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-	task::JoinHandle,
-};
+use foundation::prelude::{ClientDetails, GlobalMessage, PrivateMessage};
+use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 use uuid::Uuid;
 
 use crate::{
@@ -19,117 +7,81 @@ use crate::{
 		client_info::ClientInfo,
 		connection_manager::ConnectionManagerMessage,
 	},
-	network::{
-		client_reader_connection::ClientReaderConnection,
-		client_writer_connection::ClientWriterConnection,
-		network_connection::NetworkConnection,
-	},
+	network::{ClientWriter, NetworkConnection},
 };
 
 pub struct ClientThread {
 	read_task: JoinHandle<()>,
-	write_task: JoinHandle<()>,
-	sender: UnboundedSender<ClientMessage>,
+	writer: Box<dyn ClientWriter>,
 }
 
 impl ClientThread {
 	pub async fn new_run(
 		uuid: Uuid,
-		conn: NetworkConnection,
+		conn: Box<dyn NetworkConnection>,
 		connection_manager_sender: UnboundedSender<ConnectionManagerMessage>,
 	) -> Self {
-		let (writer, reader) = conn.send_connected().await;
-		let (tx, rx) = unbounded_channel();
+		println!("[ClientThread] creating thread");
+		let (writer, reader) = conn.send_connected(uuid).await;
 
-		Self {
-			read_task: tokio::spawn(Self::run_read(
-				uuid,
-				reader,
-				connection_manager_sender,
-			)),
-			write_task: tokio::spawn(Self::run_write(uuid, writer, rx)),
-			sender: tx,
+		println!("[ClientThread] creating tasks");
+		ClientThread {
+			read_task: reader.start_run(uuid, connection_manager_sender.clone()),
+			writer,
 		}
 	}
 
-	async fn run_read(
-		uuid: Uuid,
-		mut reader: ClientReaderConnection,
-		channel: UnboundedSender<ConnectionManagerMessage>,
-	) {
-		use connected_client_message::Message;
-
-		loop {
-			println!("[ClientThread:run_read:{}]", uuid);
-			let msg = reader.get_message().await;
-
-			match msg {
-				Ok(ConnectedClientMessage {
-					message: Some(Message::GetClients(GetClients {})),
-				}) => channel.send(ConnectionManagerMessage::SendClientsTo { uuid }),
-				Ok(ConnectedClientMessage {
-					message: Some(Message::GetGlobalMessage(GetGlobalMessages {})),
-				}) => {
-					channel.send(ConnectionManagerMessage::SendGlobalMessagesTo { uuid })
-				}
-				Ok(ConnectedClientMessage {
-					message:
-						Some(Message::SendPrivateMessage(SendPrivateMessage {
-							uuid: message_uuid,
-							to,
-							content,
-						})),
-				}) => channel.send(ConnectionManagerMessage::SendPrivateMessage {
-					uuid: message_uuid,
-					from: uuid,
-					to: to.parse().unwrap(),
-					content,
-				}),
-				Ok(ConnectedClientMessage {
-					message:
-						Some(Message::SendGlobalMessage(SendGlobalMessage { content })),
-				}) => channel.send(ConnectionManagerMessage::BroadcastGlobalMessage {
-					from: uuid,
-					content,
-				}),
-				Ok(ConnectedClientMessage {
-					message: Some(Message::Disconnect(Disconnect {})),
-				}) => channel.send(ConnectionManagerMessage::Disconnect { uuid }),
-				Ok(ConnectedClientMessage { message: None }) => unimplemented!(),
-
-				Err(_) => todo!(),
-			};
-
-			break;
-		}
+	pub async fn send_clients(&mut self, clients: Vec<ClientDetails>) {
+		self.writer.send_clients(clients).await
 	}
 
-	async fn run_write(
-		uuid: Uuid,
-		mut conn: ClientWriterConnection,
-		mut receiver: UnboundedReceiver<ClientMessage>,
-	) {
-		loop {
-			let msg = receiver.recv().await;
+	pub async fn send_client_joined(&mut self, details: ClientDetails) {
+		self.writer.send_client_joined(details).await;
+	}
+	pub async fn send_client_left(&mut self, uuid: Uuid) {
+		self.writer.send_client_left(uuid).await
+	}
 
-			match msg {
-				Some(ClientMessage::SendClients(clients)) => {
-					let clients = clients
-						.into_iter()
-						.map(|c| ClientDetails {
-							uuid: c.get_uuid().to_string(),
-							name: c.get_username(),
-							address: c.get_addr().to_string(),
-						})
-						.collect();
-					conn.send_clients(clients).await
-				}
-				None => {}
-			};
-		}
+	// todo: link this in with message storage
+	pub(crate) async fn send_global_message(&mut self, message: GlobalMessage) {
+		self.writer.send_global_message(message).await;
+	}
+
+	pub(crate) async fn send_global_messages(
+		&mut self,
+		messages: Vec<GlobalMessage>,
+	) {
+		self.writer.send_global_messages(messages).await;
+	}
+
+	pub(crate) async fn send_disconnected(&mut self) {
+		self.writer.send_disconnect().await
+	}
+
+	pub(crate) async fn send_private_message(
+		&mut self,
+		from: Uuid,
+		uuid: Uuid,
+		content: String,
+	) {
+		self
+			.writer
+			.send_private_message(PrivateMessage {
+				uuid: uuid.to_string(),
+				from: from.to_string(),
+				content,
+			})
+			.await;
+	}
+}
+
+impl Drop for ClientThread {
+	fn drop(&mut self) {
+		self.read_task.abort();
 	}
 }
 
 pub enum ClientMessage {
 	SendClients(Vec<ClientInfo>),
+	SendGlobalMessages(Vec<GlobalMessage>),
 }

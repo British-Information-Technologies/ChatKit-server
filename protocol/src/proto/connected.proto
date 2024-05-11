@@ -35,12 +35,23 @@ message ConnectedServerMessage {
 		ConnectedClients connected_clients = 1;
 		GlobalMessages global_messages = 2;
 		PrivateMessage private_message = 3;
-		Disconnected Disconnected = 4;
+		Disconnected disconnected = 4;
+		GlobalMessage global_message = 5;
+		ClientConnected client_connected = 6;
+		ClientDisconnected client_disconnected = 7;
 	}
 }
 
 message ConnectedClients {
 	repeated ClientDetails clients = 1;
+}
+
+message ClientConnected {
+	ClientDetails details = 1;
+}
+
+message ClientDisconnected {
+	string uuid = 1;
 }
 
 message ClientDetails {
