@@ -96,7 +96,12 @@ impl Server {
 		mut conn: Box<dyn NetworkConnection>,
 	) {
 		println!("[Server] Getting request");
-		let req = conn.get_request().await.unwrap();
+		let req = conn.get_request().await;
+
+		let Ok(req) = req else {
+			println!("[Server] Got invalid request");
+			return;
+		};
 
 		match req {
 			ServerRequest::GetInfo => {
