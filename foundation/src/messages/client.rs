@@ -5,7 +5,7 @@ use crate::{models::message::Message, ClientDetails};
 
 /// This enum defined the message that the server will receive from a client
 /// This uses the serde library to transform to and from json.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientStreamIn {
 	GetClients,

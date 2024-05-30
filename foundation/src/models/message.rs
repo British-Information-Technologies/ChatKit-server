@@ -4,10 +4,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
-	id: Uuid,
-	from: Uuid,
-	content: String,
-	time: DateTime<Local>,
+	pub id: Uuid,
+	pub from: Uuid,
+	pub content: String,
+	pub time: DateTime<Local>,
 }
 
 impl Message {

@@ -23,7 +23,7 @@ pub enum NetworkSockOut {
 		server_name: String,
 		server_owner: String,
 	},
-	Connecting,
+	Connected,
 
 	Error,
 }
@@ -42,7 +42,7 @@ impl PartialEq for NetworkSockOut {
 					server_name: name_other,
 				},
 			) => server_name == name_other && server_owner == owner_other,
-			(NetworkSockOut::Connecting, NetworkSockOut::Connecting) => true,
+			(NetworkSockOut::Connected, NetworkSockOut::Connected) => true,
 			_ => false,
 		}
 	}

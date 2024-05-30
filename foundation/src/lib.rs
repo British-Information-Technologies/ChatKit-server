@@ -1,17 +1,14 @@
-extern crate core;
-pub mod connection;
-pub mod encryption;
-pub mod event;
+pub mod client;
 pub mod messages;
 pub mod models;
+pub mod networking;
 pub mod prelude;
-pub mod test;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /**
- * #ClientDetails.
+ * # ClientDetails.
  * This defines the fileds a client would want to send when connecitng
  * uuid:          the unique id of the user.
  * username:      the users user name.

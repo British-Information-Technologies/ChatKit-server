@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package chatkit.messages;
+
+// Network messages sent from the client.
+message NetworkClientMessage {
+	oneof message {
+		GetInfo get_info = 1;
+		Connect connect = 2;
+	}
+}
+
+message GetInfo {}
+
+message Connect {
+	string username = 1;
+	string uuid = 2;
+}
+
+// Network messages sent from the server.
+message NetworkServerMessage {
+	oneof message {
+		Request request = 1;
+		Info got_info = 2;
+		Connected connected = 3;
+		
+	}
+}
+
+message Request {}
+
+message Info {
+	string server_name = 1;
+	string owner = 2;
+}
+
+message Connected {}

@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package chatkit.messages;
+
+// messages from the client when connected.
+message ConnectedClientMessage {
+	oneof message {
+		GetClients get_clients = 1;
+		GetGlobalMessages get_global_message = 2;
+		SendGlobalMessage send_global_message = 3;
+		SendPrivateMessage send_private_message = 4;
+		Disconnect disconnect = 5;
+	}
+}
+
+message GetClients {}
+message GetGlobalMessages {}
+
+message SendGlobalMessage {
+	string content = 1;
+}
+
+message SendPrivateMessage {
+	string uuid = 1;
+	string to = 2;
+	string content = 3;
+}
+
+message Disconnect {}
+
+
+// messages from the Server when connected.
+message ConnectedServerMessage {
+	oneof message {
+		ConnectedClients connected_clients = 1;
+		GlobalMessages global_messages = 2;
+		PrivateMessage private_message = 3;
+		Disconnected disconnected = 4;
+		GlobalMessage global_message = 5;
+		ClientConnected client_connected = 6;
+		ClientDisconnected client_disconnected = 7;
+	}
+}
+
+message ConnectedClients {
+	repeated ClientDetails clients = 1;
+}
+
+message ClientConnected {
+	ClientDetails details = 1;
+}
+
+message ClientDisconnected {
+	string uuid = 1;
+}
+
+message ClientDetails {
+	string uuid = 1;
+	string name = 2;
+	string address = 3;
+}
+
+message GlobalMessages {
+	repeated GlobalMessage messages = 1;
+}
+
+message GlobalMessage {
+	string uuid = 1;
+	string from = 2;
+	string content = 3;
+}
+
+message PrivateMessage {
+	string uuid = 1;
+	string from = 2;
+	string content = 3;
+}
+
+message Disconnected {
+	string reason = 1;
+}
