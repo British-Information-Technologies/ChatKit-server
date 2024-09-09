@@ -74,7 +74,7 @@ impl Server {
 					ConnectionType::JsonConnection(stream, addr),
 				)) => {
 					let conn = Box::new(JSONNetworkConnection::new(stream, addr));
-					println!("[Server] New protobuf connection");
+					println!("[Server] New json connection");
 					self.handle_protobuf_connection(conn).await;
 				}
 				Some(ServerMessages::SendGlobalMessages(uuid)) => {

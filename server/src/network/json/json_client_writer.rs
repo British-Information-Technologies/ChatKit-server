@@ -61,7 +61,7 @@ impl ClientWriter for JSONClientWriter {
 			username: details.name,
 		};
 		println!(
-			"[ProtobufClientWriter:{}] sending client connected message",
+			"[JSONClientReader:{}] sending client connected message",
 			self.addr
 		);
 		write_message(&mut self.writer, message).await;
@@ -70,7 +70,7 @@ impl ClientWriter for JSONClientWriter {
 	async fn send_client_left(&mut self, uuid: Uuid) {
 		let message = ClientStreamOut::ClientRemoved { id: uuid };
 		println!(
-			"[ProtobufClientWriter:{}] sending client connected message",
+			"[JSONClientReader:{}] sending client connected message",
 			self.addr
 		);
 		write_message(&mut self.writer, message).await;
