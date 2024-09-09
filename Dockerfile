@@ -1,12 +1,18 @@
 # First stage: build the server file.
 FROM rust:alpine AS build
 
+# Build dependencies
 RUN apk add musl-dev
-
-
-RUN apk upgrade --update-cache --available && \
-    apk add openssl-dev && \
-    rm -rf /var/cache/apk/*
+RUN apk add openssl-dev
+RUN apk add protobuf
 
 COPY . .
-CMD ["cargo", "run", "--release", "--bin", "server"]
+RUN cargo build --release --bin server
+
+FROM alpine:latest AS exec
+
+RUN apk add openssl-dev
+
+COPY --from=build ./target/release/server /server/server
+
+CMD ["/server/server"]
