@@ -1,8 +1,6 @@
 name: Rust
 
 on:
-  push:
-    branches: [ ref-method ]
   pull_request:
     branches: [ master ]
 
@@ -11,15 +9,12 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
+    runs-on: ubuntu-latest
     steps:
+    - name: Install protobuffer compiler
+      run: sudo apt-get install -y protobuf-compiler
     - uses: actions/checkout@v2
     - name: check
       run: cargo check --verbose
-    - name: Build
-      run: cargo build --verbose
-
+    - name: test
+      run: cargo test --verbose
