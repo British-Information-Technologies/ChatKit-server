@@ -15,4 +15,7 @@ RUN apk add openssl-dev
 
 COPY --from=build ./target/release/server /server/server
 
+EXPOSE 5600/tcp
+EXPOSE 6500/tcp
+
 CMD ["/server/server"]
